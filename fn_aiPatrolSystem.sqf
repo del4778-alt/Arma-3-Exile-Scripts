@@ -1,27 +1,14 @@
 /*
     File: fn_aiPatrolSystem_Enhanced.sqf
-    Author: Elite Battle System v4.0 - GOD-TIER PATROL EDITION
+    Author: Elite Battle System v4.0 - Modified for Military Building Patrols
     Description:
-        Elite GM6 Sniper + AA patrol system with EXTREME MODE enhancements
+        Modified patrol system with custom gear that patrols military buildings
         - Automatically finds all ExileSpawnZone markers
-        - Creates god-tier patrols for each spawn city
-        - EXTREME MODE: Perfect aim, 1.4x speed, never flee, ultra-aggressive
-        - GM6 Lynx .50 cal with APDS rounds
-        - AK-12 with full attachments
-        - Pre-loaded launchers
-        - Enhanced target validation
-        - Smart rearm system
-        
-    v4.0 ENHANCEMENTS (from recruit script):
-        ✓ All AI skills set to 1.0 (perfect aim, spotting, reload)
-        ✓ COMBAT + RED behavior (ultra-aggressive)
-        ✓ allowFleeing 0 (never retreat)
-        ✓ 1.4x movement speed boost
-        ✓ Enhanced weapon loadouts (GM6 + APDS, AK-12)
-        ✓ Pre-loaded launchers (spawn ready to fight)
-        ✓ Enhanced target validation
-        ✓ Smart rearm system
-        ✓ Better utility functions
+        - Only spawns patrols at zones where players are nearby (2000m)
+        - Dynamically activates/deactivates based on player proximity
+        - Custom gear: Bandanna, backpack, gorka uniform, gold weapons
+        - Patrols nearby military buildings instead of circular patrol
+        - Cleans up all AI when no players online
         
     CONFIGURATION:
         - Edit EXILE_PATROL_CONFIG below to set units per city, respawn delay, etc.
@@ -44,14 +31,15 @@ PATROL_nearbyPlayers = [];
 // ============================================
 
 EXILE_PATROL_CONFIG = [
-    4,      // Units per patrol group
+    3,      // Units per patrol group
     300,    // Respawn delay (seconds) after all units killed
-    2000,   // Cache distance (meters) - patrols despawn if no players within this range
-    999     // Max respawn attempts (999 = unlimited)
+    1000,   // Cache distance (meters) - patrols despawn if no players within this range
+    999,    // Max respawn attempts (999 = unlimited)
+    2000    // Player detection radius (meters) - only spawn AI at zones within this distance of players
 ];
 
 // ============================================
-// ENHANCED CONFIGURATION (GOD-TIER MODE)
+// ENHANCED CONFIGURATION
 // ============================================
 
 DEFENDER_DETECTION_RADIUS = 1500;
@@ -62,7 +50,7 @@ DEFENDER_REARM_CHECK_INTERVAL = 30;
 DEFENDER_GRENADE_USAGE_CHANCE = 0.7;
 DEFENDER_STATIC_WEAPON_DISTANCE = 100;
 DEFENDER_CALLOUT_INTERVAL = 8;
-DEFENDER_PATROL_RADIUS = 80;
+DEFENDER_MILITARY_SEARCH_RADIUS = 300;  // Search radius for military buildings
 
 // ============================================
 // FACTION RELATIONS - SET ONCE GLOBALLY
@@ -85,7 +73,7 @@ if (isNil "PATROL_FactionsConfigured") then {
     diag_log "[AI] Faction relations configured: RESISTANCE patrols will engage WEST & EAST";
 };
 
-diag_log "[AI] Starting GOD-TIER Elite Patrol System v4.0 - EXTREME MODE...";
+diag_log "[AI] Starting Modified Patrol System - Military Building Patrols...";
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -144,6 +132,60 @@ DEFENDER_fnc_isValidTarget = {
     
     true
 };
+
+// ============================================
+// MILITARY BUILDING FINDER
+// ============================================
+
+DEFENDER_fnc_findMilitaryBuildings = {
+    params ["_centerPos", "_radius"];
+    
+    // Specific military building classnames to search for
+    private _militaryClassnames = [
+        "Land_TentHangar_V1_F",
+        "Land_Hangar_F",
+        "Land_Airport_Tower_F",
+        "Land_Cargo_House_V1_F",
+        "Land_Cargo_House_V3_F",
+        "Land_Cargo_HQ_V1_F",
+        "Land_Cargo_HQ_V2_F",
+        "Land_Cargo_HQ_V3_F",
+        "Land_u_Barracks_V2_F",
+        "Land_i_Barracks_V2_F",
+        "Land_i_Barracks_V1_F",
+        "Land_Cargo_Patrol_V1_F",
+        "Land_Cargo_Patrol_V2_F",
+        "Land_Cargo_Tower_V1_F",
+        "Land_Cargo_Tower_V1_No1_F",
+        "Land_Cargo_Tower_V1_No2_F",
+        "Land_Cargo_Tower_V1_No3_F",
+        "Land_Cargo_Tower_V1_No4_F",
+        "Land_Cargo_Tower_V1_No5_F",
+        "Land_Cargo_Tower_V1_No6_F",
+        "Land_Cargo_Tower_V1_No7_F",
+        "Land_Cargo_Tower_V2_F",
+        "Land_Cargo_Tower_V3_F",
+        "Land_MilOffices_V1_F",
+        "Land_Radar_F"
+    ];
+    
+    private _militaryBuildings = [];
+    private _allBuildings = nearestObjects [_centerPos, ["House", "Building"], _radius];
+    
+    {
+        private _building = _x;
+        private _typeOf = typeOf _building;
+        
+        // Check if building classname matches our military list
+        if (_typeOf in _militaryClassnames) then {
+            _militaryBuildings pushBack _building;
+        };
+    } forEach _allBuildings;
+    
+    diag_log format["[AI] Found %1 military buildings near position %2", count _militaryBuildings, _centerPos];
+    _militaryBuildings
+};
+
 
 // ============================================
 // EXILE SPAWN ZONE DETECTOR
@@ -251,173 +293,83 @@ DEFENDER_fnc_findCover = {
 };
 
 // ============================================
-// VEHICLE OCCUPANCY CHECK
+// BASIC WEAPON LOADOUT (Simple loadout)
 // ============================================
 
-DEFENDER_fnc_isVehicleOccupied = {
-    params ["_vehicle"];
-    
-    if (isNull _vehicle) exitWith {false};
-    if (!(_vehicle isKindOf "LandVehicle" || _vehicle isKindOf "Air" || _vehicle isKindOf "Ship")) exitWith {false};
-    
-    private _crew = crew _vehicle;
-    (count _crew > 0)
-};
-
-// ============================================
-// ENHANCED REARM SYSTEM
-// ============================================
-
-DEFENDER_fnc_rearmUnit = {
-    params ["_unit", "_role"];
-    
-    if (!alive _unit) exitWith {};
-    
-    // Remove all existing gear
-    removeAllWeapons _unit;
-    removeAllItems _unit;
-    removeAllAssignedItems _unit;
-    
-    // Re-add gear based on role
-    switch (_role) do {
-        case "AA": {
-            // Anti-Air Specialist with MMG
-            _unit addWeapon "MMG_01_hex_ARCO_LP_F";
-            _unit addPrimaryWeaponItem "acc_pointer_IR";
-            _unit addPrimaryWeaponItem "bipod_02_F_hex";
-            
-            for "_i" from 1 to 3 do {
-                _unit addMagazine "150Rnd_93x64_Mag";
-            };
-            
-            _unit addMagazine "Titan_AA";
-            _unit addWeapon "launch_B_Titan_F";
-            
-            _unit addWeapon "Rangefinder";
-            
-            for "_i" from 1 to 2 do {
-                _unit addMagazine "SmokeShell";
-                _unit addMagazine "HandGrenade";
-            };
-            
-            for "_i" from 1 to 2 do {
-                _unit addItem "FirstAidKit";
-            };
-        };
-        case "AT": {
-            // Anti-Tank with AK-12
-            _unit addWeapon "arifle_AK12_F";
-            _unit addPrimaryWeaponItem "acc_flashlight";
-            _unit addPrimaryWeaponItem "optic_Hamr";
-            _unit addPrimaryWeaponItem "muzzle_snds_B";
-            
-            for "_i" from 1 to 8 do {
-                _unit addMagazine "30Rnd_762x39_AK12_Mag_F";
-            };
-            
-            _unit addMagazine "RPG32_F";
-            _unit addWeapon "launch_RPG32_F";
-            
-            _unit addWeapon "Rangefinder";
-            
-            for "_i" from 1 to 2 do {
-                _unit addMagazine "SmokeShell";
-                _unit addMagazine "HandGrenade";
-            };
-            
-            for "_i" from 1 to 2 do {
-                _unit addItem "FirstAidKit";
-            };
-        };
-        case "Sniper": {
-            // Sniper with GM6 Lynx .50 cal + APDS (only optic supported)
-            _unit addWeapon "srifle_GM6_F";
-            _unit addPrimaryWeaponItem "optic_LRPS";
-            
-            for "_i" from 1 to 6 do {
-                _unit addMagazine "5Rnd_127x108_APDS_Mag";
-            };
-            
-            _unit addWeapon "Laserdesignator";
-            
-            for "_i" from 1 to 2 do {
-                _unit addMagazine "SmokeShell";
-            };
-            
-            for "_i" from 1 to 2 do {
-                _unit addItem "FirstAidKit";
-            };
-        };
-        default {
-            // Rifleman with AK-12
-            _unit addWeapon "arifle_AK12_F";
-            _unit addPrimaryWeaponItem "acc_flashlight";
-            _unit addPrimaryWeaponItem "optic_Hamr";
-            _unit addPrimaryWeaponItem "muzzle_snds_B";
-            
-            for "_i" from 1 to 8 do {
-                _unit addMagazine "30Rnd_762x39_AK12_Mag_F";
-            };
-            
-            _unit addWeapon "hgun_Pistol_heavy_01_F";
-            for "_i" from 1 to 3 do {
-                _unit addMagazine "11Rnd_45ACP_Mag";
-            };
-            
-            for "_i" from 1 to 2 do {
-                _unit addMagazine "SmokeShell";
-                _unit addMagazine "HandGrenade";
-            };
-            
-            for "_i" from 1 to 2 do {
-                _unit addItem "FirstAidKit";
-            };
-        };
-    };
-    
-    // Snapshot starting magazines for ammo tracking
-    _unit setVariable ["DEFENDER_startMags", magazines _unit];
-    
-    diag_log format["[AI] Rearmed %1 unit: %2", _role, name _unit];
-};
-
-// ============================================
-// GOD-TIER AI SKILL CONFIGURATION
-// ============================================
-
-DEFENDER_fnc_setGodTierSkills = {
+DEFENDER_fnc_giveBasicWeapons = {
     params ["_unit"];
     
     if (!alive _unit) exitWith {};
     
-    // EXTREME MODE: All skills at maximum (1.0)
-    _unit setSkill ["aimingAccuracy", 1.0];
-    _unit setSkill ["aimingShake", 1.0];
-    _unit setSkill ["aimingSpeed", 1.0];
-    _unit setSkill ["spotDistance", 1.0];
-    _unit setSkill ["spotTime", 1.0];
+    // Give GOLD AK (Exile version)
+    _unit addWeapon "Exile_Weapon_AKS_Gold";
+    for "_i" from 1 to 6 do {
+        _unit addMagazine "Exile_Magazine_30Rnd_762x39_AK";
+    };
+    
+    // Give GOLD TAURUS pistol (Exile version)
+    _unit addWeapon "Exile_Weapon_TaurusGold";
+    for "_i" from 1 to 3 do {
+        _unit addMagazine "Exile_Magazine_6Rnd_45ACP";
+    };
+    
+    // Basic items
+    for "_i" from 1 to 2 do {
+        _unit addMagazine "SmokeShell";
+        _unit addMagazine "HandGrenade";
+    };
+    
+    for "_i" from 1 to 2 do {
+        _unit addItem "FirstAidKit";
+    };
+    
+    // Snapshot starting magazines for ammo tracking
+    _unit setVariable ["DEFENDER_startMags", magazines _unit];
+};
+
+// ============================================
+// ENHANCED AI SKILL CONFIGURATION
+// ============================================
+
+DEFENDER_fnc_setEnhancedSkills = {
+    params ["_unit"];
+    
+    if (!alive _unit) exitWith {};
+    
+    // Enhanced skills
+    _unit setSkill ["aimingAccuracy", 0.8];
+    _unit setSkill ["aimingShake", 0.8];
+    _unit setSkill ["aimingSpeed", 0.8];
+    _unit setSkill ["spotDistance", 0.9];
+    _unit setSkill ["spotTime", 0.9];
     _unit setSkill ["courage", 1.0];
-    _unit setSkill ["reloadSpeed", 1.0];
-    _unit setSkill ["commanding", 1.0];
-    _unit setSkill ["general", 1.0];
+    _unit setSkill ["reloadSpeed", 0.8];
+    _unit setSkill ["commanding", 0.8];
+    _unit setSkill ["general", 0.8];
     
-    // COMBAT + RED behavior (ultra-aggressive)
-    _unit setBehaviour "COMBAT";
-    _unit setCombatMode "RED";
     
-    // Never flee, never surrender
-    _unit allowFleeing 0;
-    
-    // 1.4x movement speed boost (god-tier operators move faster)
+    // 1.4x MOVEMENT SPEED (AI move faster than player)
     _unit setAnimSpeedCoef 1.4;
     
-    // Disable auto rearm (we control this)
-    _unit setVariable ["BIS_noCoreConversations", true];
-    _unit disableAI "AUTOTARGET";
+    // EXTREME AI BEHAVIOR SETTINGS
+    _unit setBehaviour "AWARE";
+    _unit setCombatMode "YELLOW";
+    _unit allowFleeing 0;
+    _unit disableAI "SUPPRESSION";
+    _unit setUnitPos "AUTO";
+    
+    // Maximize aggression and awareness
     _unit enableAI "TARGET";
     _unit enableAI "AUTOTARGET";
+    _unit enableAI "MOVE";
+    _unit enableAI "ANIM";
+    _unit enableAI "FSM";
+    _unit enableAI "AIMINGERROR";
+    _unit enableAI "COVER";
+    _unit enableAI "AUTOCOMBAT";
     
-    diag_log format["[AI] God-tier skills applied to: %1", name _unit];
+    // Disable auto rearm
+    _unit setVariable ["BIS_noCoreConversations", true];
 };
 
 // ============================================
@@ -453,16 +405,10 @@ DEFENDER_fnc_enhancedCombatAI = {
             _grp setCombatMode "RED";
             _grp setSpeedMode "FULL";
             
-            // Target callout
-            private _dist = floor(_unit distance _nearestEnemy);
-            private _dir = _unit getDir _nearestEnemy;
-            private _dirName = [_dir] call DEFENDER_fnc_getDirectionName;
-            private _enemyType = if (_nearestEnemy isKindOf "CAManBase") then {"Infantry"} else {"Vehicle"};
-            
-            diag_log format["[AI] %1 engaging %2 - %3m %4", name _unit, _enemyType, _dist, _dirName];
+            // Target callout removed to reduce log spam
             
             // Use grenade if close
-            if (_dist < 40 && random 1 < DEFENDER_GRENADE_USAGE_CHANCE) then {
+            if (_minDist < 40 && random 1 < DEFENDER_GRENADE_USAGE_CHANCE) then {
                 if ("HandGrenade" in magazines _unit) then {
                     _unit doTarget _nearestEnemy;
                     sleep 0.5;
@@ -478,14 +424,6 @@ DEFENDER_fnc_enhancedCombatAI = {
                     _unit setUnitPos "MIDDLE"; // Crouch in combat
                 };
             };
-            
-            // Check ammo and rearm if needed
-            private _ammoPercent = [_unit] call DEFENDER_fnc_getAmmoPercentage;
-            if (_ammoPercent < 0.2) then {
-                private _role = _unit getVariable ["DEFENDER_Role", "Rifleman"];
-                [_unit, _role] call DEFENDER_fnc_rearmUnit;
-                diag_log format["[AI] %1 rearmed (%2)", name _unit, _role];
-            };
         } else {
             // Patrol behavior when no enemy
             _unit setUnitPos "AUTO";
@@ -494,7 +432,7 @@ DEFENDER_fnc_enhancedCombatAI = {
 };
 
 // ============================================
-// ENHANCED SPAWN FUNCTION WITH GOD-TIER FEATURES
+// ENHANCED SPAWN FUNCTION WITH MILITARY BUILDING PATROL
 // ============================================
 
 DEFENDER_fnc_spawnPatrolZones = {
@@ -512,7 +450,7 @@ DEFENDER_fnc_spawnPatrolZones = {
             _cityName = _zoneMarker;
         };
         
-        diag_log format["[AI] Initializing GOD-TIER patrol zone: %1 at %2", _cityName, _markerPos];
+        diag_log format["[AI] Initializing patrol zone: %1 at %2", _cityName, _markerPos];
         
         if ((_markerPos select 0) != 0 || (_markerPos select 1) != 0) then {
             private _handle = [_zoneMarker, _cityName, _markerPos, _defendersPerGroup, _respawnDelay, _cacheDistance, _maxRespawnAttempts] spawn {
@@ -524,11 +462,7 @@ DEFENDER_fnc_spawnPatrolZones = {
                     private _defenderGrp = createGroup RESISTANCE;
                     PATROL_AllGroups pushBack _defenderGrp;
                     
-                    private _roles = ["AA", "AT", "Sniper", "Rifleman"];
-                    
                     for "_i" from 1 to _defendersPerGroup do {
-                        private _role = _roles select ((_i - 1) mod (count _roles));
-                        
                         private _spawnPos = [_markerPos, 5, 30, 5, 0, 60, 0] call BIS_fnc_findSafePos;
                         private _defender = _defenderGrp createUnit ["I_Soldier_F", _spawnPos, [], 0, "FORM"];
                         
@@ -541,29 +475,33 @@ DEFENDER_fnc_spawnPatrolZones = {
                         removeHeadgear _defender;
                         removeGoggles _defender;
                         
-                        // Add uniform and gear
-                        _defender forceAddUniform "U_I_CombatUniform";
-                        _defender addVest "V_PlateCarrierIA2_dgtl";
-                        _defender addBackpack "B_ViperHarness_blk_F";
-                        _defender addHeadgear "H_HelmetIA";
+                        // === ADD CUSTOM GEAR ===
+                        // Uniform
+                        _defender forceAddUniform "U_O_R_Gorka_01_black_F";
                         
-                        // Add NVG capability (built into helmet)
-                        _defender linkItem "NVGoggles_INDEP";
+                        // Vest
+                        _defender addVest "V_Rangemaster_belt";
                         
-                        // Add GPS and other items
+                        // Backpack
+                        _defender addBackpack "B_CivilianBackpack_01_Everyday_IDAP_F";
+                        
+                        // Headgear
+                        _defender addHeadgear "H_Bandanna_surfer_blk";
+                        
+                        // Goggles
+                        _defender addGoggles "G_Bandanna_Syndikat2";
+                        
+                        // Add basic items
                         _defender linkItem "ItemMap";
                         _defender linkItem "ItemCompass";
                         _defender linkItem "ItemWatch";
                         _defender linkItem "ItemGPS";
                         
-                        // Store role
-                        _defender setVariable ["DEFENDER_Role", _role];
+                        // Give basic weapons
+                        [_defender] call DEFENDER_fnc_giveBasicWeapons;
                         
-                        // Load role-specific gear
-                        [_defender, _role] call DEFENDER_fnc_rearmUnit;
-                        
-                        // Apply GOD-TIER skills and behavior
-                        [_defender] call DEFENDER_fnc_setGodTierSkills;
+                        // Apply enhanced skills
+                        [_defender] call DEFENDER_fnc_setEnhancedSkills;
                         
                         // Audio detection event handler
                         private _audioEH = _defender addEventHandler ["FiredNear", {
@@ -573,13 +511,6 @@ DEFENDER_fnc_spawnPatrolZones = {
                                 if ([_unit, _firer] call DEFENDER_fnc_isValidTarget) then {
                                     _unit doTarget _firer;
                                     _unit doFire _firer;
-                                    
-                                    private _dist = floor(_unit distance _firer);
-                                    private _dir = _unit getDir _firer;
-                                    private _dirName = [_dir] call DEFENDER_fnc_getDirectionName;
-                                    
-                                    diag_log format["[AI] %1 responding to shots from %2 - %3m %4", 
-                                        name _unit, name _firer, _dist, _dirName];
                                 };
                             };
                         }];
@@ -590,34 +521,83 @@ DEFENDER_fnc_spawnPatrolZones = {
                         [_defender, _markerPos] spawn DEFENDER_fnc_enhancedCombatAI;
                     };
                     
-                    // Configure group
-                    _defenderGrp setFormation "LINE";
-                    _defenderGrp setSpeedMode "LIMITED";
-                    
-                    // 80m RADIUS PATROL - 8 waypoints in circle
-                    for "_i" from 0 to 7 do {
-                        private _angle = _i * 45;
-                        private _dist = DEFENDER_PATROL_RADIUS;
-                        private _patrolPos = [
-                            (_markerPos select 0) + (_dist * sin _angle), 
-                            (_markerPos select 1) + (_dist * cos _angle), 
-                            0
-                        ];
-                        _patrolPos = [_patrolPos, 0, 50, 5, 0, 60, 0] call BIS_fnc_findSafePos;
+
+                    // === ENHANCE GROUP LEADER ===
+                    private _leader = leader _defenderGrp;
+                    if (!isNull _leader && alive _leader) then {
+                        // Boost leader-specific skills
+                        _leader setSkill ["commanding", 1.0];
+                        _leader setSkill ["courage", 1.0];
+                        _leader setSkill ["general", 1.0];
                         
-                        private _wp = _defenderGrp addWaypoint [_patrolPos, 0];
-                        _wp setWaypointType "MOVE";
-                        _wp setWaypointSpeed "LIMITED";
-                        _wp setWaypointBehaviour "SAFE";
-                        _wp setWaypointCombatMode "YELLOW";
-                        _wp setWaypointCompletionRadius 30;
-                        _wp setWaypointTimeout [15, 30, 45];
+                        // Leader has better awareness
+                        _leader setSkill ["spotDistance", 1.0];
+                        _leader setSkill ["spotTime", 1.0];
+                        
+                        // Ensure leader is properly set
+                        _defenderGrp selectLeader _leader;
+                        
+                        diag_log format["[AI] Leader enhanced for group at %1", _cityName];
+                    };
+                    // Configure group
+                    _defenderGrp setFormation "WEDGE";  // Better for patrols and combat
+                    _defenderGrp setSpeedMode "LIMITED";
+                    _defenderGrp enableAttack true;
+                    _defenderGrp setCombatMode "YELLOW";  // Engage at will
+                    _defenderGrp setBehaviour "SAFE";  // Alert but not combat stance while patrolling
+                    
+                    // === FIND AND PATROL MILITARY BUILDINGS ===
+                    private _militaryBuildings = [_markerPos, DEFENDER_MILITARY_SEARCH_RADIUS] call DEFENDER_fnc_findMilitaryBuildings;
+                    
+                    if (count _militaryBuildings > 0) then {
+                        diag_log format["[AI] Creating waypoints for %1 military buildings near %2", count _militaryBuildings, _cityName];
+                        
+                        // Create waypoints for each military building (up to 10)
+                        private _buildingCount = count _militaryBuildings min 10;
+                        for "_i" from 0 to (_buildingCount - 1) do {
+                            private _building = _militaryBuildings select _i;
+                            private _buildingPos = getPosATL _building;
+                            
+                            private _wp = _defenderGrp addWaypoint [_buildingPos, 0];
+                            _wp setWaypointType "MOVE";
+                            _wp setWaypointSpeed "LIMITED";
+                            _wp setWaypointBehaviour "SAFE";
+                            _wp setWaypointCombatMode "YELLOW";
+                            _wp setWaypointCompletionRadius 30;
+                            _wp setWaypointTimeout [20, 40, 60];
+                        };
+                        
+                        // Add cycle waypoint to loop the patrol
+                        private _cycleWp = _defenderGrp addWaypoint [_markerPos, 0];
+                        _cycleWp setWaypointType "CYCLE";
+                    } else {
+                        diag_log format["[AI] No military buildings found near %1, using circular patrol", _cityName];
+                        
+                        // Fallback to circular patrol if no military buildings found
+                        for "_i" from 0 to 7 do {
+                            private _angle = _i * 45;
+                            private _dist = 300;
+                            private _patrolPos = [
+                                (_markerPos select 0) + (_dist * sin _angle), 
+                                (_markerPos select 1) + (_dist * cos _angle), 
+                                0
+                            ];
+                            _patrolPos = [_patrolPos, 0, 50, 5, 0, 60, 0] call BIS_fnc_findSafePos;
+                            
+                            private _wp = _defenderGrp addWaypoint [_patrolPos, 0];
+                            _wp setWaypointType "MOVE";
+                            _wp setWaypointSpeed "LIMITED";
+                            _wp setWaypointBehaviour "SAFE";
+                            _wp setWaypointCombatMode "YELLOW";
+                            _wp setWaypointCompletionRadius 30;
+                            _wp setWaypointTimeout [15, 30, 45];
+                        };
+                        
+                        private _cycleWp = _defenderGrp addWaypoint [_markerPos, 0];
+                        _cycleWp setWaypointType "CYCLE";
                     };
                     
-                    private _cycleWp = _defenderGrp addWaypoint [_markerPos, 0];
-                    _cycleWp setWaypointType "CYCLE";
-                    
-                    diag_log format["[AI] Spawned %1 GOD-TIER patrol at %2 (%3) - v4.0 EXTREME MODE", _defendersPerGroup, _cityName, _zoneMarker];
+                    diag_log format["[AI] Spawned %1 patrol units at %2 (%3)", _defendersPerGroup, _cityName, _zoneMarker];
                     
                     _respawnAttempts = _respawnAttempts + 1;
                     
@@ -698,30 +678,73 @@ DEFENDER_fnc_spawnPatrolZones = {
         };
     } forEach _spawnZones;
     
-    diag_log format["[AI] GOD-TIER Patrol System v4.0 Active - %1 zones initialized", count PATROL_ZoneHandles];
+    diag_log format["[AI] Patrol System Active - %1 zones initialized", count PATROL_ZoneHandles];
 };
 
 // ============================================
-// MAIN LOOP
+// MAIN LOOP - DYNAMIC SPAWN BASED ON PLAYER PROXIMITY
 // ============================================
 
 [] spawn {
     while {true} do {
-        sleep 5;
+        sleep 10; // Check every 10 seconds
         
-        if (PATROL_Active) then {
-            // System is running
-        } else {
-            if (count allPlayers > 0) then {
-                // AUTO-DETECT ALL EXILE SPAWN ZONES
-                private _exileZones = [] call DEFENDER_fnc_findExileSpawnZones;
+        // If no players online, clean everything up
+        if (count allPlayers == 0) then {
+            if (PATROL_Active) then {
+                diag_log "[AI] No players online - Shutting down Patrol System";
+                PATROL_Active = false;
                 
-                if (count _exileZones > 0) then {
-                    // Create patrol configuration for each zone
+                {terminate _x} forEach PATROL_ZoneHandles;
+                PATROL_ZoneHandles = [];
+                
+                private _cleanupCount = 0;
+                {
+                    if (!isNull _x) then {
+                        {
+                            if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                _x setVariable ["DEFENDER_audioEH", nil];
+                            };
+                            deleteVehicle _x;
+                        } forEach units _x;
+                        deleteGroup _x;
+                        _cleanupCount = _cleanupCount + 1;
+                    };
+                } forEach PATROL_AllGroups;
+                PATROL_AllGroups = [];
+                
+                diag_log format["[AI] Patrol System Stopped - Removed %1 patrol groups", _cleanupCount];
+            };
+        } else {
+            // Players are online - check which spawn zones need AI
+            private _exileZones = [] call DEFENDER_fnc_findExileSpawnZones;
+            private _detectionRadius = EXILE_PATROL_CONFIG select 4; // Player detection radius
+            
+            if (count _exileZones > 0) then {
+                // Find which zones have players nearby
+                private _activeZones = [];
+                
+                {
+                    _x params ["_markerName", "_markerText", "_markerPos"];
+                    
+                    // Check if any player is within detection radius of this spawn zone
+                    private _nearbyPlayers = allPlayers select {(_x distance2D _markerPos) < _detectionRadius};
+                    
+                    if (count _nearbyPlayers > 0) then {
+                        _activeZones pushBack _x;
+                    };
+                } forEach _exileZones;
+                
+                // If we found zones with players nearby
+                if (count _activeZones > 0 && !PATROL_Active) then {
+                    // Create patrol configuration for zones with players
                     private _spawnZones = [];
                     
                     {
                         _x params ["_markerName", "_markerText", "_markerPos"];
+                        
+                        diag_log format["[AI] Player detected near %1 - Activating patrol", _markerText];
                         
                         // Format: [markerName, unitsPerGroup, respawnDelay, cacheDistance, maxRespawnAttempts]
                         _spawnZones pushBack [
@@ -731,42 +754,46 @@ DEFENDER_fnc_spawnPatrolZones = {
                             EXILE_PATROL_CONFIG select 2,  // Cache distance
                             EXILE_PATROL_CONFIG select 3   // Max respawns
                         ];
-                    } forEach _exileZones;
+                    } forEach _activeZones;
                     
-                    diag_log format["[AI] Creating GOD-TIER patrols for %1 ExileSpawnZones", count _spawnZones];
-                    [_spawnZones] call DEFENDER_fnc_spawnPatrolZones;
+                    if (count _spawnZones > 0) then {
+                        diag_log format["[AI] Creating patrols for %1 active spawn zones (players nearby)", count _spawnZones];
+                        [_spawnZones] call DEFENDER_fnc_spawnPatrolZones;
+                    };
                 } else {
-                    diag_log "[AI] WARNING: No ExileSpawnZone markers found on map!";
-                    sleep 60; // Wait before checking again
+                    if (count _activeZones == 0 && PATROL_Active) then {
+                    // No players near any spawn zones - shut down
+                    diag_log "[AI] No players near spawn zones - Shutting down patrols";
+                    PATROL_Active = false;
+                    
+                    {terminate _x} forEach PATROL_ZoneHandles;
+                    PATROL_ZoneHandles = [];
+                    
+                    private _cleanupCount = 0;
+                    {
+                        if (!isNull _x) then {
+                            {
+                                if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                    _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                    _x setVariable ["DEFENDER_audioEH", nil];
+                                };
+                                deleteVehicle _x;
+                            } forEach units _x;
+                            deleteGroup _x;
+                            _cleanupCount = _cleanupCount + 1;
+                        };
+                    } forEach PATROL_AllGroups;
+                    PATROL_AllGroups = [];
+                    
+                    diag_log format["[AI] Patrols cleaned up - Removed %1 groups", _cleanupCount];
+                };
+                };
+            } else {
+                if (PATROL_Active) then {
+                    diag_log "[AI] WARNING: No ExileSpawnZone markers found, shutting down";
+                    PATROL_Active = false;
                 };
             };
-        };
-        
-        sleep 30;
-        if (count allPlayers == 0 && PATROL_Active) then {
-            diag_log "[AI] No players online - Shutting down Patrol System";
-            PATROL_Active = false;
-            
-            {terminate _x} forEach PATROL_ZoneHandles;
-            PATROL_ZoneHandles = [];
-            
-            private _cleanupCount = 0;
-            {
-                if (!isNull _x) then {
-                    {
-                        if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
-                            _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
-                            _x setVariable ["DEFENDER_audioEH", nil];
-                        };
-                        deleteVehicle _x;
-                    } forEach units _x;
-                    deleteGroup _x;
-                    _cleanupCount = _cleanupCount + 1;
-                };
-            } forEach PATROL_AllGroups;
-            PATROL_AllGroups = [];
-            
-            diag_log format["[AI] Patrol System Stopped - Removed %1 patrol groups", _cleanupCount];
         };
     };
 };
@@ -777,11 +804,11 @@ DEFENDER_fnc_spawnPatrolZones = {
 
 [] spawn {
     while {true} do {
-        sleep 300;
+        sleep 600; // Check every 10 minutes instead of 5
         if (PATROL_Active) then {
             private _resistanceCount = {side _x == RESISTANCE} count allUnits;
             private _activeGroups = {!isNull _x && {count units _x > 0}} count PATROL_AllGroups;
-            diag_log format["[AI] Patrol Health Check: %1 GOD-TIER patrol units | %2 active groups | v4.0 EXTREME MODE", 
+            diag_log format["[AI] Patrol Health Check: %1 patrol units | %2 active groups", 
                 _resistanceCount, _activeGroups];
         };
     };
@@ -792,10 +819,10 @@ DEFENDER_fnc_spawnPatrolZones = {
 // ============================================
 
 diag_log "========================================";
-diag_log "ELITE AI PATROL SYSTEM v4.0 - GOD-TIER MODE";
-diag_log "⚠️  EXTREME MODE: COMBAT+RED+PERFECT AIM";
-diag_log "Ultra-aggressive! 100% accuracy! Fearless!";
-diag_log "1.4x speed, GM6+APDS, AK-12, never flees!";
+diag_log "MODIFIED AI PATROL SYSTEM - PLAYER PROXIMITY";
+diag_log "Only spawns AI at zones near players (2000m)";
+diag_log "Custom Gear: Gorka Uniform + Gold Weapons";
+diag_log "Patrols nearby military buildings";
 diag_log "Auto-detects ExileSpawnZone markers";
-diag_log "✓ Enhanced from recruit script features";
+diag_log "Cleans up when no players nearby";
 diag_log "========================================";

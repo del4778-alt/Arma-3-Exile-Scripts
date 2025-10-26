@@ -1,611 +1,828 @@
 /*
-    =====================================================
-    ELITE AI DRIVING SYSTEM - ALL-IN-ONE
-    =====================================================
-    Author: Master SQF Engineer
-    Version: 2.4 - COMPREHENSIVE FIX (All bugs fixed)
-    =====================================================
-    
-    FIXES APPLIED:
-    1. Tagged spawned obstacles
-    2. Filtered tagged obstacles in detection
-    3. Fixed missing parentheses in restoreDriver
-    4. Replaced infinite while loops with if statements
-    5. Added null check in cleanup
-    6. Optimized nearObjects to nearEntities
-    7. Increased speed filter to catch faster vehicles
-    8. Added stuck vehicle auto-recovery
-    9. Cached config lookups and reduced log spam
-    10. Fixed _minSpeed scope error
-    =====================================================
+    File: fn_aiPatrolSystem_Enhanced.sqf
+    Author: Elite Battle System v4.0 - Modified for Military Building Patrols
+    Description:
+        Modified patrol system with custom gear that patrols military buildings
+        - Automatically finds all ExileSpawnZone markers
+        - Only spawns patrols at zones where players are nearby (2000m)
+        - Dynamically activates/deactivates based on player proximity
+        - Custom gear: Bandanna, backpack, gorka uniform, gold weapons
+        - Patrols nearby military buildings instead of circular patrol
+        - Cleans up all AI when no players online
+        
+    CONFIGURATION:
+        - Edit EXILE_PATROL_CONFIG below to set units per city, respawn delay, etc.
 */
 
 if (!isServer) exitWith {};
 
-// =====================================================
-// CONFIGURATION
-// =====================================================
-EAID_CONFIG = createHashMapFromArray [
-    ["ENABLED", true],
-    ["UPDATE_INTERVAL", 0.5],
-    ["DEBUG", true],
-    ["DEBUG_MARKERS", false],
-    ["DEBUG_INTERVAL", 10],
-    
-    // Speed limits (km/h)
-    ["SPEED_HIGHWAY", 160],
-    ["SPEED_ROAD", 120],
-    ["SPEED_OFFROAD", 80],
-    ["SPEED_CURVE", 70],
-    ["SPEED_OBSTACLE", 40],
-    
-    // Distances (meters)
-    ["LOOKAHEAD_POINTS", [25, 50, 75, 100]],
-    ["OBSTACLE_RADIUS", 12],
-    ["ROAD_SEARCH", 200],
-    
-    // Avoidance
-    ["USE_OBSTACLES", true],
-    ["OBSTACLE_COOLDOWN", 10],
-    ["MIN_OBJECT_SIZE", 4],
-    ["MIN_OBSTACLE_DISTANCE", 15]
+// ============================================
+// GLOBAL VARS
+// ============================================
+
+PATROL_Active = false;
+PATROL_ZoneHandles = [];
+PATROL_AllGroups = [];
+PATROL_playerCheckTime = 0;
+PATROL_nearbyPlayers = [];
+
+// ============================================
+// EXILE SPAWN ZONE PATROL CONFIGURATION
+// ============================================
+
+EXILE_PATROL_CONFIG = [
+    3,      // Units per patrol group
+    300,    // Respawn delay (seconds) after all units killed
+    1000,   // Cache distance (meters) - patrols despawn if no players within this range
+    999,    // Max respawn attempts (999 = unlimited)
+    2000    // Player detection radius (meters) - only spawn AI at zones within this distance of players
 ];
 
-// Global tracking
-EAID_ActiveDrivers = createHashMap;
+// ============================================
+// ENHANCED CONFIGURATION
+// ============================================
 
-diag_log "==========================================";
-diag_log "Elite AI Driving System - Initializing...";
-diag_log "==========================================";
+DEFENDER_DETECTION_RADIUS = 1500;
+DEFENDER_AUDIO_DETECTION_RADIUS = 2000;
+DEFENDER_ENHANCED_MOVEMENT = true;
+DEFENDER_COVER_DISTANCE = 50;
+DEFENDER_REARM_CHECK_INTERVAL = 30;
+DEFENDER_GRENADE_USAGE_CHANCE = 0.7;
+DEFENDER_STATIC_WEAPON_DISTANCE = 100;
+DEFENDER_CALLOUT_INTERVAL = 8;
+DEFENDER_MILITARY_SEARCH_RADIUS = 300;  // Search radius for military buildings
 
-// =====================================================
+// ============================================
+// FACTION RELATIONS - SET ONCE GLOBALLY
+// ============================================
+
+if (isNil "PATROL_FactionsConfigured") then {
+    PATROL_FactionsConfigured = true;
+    publicVariable "PATROL_FactionsConfigured";
+    
+    // Make RESISTANCE hostile to both WEST and EAST
+    RESISTANCE setFriend [WEST, 0];
+    WEST setFriend [RESISTANCE, 0];
+    RESISTANCE setFriend [EAST, 0];
+    EAST setFriend [RESISTANCE, 0];
+    
+    // Keep EAST hostile to WEST
+    EAST setFriend [WEST, 0];
+    WEST setFriend [EAST, 0];
+    
+    diag_log "[AI] Faction relations configured: RESISTANCE patrols will engage WEST & EAST";
+};
+
+diag_log "[AI] Starting Modified Patrol System - Military Building Patrols...";
+
+// ============================================
 // UTILITY FUNCTIONS
-// =====================================================
+// ============================================
 
-EAID_fnc_angleDiff = {
-    params ["_angle1", "_angle2"];
-    private _diff = _angle1 - _angle2;
-    if (_diff > 180) then {_diff = _diff - 360};
-    if (_diff < -180) then {_diff = _diff + 360};
-    _diff
+DEFENDER_fnc_getDirectionName = {
+    params ["_dir"];
+    
+    switch (true) do {
+        case (_dir >= 337.5 || _dir < 22.5): {"North"};
+        case (_dir >= 22.5 && _dir < 67.5): {"NE"};
+        case (_dir >= 67.5 && _dir < 112.5): {"East"};
+        case (_dir >= 112.5 && _dir < 157.5): {"SE"};
+        case (_dir >= 157.5 && _dir < 202.5): {"South"};
+        case (_dir >= 202.5 && _dir < 247.5): {"SW"};
+        case (_dir >= 247.5 && _dir < 292.5): {"West"};
+        default {"NW"};
+    };
 };
 
-EAID_fnc_isEnhanced = {
+// Safe unit check - prevents "Object not found" errors
+DEFENDER_fnc_isUnitValid = {
     params ["_unit"];
-    private _netId = netId _unit;
-    _netId in (keys EAID_ActiveDrivers)
+    
+    if (isNil "_unit") exitWith {false};
+    if (isNull _unit) exitWith {false};
+    if (!alive _unit) exitWith {false};
+    
+    true
 };
 
-// =====================================================
-// CORE FUNCTIONS
-// =====================================================
-
-EAID_fnc_selectBestRoad = {
-    params ["_vehicle", "_roads"];
+// Enhanced target validation with proper visibility checking
+DEFENDER_fnc_isValidTarget = {
+    params ["_unit", "_target"];
     
-    private _vehicleDir = getDir _vehicle;
-    private _vehiclePos = getPos _vehicle;
-    private _bestRoad = objNull;
-    private _bestScore = -1;
+    // Must be alive
+    if (!alive _target) exitWith {false};
     
-    {
-        private _roadPos = getPos _x;
-        private _roadDir = _vehiclePos getDir _roadPos;
-        private _distance = _vehiclePos distance2D _roadPos;
-        private _dirDiff = [_vehicleDir, _roadDir] call EAID_fnc_angleDiff;
-        
-        private _angleScore = 1 - ((abs _dirDiff) / 180);
-        private _distScore = 1 - ((_distance / 200) min 1);
-        private _totalScore = (_angleScore * 0.7) + (_distScore * 0.3);
-        
-        if (_totalScore > _bestScore) then {
-            _bestScore = _totalScore;
-            _bestRoad = _x;
-        };
-    } forEach _roads;
+    // Must be hostile side (WEST or EAST)
+    if (side _target != WEST && side _target != EAST) exitWith {false};
     
-    _bestRoad
-};
-
-EAID_fnc_roadFollowing = {
-    params ["_unit", "_vehicle"];
+    // Must not be friendly
+    if (side _target getFriend side _unit >= 0.6) exitWith {false};
     
-    private _group = group _unit;
-    private _lastLogTime = 0;
-    
-    while {alive _unit && alive _vehicle && driver _vehicle == _unit && ([_unit] call EAID_fnc_isEnhanced)} do {
-        
-        private _currentPos = getPosASL _vehicle;
-        private _currentRoads = _currentPos nearRoads 50;
-        
-        if (count _currentRoads > 0) then {
-            private _currentRoad = _currentRoads select 0;
-            private _connectedRoads = roadsConnectedTo _currentRoad;
-            
-            if (count _connectedRoads > 0) then {
-                private _bestRoad = [_vehicle, _connectedRoads] call EAID_fnc_selectBestRoad;
-                
-                if (!isNull _bestRoad) then {
-                    private _roadPos = getPos _bestRoad;
-                    private _wpIndex = currentWaypoint _group;
-                    
-                    if ((count waypoints _group) <= _wpIndex) then {
-                        private _wp = _group addWaypoint [_roadPos, 0];
-                        _wp setWaypointType "MOVE";
-                        _wp setWaypointSpeed "FULL";
-                        _wp setWaypointBehaviour "CARELESS";
-                        _wp setWaypointCombatMode "BLUE";
-                        _wp setWaypointTimeout [0, 0, 0];
-                    };
-                    
-                    [_group, _wpIndex] setWaypointPosition [_roadPos, 0];
-                    
-                    // Lookahead
-                    private _nextConnected = roadsConnectedTo _bestRoad;
-                    if (count _nextConnected > 0) then {
-                        private _nextBest = [_vehicle, _nextConnected] call EAID_fnc_selectBestRoad;
-                        if (!isNull _nextBest) then {
-                            private _nextPos = getPos _nextBest;
-                            
-                            if ((count waypoints _group) <= (_wpIndex + 1)) then {
-                                private _wp = _group addWaypoint [_nextPos, 0];
-                                _wp setWaypointType "MOVE";
-                                _wp setWaypointSpeed "FULL";
-                                _wp setWaypointBehaviour "CARELESS";
-                                _wp setWaypointCombatMode "BLUE";
-                                _wp setWaypointTimeout [0, 0, 0];
-                            };
-                            
-                            [_group, _wpIndex + 1] setWaypointPosition [_nextPos, 0];
-                        };
-                    };
-                };
-            };
-        } else {
-            // Off-road - find nearest road
-            private _nearRoads = _currentPos nearRoads (EAID_CONFIG get "ROAD_SEARCH");
-            if (count _nearRoads > 0) then {
-                private _targetRoad = _nearRoads select 0;
-                private _wpIndex = currentWaypoint _group;
-                
-                if ((count waypoints _group) <= _wpIndex) then {
-                    _group addWaypoint [getPos _targetRoad, 0];
-                };
-                
-                [_group, _wpIndex] setWaypointPosition [getPos _targetRoad, 0];
-                
-                // Only log every X seconds
-                if (time - _lastLogTime > (EAID_CONFIG get "DEBUG_INTERVAL")) then {
-                    if (EAID_CONFIG get "DEBUG") then {
-                        diag_log format ["EAID: %1 off-road -> road %2m away", name _unit, round (_currentPos distance2D (getPos _targetRoad))];
-                    };
-                    _lastLogTime = time;
-                };
-            };
-        };
-        
-        sleep 2;
+    // For vehicles, must have crew (ignore empty vehicles)
+    if (_target isKindOf "LandVehicle" || _target isKindOf "Air") then {
+        if (count crew _target == 0) exitWith {false};
     };
+    
+    // Check visibility using lineIntersectsSurfaces (more reliable than checkVisibility)
+    private _intersects = lineIntersectsSurfaces [eyePos _unit, eyePos _target, _unit, _target, true, 1];
+    if (count _intersects > 0) exitWith {false};
+    
+    // Must be within reasonable range
+    if (_unit distance _target > DEFENDER_DETECTION_RADIUS) exitWith {false};
+    
+    true
 };
 
-EAID_fnc_dynamicSpeed = {
-    params ["_unit", "_vehicle"];
-    
-    // FIX: Cache config lookups for performance
-    private _updateInterval = EAID_CONFIG get "UPDATE_INTERVAL";
-    private _obstacleRadius = EAID_CONFIG get "OBSTACLE_RADIUS";
-    private _lookaheadPoints = EAID_CONFIG get "LOOKAHEAD_POINTS";
-    private _debugEnabled = EAID_CONFIG get "DEBUG";
-    private _debugInterval = EAID_CONFIG get "DEBUG_INTERVAL";
-    
-    private _lastLogTime = 0;
-    
-    while {alive _unit && alive _vehicle && driver _vehicle == _unit && ([_unit] call EAID_fnc_isEnhanced)} do {
-        
-        private _velocity = velocity _vehicle;
-        private _actualSpeed = vectorMagnitude _velocity;
-        private _minSpeed = 999;
-        private _speedReason = "CLEAR";
-        
-        if (_actualSpeed > 0.5) then {
-            private _pos = getPosASL _vehicle;
-            private _dir = getDir _vehicle;
-            private _onRoad = isOnRoad _pos;
-            
-            // Multi-point lookahead
-            {
-                private _lookDist = _x;
-                private _checkPos = _pos getPos [_lookDist, _dir];
-                
-                // Check obstacles - FILTER OUT SPAWNED AND OWN VEHICLE
-                private _objects = _checkPos nearEntities [["Car", "Truck", "Tank", "Ship", "Air", "Building", "House", "Wall"], _obstacleRadius];
-                _objects = _objects select {
-                    private _obj = _x;
-                    _obj != _vehicle && 
-                    !(_obj isKindOf "Man") && 
-                    !(_obj isKindOf "Logic") &&
-                    !(_obj isKindOf "Helper_Base_F") &&
-                    !(_obj getVariable ["EAID_SpawnedObstacle", false]) &&
-                    (speed _obj) < 30 &&
-                    (_obj distance _vehicle) > 5
-                };
-                
-                if (count _objects > 0) then {
-                    private _obstacleSpeed = EAID_CONFIG get "SPEED_OBSTACLE";
-                    if (_obstacleSpeed < _minSpeed) then {
-                        _minSpeed = _obstacleSpeed;
-                        _speedReason = format ["OBSTACLE (%1 objects at %2m)", count _objects, round _lookDist];
-                    };
-                };
-                
-                // Check curves
-                if (_onRoad) then {
-                    private _nearRoads = _checkPos nearRoads 15;
-                    if (count _nearRoads > 0) then {
-                        private _road = _nearRoads select 0;
-                        private _roadDir = _pos getDir (getPos _road);
-                        private _angleDiff = [_dir, _roadDir] call EAID_fnc_angleDiff;
-                        
-                        if (abs _angleDiff > 30) then {
-                            private _curveSpeed = EAID_CONFIG get "SPEED_CURVE";
-                            if (_curveSpeed < _minSpeed) then {
-                                _minSpeed = _curveSpeed;
-                                _speedReason = format ["CURVE (%1°)", round (abs _angleDiff)];
-                            };
-                        };
-                    };
-                };
-                
-                // Check road end
-                private _nearRoads = _checkPos nearRoads 10;
-                if (count _nearRoads == 0 && _onRoad) then {
-                    if (50 < _minSpeed) then {
-                        _minSpeed = 50;
-                        _speedReason = "ROAD_END";
-                    };
-                };
-                
-                // Check slopes
-                private _heightDiff = abs ((getTerrainHeightASL _checkPos) - (_pos select 2));
-                if (_heightDiff > 10) then {
-                    private _slopeSpeed = EAID_CONFIG get "SPEED_OFFROAD";
-                    if (_slopeSpeed < _minSpeed) then {
-                        _minSpeed = _slopeSpeed;
-                        _speedReason = format ["SLOPE (%1m)", round _heightDiff];
-                    };
-                };
-                
-            } forEach _lookaheadPoints;
-            
-            // Apply speed limit
-            if (_minSpeed < 999) then {
-                _vehicle limitSpeed _minSpeed;
-                
-                if (time - _lastLogTime > _debugInterval) then {
-                    if (_debugEnabled) then {
-                        diag_log format ["EAID: %1 | Speed: %2/%3 km/h | Reason: %4", name _unit, round _actualSpeed, round _minSpeed, _speedReason];
-                    };
-                    _lastLogTime = time;
-                };
-            } else {
-                // Set appropriate speed for terrain
-                private _maxSpeed = if (_onRoad) then {
-                    EAID_CONFIG get "SPEED_HIGHWAY"
-                } else {
-                    EAID_CONFIG get "SPEED_OFFROAD"
-                };
-                _vehicle limitSpeed _maxSpeed;
-            };
-        };
-        
-        // FIX: Stuck vehicle detection and recovery
-        private _pos = getPosASL _vehicle;
-        private _stuckTime = _vehicle getVariable ["EAID_StuckTime", 0];
-        
-        if (_actualSpeed < 0.5 && _minSpeed < 50) then {
-            if (_stuckTime == 0) then {
-                _vehicle setVariable ["EAID_StuckTime", time];
-            } else {
-                if (time - _stuckTime > 10) then {
-                    private _nearbyObstacles = _pos nearObjects ["All", 30];
-                    private _clearedCount = 0;
-                    {
-                        if (_x getVariable ["EAID_SpawnedObstacle", false]) then {
-                            deleteVehicle _x;
-                            _clearedCount = _clearedCount + 1;
-                        };
-                    } forEach _nearbyObstacles;
-                    if (_clearedCount > 0 && _debugEnabled) then {
-                        diag_log format ["EAID: %1 stuck - cleared %2 spawned obstacles", name _unit, _clearedCount];
-                    };
-                    _vehicle setVariable ["EAID_StuckTime", 0];
-                };
-            };
-        } else {
-            _vehicle setVariable ["EAID_StuckTime", 0];
-        };
-        
-        sleep _updateInterval;
-    };
-};
+// ============================================
+// MILITARY BUILDING FINDER
+// ============================================
 
-EAID_fnc_smartAvoidance = {
-    params ["_unit", "_vehicle"];
+DEFENDER_fnc_findMilitaryBuildings = {
+    params ["_centerPos", "_radius"];
     
-    while {alive _unit && alive _vehicle && driver _vehicle == _unit && ([_unit] call EAID_fnc_isEnhanced)} do {
-        
-        if (EAID_CONFIG get "USE_OBSTACLES") then {
-            private _pos = getPosASL _vehicle;
-            private _dir = getDir _vehicle;
-            
-            {
-                private _lookDist = _x;
-                private _checkPos = _pos getPos [_lookDist, _dir];
-                
-                // Find large objects
-                private _objects = _checkPos nearObjects ["All", EAID_CONFIG get "OBSTACLE_RADIUS"];
-                _objects = _objects select {
-                    private _obj = _x;
-                    _obj != _vehicle &&
-                    !(_obj isKindOf "Man") &&
-                    !(_obj isKindOf "Logic") &&
-                    !(_obj isKindOf "Helper_Base_F") &&
-                    !(_obj getVariable ["EAID_SpawnedObstacle", false]) &&
-                    (speed _obj) < 10 &&
-                    (_obj distance _vehicle) > (EAID_CONFIG get "MIN_OBSTACLE_DISTANCE")
-                };
-                
-                {
-                    private _obstacle = _x;
-                    private _objSize = (boundingBoxReal _obstacle) select 1 select 0;
-                    
-                    if (_objSize > (EAID_CONFIG get "MIN_OBJECT_SIZE")) then {
-                        if (!(_obstacle getVariable ["EAID_Processed", false])) then {
-                            _obstacle setVariable ["EAID_Processed", true, false];
-                            
-                            // Calculate bounding box corners
-                            private _bbox = boundingBoxReal _obstacle;
-                            private _p1 = _bbox select 0;
-                            private _p2 = _bbox select 1;
-                            
-                            private _positions = [
-                                _obstacle modelToWorld [_p2 select 0, _p2 select 1, 0],
-                                _obstacle modelToWorld [_p1 select 0, _p2 select 1, 0],
-                                _obstacle modelToWorld [_p1 select 0, _p1 select 1, 0],
-                                _obstacle modelToWorld [_p2 select 0, _p1 select 1, 0]
-                            ];
-                            
-                            private _obstacles = [];
-                            
-                            // Spawn obstacles at corners
-                            {
-                                private _obstacleObj = createVehicle ["Land_CanOpener_F", _x, [], 0, "CAN_COLLIDE"];
-                                _obstacleObj setVariable ["EAID_SpawnedObstacle", true, false];
-                                _obstacleObj enableSimulation false;
-                                _obstacleObj hideObjectGlobal true;
-                                _obstacles pushBack _obstacleObj;
-                            } forEach _positions;
-                            
-                            if (EAID_CONFIG get "DEBUG") then {
-                                private _building = nearestBuilding (getPos _obstacle);
-                                diag_log format ["EAID: Spawned %1 obstacles around %2 (size: %3m)", count _obstacles, typeOf _building, round _objSize];
-                            };
-                            
-                            // Cleanup after delay
-                            [_obstacle, _obstacles] spawn {
-                                params ["_building", "_obstacles"];
-                                sleep (EAID_CONFIG get "OBSTACLE_COOLDOWN");
-                                {
-                                    if (!isNull _x) then {
-                                        deleteVehicle _x;
-                                    };
-                                } forEach _obstacles;
-                                if (!isNull _building) then {
-                                    _building setVariable ["EAID_Processed", false, false];
-                                };
-                            };
-                        };
-                    };
-                } forEach _objects;
-                
-            } forEach (EAID_CONFIG get "LOOKAHEAD_POINTS");
-        };
-        
-        sleep (EAID_CONFIG get "UPDATE_INTERVAL");
-    };
-};
-
-// =====================================================
-// APPLY/RESTORE FUNCTIONS
-// =====================================================
-
-EAID_fnc_applyToDriver = {
-    params ["_unit", "_vehicle"];
-    
-    if (!alive _unit || !alive _vehicle || driver _vehicle != _unit) exitWith {};
-    if (!(_vehicle isKindOf "LandVehicle")) exitWith {};
-    if ([_unit] call EAID_fnc_isEnhanced) exitWith {};
-    
-    private _netId = netId _unit;
-    
-    private _originalSettings = createHashMapFromArray [
-        ["courage", _unit skill "courage"],
-        ["commanding", _unit skill "commanding"],
-        ["combatMode", combatMode (group _unit)],
-        ["behaviour", behaviour _unit],
-        ["speedMode", speedMode (group _unit)],
-        ["aiAutoCombat", _unit checkAIFeature "AUTOCOMBAT"],
-        ["aiTarget", _unit checkAIFeature "TARGET"],
-        ["aiAutoTarget", _unit checkAIFeature "AUTOTARGET"],
-        ["aiSuppression", _unit checkAIFeature "SUPPRESSION"]
+    // Specific military building classnames to search for
+    private _militaryClassnames = [
+        "Land_TentHangar_V1_F",
+        "Land_Hangar_F",
+        "Land_Airport_Tower_F",
+        "Land_Cargo_House_V1_F",
+        "Land_Cargo_House_V3_F",
+        "Land_Cargo_HQ_V1_F",
+        "Land_Cargo_HQ_V2_F",
+        "Land_Cargo_HQ_V3_F",
+        "Land_u_Barracks_V2_F",
+        "Land_i_Barracks_V2_F",
+        "Land_i_Barracks_V1_F",
+        "Land_Cargo_Patrol_V1_F",
+        "Land_Cargo_Patrol_V2_F",
+        "Land_Cargo_Tower_V1_F",
+        "Land_Cargo_Tower_V1_No1_F",
+        "Land_Cargo_Tower_V1_No2_F",
+        "Land_Cargo_Tower_V1_No3_F",
+        "Land_Cargo_Tower_V1_No4_F",
+        "Land_Cargo_Tower_V1_No5_F",
+        "Land_Cargo_Tower_V1_No6_F",
+        "Land_Cargo_Tower_V1_No7_F",
+        "Land_Cargo_Tower_V2_F",
+        "Land_Cargo_Tower_V3_F",
+        "Land_MilOffices_V1_F",
+        "Land_Radar_F"
     ];
     
-    EAID_ActiveDrivers set [_netId, _originalSettings];
+    private _militaryBuildings = [];
+    private _allBuildings = nearestObjects [_centerPos, ["House", "Building"], _radius];
     
-    _unit setSkill ["courage", 1];
-    _unit setSkill ["commanding", 1];
+    {
+        private _building = _x;
+        private _typeOf = typeOf _building;
+        
+        // Check if building classname matches our military list
+        if (_typeOf in _militaryClassnames) then {
+            _militaryBuildings pushBack _building;
+        };
+    } forEach _allBuildings;
     
-    private _group = group _unit;
-    _group setCombatMode "BLUE";
-    _group setBehaviour "CARELESS";
-    _group setSpeedMode "FULL";
-    
-    _unit disableAI "AUTOCOMBAT";
-    _unit disableAI "TARGET";
-    _unit disableAI "AUTOTARGET";
-    _unit disableAI "SUPPRESSION";
-    
-    _vehicle setUnloadInCombat [false, false];
-    _vehicle allowCrewInImmobile true;
-    
-    if (count units _group > 1) then {
-        _group setFormation "COLUMN";
-        _vehicle setConvoySeparation 50;
-    };
-    
-    [_unit, _vehicle] spawn EAID_fnc_roadFollowing;
-    [_unit, _vehicle] spawn EAID_fnc_dynamicSpeed;
-    [_unit, _vehicle] spawn EAID_fnc_smartAvoidance;
-    
-    if (EAID_CONFIG get "DEBUG") then {
-        diag_log format ["EAID: Enhanced %1 in %2 (Max: %3 km/h)", name _unit, typeOf _vehicle, EAID_CONFIG get "SPEED_HIGHWAY"];
-    };
+    diag_log format["[AI] Found %1 military buildings near position %2", count _militaryBuildings, _centerPos];
+    _militaryBuildings
 };
 
-EAID_fnc_restoreDriver = {
+
+// ============================================
+// EXILE SPAWN ZONE DETECTOR
+// ============================================
+
+DEFENDER_fnc_findExileSpawnZones = {
+    private _exileZones = [];
+    
+    // Search through all markers
+    {
+        private _markerName = _x;
+        private _markerType = markerType _markerName;
+        
+        // Check if it's an ExileSpawnZone marker
+        if (_markerType == "ExileSpawnZone") then {
+            private _markerPos = getMarkerPos _markerName;
+            private _markerText = markerText _markerName;
+            
+            // Only add if it has a valid position
+            if ((_markerPos select 0) != 0 || (_markerPos select 1) != 0) then {
+                _exileZones pushBack [_markerName, _markerText, _markerPos];
+                diag_log format["[AI] Found ExileSpawnZone: %1 (%2) at %3", _markerName, _markerText, _markerPos];
+            };
+        };
+    } forEach allMapMarkers;
+    
+    diag_log format["[AI] Total ExileSpawnZones detected: %1", count _exileZones];
+    _exileZones
+};
+
+// ============================================
+// ENHANCED AMMO TRACKING
+// ============================================
+
+DEFENDER_fnc_getAmmoPercentage = {
     params ["_unit"];
     
-    if (!([_unit] call EAID_fnc_isEnhanced)) exitWith {};
-    
-    private _netId = netId _unit;
-    private _originalSettings = EAID_ActiveDrivers get _netId;
-    
-    _unit setSkill ["courage", _originalSettings get "courage"];
-    _unit setSkill ["commanding", _originalSettings get "commanding"];
-    
-    private _group = group _unit;
-    _group setCombatMode (_originalSettings get "combatMode");
-    _group setBehaviour (_originalSettings get "behaviour");
-    _group setSpeedMode (_originalSettings get "speedMode");
-    
-    if (_originalSettings get "aiAutoCombat") then {_unit enableAI "AUTOCOMBAT"};
-    if (_originalSettings get "aiTarget") then {_unit enableAI "TARGET"};
-    if (_originalSettings get "aiAutoTarget") then {_unit enableAI "AUTOTARGET"};
-    if (_originalSettings get "aiSuppression") then {_unit enableAI "SUPPRESSION"};
-    
-    if (!isNull vehicle _unit && vehicle _unit != _unit) then {
-        (vehicle _unit) limitSpeed -1;
-    };
-    
-    EAID_ActiveDrivers deleteAt _netId;
-    
-    if (EAID_CONFIG get "DEBUG") then {
-        diag_log format ["EAID: Restored %1", name _unit];
-    };
-};
+    if (!alive _unit) exitWith {0};
 
-// =====================================================
-// EVENT HANDLERS
-// =====================================================
+    private _startMags = _unit getVariable ["DEFENDER_startMags", []];
+    if (count _startMags == 0) exitWith {0};
 
-EAID_fnc_addEventHandlers = {
+    private _currentMags = magazines _unit;
+
+    // Get unique magazine types
+    private _allMagTypes = (_startMags + _currentMags);
+    _allMagTypes = _allMagTypes arrayIntersect _allMagTypes;
+
+    private _totalStart = 0;
+    private _totalCurrent = 0;
+
     {
-        if (!isPlayer _x && alive _x) then {
-            private _vehicle = vehicle _x;
-            if (_vehicle != _x && driver _vehicle == _x && _vehicle isKindOf "LandVehicle") then {
-                [_x, _vehicle] call EAID_fnc_applyToDriver;
-            };
-        };
-    } forEach allUnits;
-    
-    ["CAManBase", "init", {
-        params ["_unit"];
-        
-        if (!isPlayer _unit && (EAID_CONFIG get "ENABLED")) then {
-            
-            _unit addEventHandler ["GetInMan", {
-                params ["_unit", "_role", "_vehicle"];
-                
-                if (_role == "driver" && !isPlayer _unit && _vehicle isKindOf "LandVehicle") then {
-                    [_unit, _vehicle] spawn {
-                        params ["_unit", "_vehicle"];
-                        sleep 0.5;
-                        [_unit, _vehicle] call EAID_fnc_applyToDriver;
-                    };
-                };
-            }];
-            
-            _unit addEventHandler ["GetOutMan", {
-                params ["_unit", "_role"];
-                if (_role == "driver") then {[_unit] call EAID_fnc_restoreDriver};
-            }];
-            
-            _unit addEventHandler ["Killed", {
-                params ["_unit"];
-                [_unit] call EAID_fnc_restoreDriver;
-            }];
-        };
-    }] call CBA_fnc_addClassEventHandler;
+        private _magType = _x;
+        _totalStart = _totalStart + ({_x == _magType} count _startMags);
+        _totalCurrent = _totalCurrent + ({_x == _magType} count _currentMags);
+    } forEach _allMagTypes;
+
+    if (_totalStart <= 0) exitWith {0};
+    (_totalCurrent / _totalStart)
 };
 
-EAID_fnc_cleanupLoop = {
-    while {EAID_CONFIG get "ENABLED"} do {
-        sleep 30;
+// ============================================
+// ENHANCED COVER DETECTION
+// ============================================
+
+DEFENDER_fnc_findCover = {
+    params ["_unit", "_enemyPos"];
+    
+    if (!alive _unit) exitWith {[]};
+    
+    private _bestPos = [];
+    private _bestScore = -1e9;
+    private _unitPosASL = getPosASL _unit;
+    private _enemyPosASL = getPosASL _enemyPos;
+    
+    for "_i" from 0 to 8 do {
+        private _angleDeg = _i * 45;
+        private _angleRad = _angleDeg * (pi / 180);
+        private _distance = 20 + (random 30);
         
-        private _toRemove = [];
+        private _testPos = [
+            (_unitPosASL select 0) + (sin _angleRad) * _distance,
+            (_unitPosASL select 1) + (cos _angleRad) * _distance,
+            (_unitPosASL select 2) + 1.5
+        ];
+        
+        private _blocked = lineIntersects [
+            ASLToAGL _testPos, 
+            ASLToAGL _enemyPosASL, 
+            _unit,
+            objNull
+        ];
+        
+        if (_blocked) then {
+            private _score = 1000 - (_unit distance2D (ASLToAGL _testPos));
+            
+            if (_score > _bestScore) then {
+                _bestScore = _score;
+                _bestPos = ASLToAGL _testPos;
+            };
+        };
+    };
+    
+    _bestPos
+};
+
+// ============================================
+// BASIC WEAPON LOADOUT (Simple loadout)
+// ============================================
+
+DEFENDER_fnc_giveBasicWeapons = {
+    params ["_unit"];
+    
+    if (!alive _unit) exitWith {};
+    
+    // Give GOLD AK (Exile version)
+    _unit addWeapon "Exile_Weapon_AKS_Gold";
+    for "_i" from 1 to 6 do {
+        _unit addMagazine "Exile_Magazine_30Rnd_762x39_AK";
+    };
+    
+    // Give GOLD TAURUS pistol (Exile version)
+    _unit addWeapon "Exile_Weapon_TaurusGold";
+    for "_i" from 1 to 3 do {
+        _unit addMagazine "Exile_Magazine_6Rnd_45ACP";
+    };
+    
+    // Basic items
+    for "_i" from 1 to 2 do {
+        _unit addMagazine "SmokeShell";
+        _unit addMagazine "HandGrenade";
+    };
+    
+    for "_i" from 1 to 2 do {
+        _unit addItem "FirstAidKit";
+    };
+    
+    // Snapshot starting magazines for ammo tracking
+    _unit setVariable ["DEFENDER_startMags", magazines _unit];
+};
+
+// ============================================
+// ENHANCED AI SKILL CONFIGURATION
+// ============================================
+
+DEFENDER_fnc_setEnhancedSkills = {
+    params ["_unit"];
+    
+    if (!alive _unit) exitWith {};
+    
+    // Enhanced skills
+    _unit setSkill ["aimingAccuracy", 0.8];
+    _unit setSkill ["aimingShake", 0.8];
+    _unit setSkill ["aimingSpeed", 0.8];
+    _unit setSkill ["spotDistance", 0.9];
+    _unit setSkill ["spotTime", 0.9];
+    _unit setSkill ["courage", 1.0];
+    _unit setSkill ["reloadSpeed", 0.8];
+    _unit setSkill ["commanding", 0.8];
+    _unit setSkill ["general", 0.8];
+    
+    
+    // 1.4x MOVEMENT SPEED (AI move faster than player)
+    _unit setAnimSpeedCoef 1.4;
+    
+    // EXTREME AI BEHAVIOR SETTINGS
+    _unit setBehaviour "AWARE";
+    _unit setCombatMode "YELLOW";
+    _unit allowFleeing 0;
+    _unit disableAI "SUPPRESSION";
+    _unit setUnitPos "AUTO";
+    
+    // Maximize aggression and awareness
+    _unit enableAI "TARGET";
+    _unit enableAI "AUTOTARGET";
+    _unit enableAI "MOVE";
+    _unit enableAI "ANIM";
+    _unit enableAI "FSM";
+    _unit enableAI "AIMINGERROR";
+    _unit enableAI "COVER";
+    _unit enableAI "AUTOCOMBAT";
+    
+    // Disable auto rearm
+    _unit setVariable ["BIS_noCoreConversations", true];
+};
+
+// ============================================
+// ENHANCED COMBAT AI (CONSOLIDATED)
+// ============================================
+
+DEFENDER_fnc_enhancedCombatAI = {
+    params ["_unit", "_defensePos"];
+    
+    while {alive _unit} do {
+        sleep 5;
+        
+        if (!([_unit] call DEFENDER_fnc_isUnitValid)) exitWith {};
+        
+        private _nearestEnemy = objNull;
+        private _minDist = DEFENDER_DETECTION_RADIUS;
+        
+        // Find nearest valid target
         {
-            private _netId = _x;
-            private _unit = objectFromNetId _netId;
-            if (isNull _unit || !alive _unit || vehicle _unit == _unit || driver (vehicle _unit) != _unit) then {
-                if (!isNull _unit) then {
-                    _toRemove pushBack _unit;
+            if ([_unit, _x] call DEFENDER_fnc_isValidTarget) then {
+                private _dist = _unit distance _x;
+                if (_dist < _minDist) then {
+                    _minDist = _dist;
+                    _nearestEnemy = _x;
                 };
             };
-        } forEach (keys EAID_ActiveDrivers);
+        } forEach (_unit nearEntities [["CAManBase", "LandVehicle", "Air"], DEFENDER_DETECTION_RADIUS]);
         
-        {
-            if (!isNull _x) then {[_x] call EAID_fnc_restoreDriver};
-        } forEach _toRemove;
-        
-        if ((EAID_CONFIG get "DEBUG") && count _toRemove > 0) then {
-            diag_log format ["EAID: Cleanup - Active: %1 | Removed: %2", count EAID_ActiveDrivers, count _toRemove];
+        // Combat behavior when enemy detected
+        if (!isNull _nearestEnemy && alive _nearestEnemy) then {
+            private _grp = group _unit;
+            _grp setBehaviour "COMBAT";
+            _grp setCombatMode "RED";
+            _grp setSpeedMode "FULL";
+            
+            // Target callout removed to reduce log spam
+            
+            // Use grenade if close
+            if (_minDist < 40 && random 1 < DEFENDER_GRENADE_USAGE_CHANCE) then {
+                if ("HandGrenade" in magazines _unit) then {
+                    _unit doTarget _nearestEnemy;
+                    sleep 0.5;
+                    _unit fire currentMuzzle _unit;
+                };
+            };
+            
+            // Move to cover if needed
+            if (random 1 < 0.4) then {
+                private _coverPos = [_unit, _nearestEnemy] call DEFENDER_fnc_findCover;
+                if (count _coverPos > 0) then {
+                    _unit doMove _coverPos;
+                    _unit setUnitPos "MIDDLE"; // Crouch in combat
+                };
+            };
+        } else {
+            // Patrol behavior when no enemy
+            _unit setUnitPos "AUTO";
         };
     };
 };
 
-// =====================================================
-// START SYSTEM
-// =====================================================
+// ============================================
+// ENHANCED SPAWN FUNCTION WITH MILITARY BUILDING PATROL
+// ============================================
 
-if (EAID_CONFIG get "ENABLED") then {
+DEFENDER_fnc_spawnPatrolZones = {
+    params ["_spawnZones"];
     
-    if (isClass (configFile >> "CfgPatches" >> "cba_main")) then {
-        call EAID_fnc_addEventHandlers;
-    } else {
-        [] spawn {
-            while {EAID_CONFIG get "ENABLED"} do {
-                {
-                    if (!isPlayer _x && alive _x) then {
-                        private _vehicle = vehicle _x;
-                        if (_vehicle != _x && driver _vehicle == _x && _vehicle isKindOf "LandVehicle" && !([_x] call EAID_fnc_isEnhanced)) then {
-                            [_x, _vehicle] call EAID_fnc_applyToDriver;
+    PATROL_Active = true;
+    
+    {
+        _x params ["_zoneMarker", "_defendersPerGroup", "_respawnDelay", "_cacheDistance", "_maxRespawnAttempts"];
+        
+        private _markerPos = getMarkerPos _zoneMarker;
+        private _cityName = markerText _zoneMarker;
+        
+        if (_cityName == "") then {
+            _cityName = _zoneMarker;
+        };
+        
+        diag_log format["[AI] Initializing patrol zone: %1 at %2", _cityName, _markerPos];
+        
+        if ((_markerPos select 0) != 0 || (_markerPos select 1) != 0) then {
+            private _handle = [_zoneMarker, _cityName, _markerPos, _defendersPerGroup, _respawnDelay, _cacheDistance, _maxRespawnAttempts] spawn {
+                params ["_zoneMarker", "_cityName", "_markerPos", "_defendersPerGroup", "_respawnDelay", "_cacheDistance", "_maxRespawnAttempts"];
+                
+                private _respawnAttempts = 0;
+                
+                while {_respawnAttempts < _maxRespawnAttempts && PATROL_Active} do {
+                    private _defenderGrp = createGroup RESISTANCE;
+                    PATROL_AllGroups pushBack _defenderGrp;
+                    
+                    for "_i" from 1 to _defendersPerGroup do {
+                        private _spawnPos = [_markerPos, 5, 30, 5, 0, 60, 0] call BIS_fnc_findSafePos;
+                        private _defender = _defenderGrp createUnit ["I_Soldier_F", _spawnPos, [], 0, "FORM"];
+                        
+                        // Remove default gear
+                        removeAllWeapons _defender;
+                        removeAllItems _defender;
+                        removeAllAssignedItems _defender;
+                        removeBackpack _defender;
+                        removeVest _defender;
+                        removeHeadgear _defender;
+                        removeGoggles _defender;
+                        
+                        // === ADD CUSTOM GEAR ===
+                        // Uniform
+                        _defender forceAddUniform "U_O_R_Gorka_01_black_F";
+                        
+                        // Vest
+                        _defender addVest "V_Rangemaster_belt";
+                        
+                        // Backpack
+                        _defender addBackpack "B_CivilianBackpack_01_Everyday_IDAP_F";
+                        
+                        // Headgear
+                        _defender addHeadgear "H_Bandanna_surfer_blk";
+                        
+                        // Goggles
+                        _defender addGoggles "G_Bandanna_Syndikat2";
+                        
+                        // Add basic items
+                        _defender linkItem "ItemMap";
+                        _defender linkItem "ItemCompass";
+                        _defender linkItem "ItemWatch";
+                        _defender linkItem "ItemGPS";
+                        
+                        // Give basic weapons
+                        [_defender] call DEFENDER_fnc_giveBasicWeapons;
+                        
+                        // Apply enhanced skills
+                        [_defender] call DEFENDER_fnc_setEnhancedSkills;
+                        
+                        // Audio detection event handler
+                        private _audioEH = _defender addEventHandler ["FiredNear", {
+                            params ["_unit", "_firer", "_distance", "_weapon", "_muzzle", "_mode", "_ammo", "_gunner"];
+                            
+                            if (side _firer != side _unit && _distance < DEFENDER_AUDIO_DETECTION_RADIUS) then {
+                                if ([_unit, _firer] call DEFENDER_fnc_isValidTarget) then {
+                                    _unit doTarget _firer;
+                                    _unit doFire _firer;
+                                };
+                            };
+                        }];
+                        
+                        _defender setVariable ["DEFENDER_audioEH", _audioEH];
+                        
+                        // Start combat AI thread
+                        [_defender, _markerPos] spawn DEFENDER_fnc_enhancedCombatAI;
+                    };
+                    
+
+                    // === ENHANCE GROUP LEADER ===
+                    private _leader = leader _defenderGrp;
+                    if (!isNull _leader && alive _leader) then {
+                        // Boost leader-specific skills
+                        _leader setSkill ["commanding", 1.0];
+                        _leader setSkill ["courage", 1.0];
+                        _leader setSkill ["general", 1.0];
+                        
+                        // Leader has better awareness
+                        _leader setSkill ["spotDistance", 1.0];
+                        _leader setSkill ["spotTime", 1.0];
+                        
+                        // Ensure leader is properly set
+                        _defenderGrp selectLeader _leader;
+                        
+                        diag_log format["[AI] Leader enhanced for group at %1", _cityName];
+                    };
+                    // Configure group
+                    _defenderGrp setFormation "WEDGE";  // Better for patrols and combat
+                    _defenderGrp setSpeedMode "LIMITED";
+                    _defenderGrp enableAttack true;
+                    _defenderGrp setCombatMode "YELLOW";  // Engage at will
+                    _defenderGrp setBehaviour "SAFE";  // Alert but not combat stance while patrolling
+                    
+                    // === FIND AND PATROL MILITARY BUILDINGS ===
+                    private _militaryBuildings = [_markerPos, DEFENDER_MILITARY_SEARCH_RADIUS] call DEFENDER_fnc_findMilitaryBuildings;
+                    
+                    if (count _militaryBuildings > 0) then {
+                        diag_log format["[AI] Creating waypoints for %1 military buildings near %2", count _militaryBuildings, _cityName];
+                        
+                        // Create waypoints for each military building (up to 10)
+                        private _buildingCount = count _militaryBuildings min 10;
+                        for "_i" from 0 to (_buildingCount - 1) do {
+                            private _building = _militaryBuildings select _i;
+                            private _buildingPos = getPosATL _building;
+                            
+                            private _wp = _defenderGrp addWaypoint [_buildingPos, 0];
+                            _wp setWaypointType "MOVE";
+                            _wp setWaypointSpeed "LIMITED";
+                            _wp setWaypointBehaviour "SAFE";
+                            _wp setWaypointCombatMode "YELLOW";
+                            _wp setWaypointCompletionRadius 30;
+                            _wp setWaypointTimeout [20, 40, 60];
+                        };
+                        
+                        // Add cycle waypoint to loop the patrol
+                        private _cycleWp = _defenderGrp addWaypoint [_markerPos, 0];
+                        _cycleWp setWaypointType "CYCLE";
+                    } else {
+                        diag_log format["[AI] No military buildings found near %1, using circular patrol", _cityName];
+                        
+                        // Fallback to circular patrol if no military buildings found
+                        for "_i" from 0 to 7 do {
+                            private _angle = _i * 45;
+                            private _dist = 300;
+                            private _patrolPos = [
+                                (_markerPos select 0) + (_dist * sin _angle), 
+                                (_markerPos select 1) + (_dist * cos _angle), 
+                                0
+                            ];
+                            _patrolPos = [_patrolPos, 0, 50, 5, 0, 60, 0] call BIS_fnc_findSafePos;
+                            
+                            private _wp = _defenderGrp addWaypoint [_patrolPos, 0];
+                            _wp setWaypointType "MOVE";
+                            _wp setWaypointSpeed "LIMITED";
+                            _wp setWaypointBehaviour "SAFE";
+                            _wp setWaypointCombatMode "YELLOW";
+                            _wp setWaypointCompletionRadius 30;
+                            _wp setWaypointTimeout [15, 30, 45];
+                        };
+                        
+                        private _cycleWp = _defenderGrp addWaypoint [_markerPos, 0];
+                        _cycleWp setWaypointType "CYCLE";
+                    };
+                    
+                    diag_log format["[AI] Spawned %1 patrol units at %2 (%3)", _defendersPerGroup, _cityName, _zoneMarker];
+                    
+                    _respawnAttempts = _respawnAttempts + 1;
+                    
+                    // === MONITORING LOOP ===
+                    private _deathTime = -1;
+                    
+                    while {PATROL_Active} do {
+                        sleep 30;
+                        
+                        if (isNull _defenderGrp || {count units _defenderGrp == 0}) exitWith {
+                            diag_log format["[AI] Patrol group at %1 was deleted externally", _cityName];
+                        };
+                        
+                        private _defendersAlive = {alive _x} count units _defenderGrp;
+                        
+                        if (_defendersAlive == 0) then {
+                            if (_deathTime < 0) then {
+                                _deathTime = time;
+                                diag_log format["[AI] %1: All patrol units eliminated!", _cityName];
+                            };
+                            if (time - _deathTime > _respawnDelay) exitWith {
+                                {
+                                    if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                        _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                        _x setVariable ["DEFENDER_audioEH", nil];
+                                    };
+                                    deleteVehicle _x;
+                                } forEach units _defenderGrp;
+                                deleteGroup _defenderGrp;
+                                PATROL_AllGroups = PATROL_AllGroups - [_defenderGrp];
+                                diag_log format["[AI] Patrol cleanup complete at %1", _cityName];
+                            };
+                        } else {
+                            _deathTime = -1;
+                        };
+                        
+                        if (time > PATROL_playerCheckTime) then {
+                            PATROL_nearbyPlayers = allPlayers;
+                            PATROL_playerCheckTime = time + 15;
+                        };
+                        
+                        private _players = PATROL_nearbyPlayers select {(_x distance2D _markerPos) < _cacheDistance};
+                        if (count _players == 0) exitWith {
+                            {
+                                if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                    _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                    _x setVariable ["DEFENDER_audioEH", nil];
+                                };
+                                deleteVehicle _x;
+                            } forEach units _defenderGrp;
+                            deleteGroup _defenderGrp;
+                            PATROL_AllGroups = PATROL_AllGroups - [_defenderGrp];
+                            diag_log format["[AI] Patrol cached at %1 (no nearby players)", _cityName];
                         };
                     };
-                } forEach allUnits;
-                sleep 5;
+                    
+                    if (!PATROL_Active) exitWith {
+                        {
+                            if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                _x setVariable ["DEFENDER_audioEH", nil];
+                            };
+                            deleteVehicle _x;
+                        } forEach units _defenderGrp;
+                        deleteGroup _defenderGrp;
+                        PATROL_AllGroups = PATROL_AllGroups - [_defenderGrp];
+                    };
+                    
+                    sleep _respawnDelay;
+                };
+                
+                if (_respawnAttempts >= _maxRespawnAttempts) then {
+                    diag_log format["[AI] ERROR: Patrol zone %1 exceeded respawn limit, disabling", _cityName];
+                };
+            };
+            
+            PATROL_ZoneHandles pushBack _handle;
+        };
+    } forEach _spawnZones;
+    
+    diag_log format["[AI] Patrol System Active - %1 zones initialized", count PATROL_ZoneHandles];
+};
+
+// ============================================
+// MAIN LOOP - DYNAMIC SPAWN BASED ON PLAYER PROXIMITY
+// ============================================
+
+[] spawn {
+    while {true} do {
+        sleep 10; // Check every 10 seconds
+        
+        // If no players online, clean everything up
+        if (count allPlayers == 0) then {
+            if (PATROL_Active) then {
+                diag_log "[AI] No players online - Shutting down Patrol System";
+                PATROL_Active = false;
+                
+                {terminate _x} forEach PATROL_ZoneHandles;
+                PATROL_ZoneHandles = [];
+                
+                private _cleanupCount = 0;
+                {
+                    if (!isNull _x) then {
+                        {
+                            if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                _x setVariable ["DEFENDER_audioEH", nil];
+                            };
+                            deleteVehicle _x;
+                        } forEach units _x;
+                        deleteGroup _x;
+                        _cleanupCount = _cleanupCount + 1;
+                    };
+                } forEach PATROL_AllGroups;
+                PATROL_AllGroups = [];
+                
+                diag_log format["[AI] Patrol System Stopped - Removed %1 patrol groups", _cleanupCount];
+            };
+        } else {
+            // Players are online - check which spawn zones need AI
+            private _exileZones = [] call DEFENDER_fnc_findExileSpawnZones;
+            private _detectionRadius = EXILE_PATROL_CONFIG select 4; // Player detection radius
+            
+            if (count _exileZones > 0) then {
+                // Find which zones have players nearby
+                private _activeZones = [];
+                
+                {
+                    _x params ["_markerName", "_markerText", "_markerPos"];
+                    
+                    // Check if any player is within detection radius of this spawn zone
+                    private _nearbyPlayers = allPlayers select {(_x distance2D _markerPos) < _detectionRadius};
+                    
+                    if (count _nearbyPlayers > 0) then {
+                        _activeZones pushBack _x;
+                    };
+                } forEach _exileZones;
+                
+                // If we found zones with players nearby
+                if (count _activeZones > 0 && !PATROL_Active) then {
+                    // Create patrol configuration for zones with players
+                    private _spawnZones = [];
+                    
+                    {
+                        _x params ["_markerName", "_markerText", "_markerPos"];
+                        
+                        diag_log format["[AI] Player detected near %1 - Activating patrol", _markerText];
+                        
+                        // Format: [markerName, unitsPerGroup, respawnDelay, cacheDistance, maxRespawnAttempts]
+                        _spawnZones pushBack [
+                            _markerName,
+                            EXILE_PATROL_CONFIG select 0,  // Units per group
+                            EXILE_PATROL_CONFIG select 1,  // Respawn delay
+                            EXILE_PATROL_CONFIG select 2,  // Cache distance
+                            EXILE_PATROL_CONFIG select 3   // Max respawns
+                        ];
+                    } forEach _activeZones;
+                    
+                    if (count _spawnZones > 0) then {
+                        diag_log format["[AI] Creating patrols for %1 active spawn zones (players nearby)", count _spawnZones];
+                        [_spawnZones] call DEFENDER_fnc_spawnPatrolZones;
+                    };
+                } else {
+                    if (count _activeZones == 0 && PATROL_Active) then {
+                    // No players near any spawn zones - shut down
+                    diag_log "[AI] No players near spawn zones - Shutting down patrols";
+                    PATROL_Active = false;
+                    
+                    {terminate _x} forEach PATROL_ZoneHandles;
+                    PATROL_ZoneHandles = [];
+                    
+                    private _cleanupCount = 0;
+                    {
+                        if (!isNull _x) then {
+                            {
+                                if (!isNil {_x getVariable "DEFENDER_audioEH"}) then {
+                                    _x removeEventHandler ["FiredNear", _x getVariable "DEFENDER_audioEH"];
+                                    _x setVariable ["DEFENDER_audioEH", nil];
+                                };
+                                deleteVehicle _x;
+                            } forEach units _x;
+                            deleteGroup _x;
+                            _cleanupCount = _cleanupCount + 1;
+                        };
+                    } forEach PATROL_AllGroups;
+                    PATROL_AllGroups = [];
+                    
+                    diag_log format["[AI] Patrols cleaned up - Removed %1 groups", _cleanupCount];
+                };
+                };
+            } else {
+                if (PATROL_Active) then {
+                    diag_log "[AI] WARNING: No ExileSpawnZone markers found, shutting down";
+                    PATROL_Active = false;
+                };
             };
         };
-        diag_log "EAID: Running in fallback mode (no CBA)";
     };
-    
-    [] spawn EAID_fnc_cleanupLoop;
-    
-    diag_log "==========================================";
-    diag_log "Elite AI Driving System - ACTIVE";
-    diag_log format ["Max Highway: %1 km/h", EAID_CONFIG get "SPEED_HIGHWAY"];
-    diag_log format ["Debug logging every %1 seconds", EAID_CONFIG get "DEBUG_INTERVAL"];
-    diag_log "==========================================";
-    
-} else {
-    diag_log "Elite AI Driving System - DISABLED";
 };
+
+// ============================================
+// MONITORING THREAD
+// ============================================
+
+[] spawn {
+    while {true} do {
+        sleep 600; // Check every 10 minutes instead of 5
+        if (PATROL_Active) then {
+            private _resistanceCount = {side _x == RESISTANCE} count allUnits;
+            private _activeGroups = {!isNull _x && {count units _x > 0}} count PATROL_AllGroups;
+            diag_log format["[AI] Patrol Health Check: %1 patrol units | %2 active groups", 
+                _resistanceCount, _activeGroups];
+        };
+    };
+};
+
+// ============================================
+// STARTUP MESSAGE
+// ============================================
+
+diag_log "========================================";
+diag_log "MODIFIED AI PATROL SYSTEM - PLAYER PROXIMITY";
+diag_log "Only spawns AI at zones near players (2000m)";
+diag_log "Custom Gear: Gorka Uniform + Gold Weapons";
+diag_log "Patrols nearby military buildings";
+diag_log "Auto-detects ExileSpawnZone markers";
+diag_log "Cleans up when no players nearby";
+diag_log "========================================";

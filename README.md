@@ -1,297 +1,541 @@
-# Elite AI Recruit System v3.9.2 - Arma 3 ExileMod
+# Elite AI Systems for Arma 3 Exile
 
-An advanced AI recruitment system for Arma 3 ExileMod that automatically spawns and manages elite AI squadmates with god-tier combat capabilities.
+A collection of advanced AI enhancement scripts for Arma 3 Exile servers, providing intelligent driving, patrol systems, and player AI recruits.
 
-## 🎯 Features
+## 📦 Contents
 
-### Core Functionality
-- **Automatic Squad Management**: Spawns 3 elite AI squadmates (Anti-Air, Anti-Tank, Sniper)
-- **God-Tier Combat Skills**: All skills maxed at 1.0 (perfect accuracy, spotting, reload speed)
-- **Ultra-Aggressive Behavior**: COMBAT + RED mode - AI actively hunts and engages enemies
-- **Enhanced Movement**: 1.4x speed boost - AI moves faster than players
-- **Fearless Combat**: allowFleeing 0 - AI never retreats or surrenders
-- **Perfect Accuracy**: EXTREME mode enabled - ignores suppression, perfect aim
+- **[AI Elite Driving](#ai-elite-driving)** - Enhanced AI vehicle handling and combat driving
+- **[AI Patrol System](#ai-patrol-system)** - Dynamic patrol routes with squad leader coordination
+- **[Elite AI Recruit System](#elite-ai-recruit-system)** - Player AI teammates with full lifecycle management
 
-### AI Roles & Loadouts
+---
 
-#### 🎯 Anti-Air Specialist (AA)
-- **Primary Weapon**: Navid MMG (9.3mm) with ARCO optic, IR laser, bipod
-- **Launcher**: Titan AA (pre-loaded, ready to fire)
-- **Equipment**: Rangefinder, smoke grenades, HE grenades
-- **Magazine Count**: 3x 150-round belts
+## 🚗 AI Elite Driving
 
-#### 🚀 Anti-Tank Specialist (AT)
-- **Primary Weapon**: AK-12 (7.62mm) with full attachments (optic, suppressor, bipod, IR laser)
-- **Launcher**: RPG-42 Alamut (pre-loaded)
-- **Equipment**: Rangefinder, toolkits, smoke & HE grenades
-- **Magazine Count**: 8x 30-round mags
+### Description
+Enhances AI driving behavior with realistic speeds, combat awareness, and side-specific configuration. AI will adjust speed based on threat level and vehicle type.
 
-#### 🎯 Sniper
-- **Primary Weapon**: GM6 Lynx .50 cal with LRPS optic
-- **Ammunition**: APDS (armor-piercing) rounds
-- **Equipment**: Laser designator, rangefinder, advanced medical supplies
-- **Magazine Count**: 8x 5-round mags
-- **Note**: GM6 only supports optics (no suppressors or bipods)
+### Features
+- ✅ Side-specific configuration (BLUFOR, OPFOR, Independent, Civilian)
+- ✅ Dynamic speed adjustment based on threat level
+- ✅ Vehicle-type awareness (light/heavy/armored)
+- ✅ Combat vs. safe driving modes
+- ✅ Automatic headlight control
+- ✅ Damage-based speed reduction
 
-### Advanced Features
+### Installation
 
-#### 🚗 Vehicle Management
-- **Instant Teleport Boarding**: AI teleports into vehicles within 300m radius
-- **Smart Seat Assignment**: AI fills Driver → Commander → Gunner → Cargo positions
-- **Auto-Exit**: AI automatically exits when player dismounts
-- **Speed-Based Logic**: Safe exits only when vehicle is slow/stopped
+#### Step 1: Add Script to Mission
+Place `AI_EliteDriving.sqf` in your mission folder:
+```
+Exile.YourMap/
+├── initServer.sqf
+└── scripts/
+    └── AI_EliteDriving.sqf
+```
 
-#### 🎯 Combat Intelligence
-- **Enhanced Detection**: 1500m visual detection, 2000m audio detection
-- **Enemy Callouts**: Audio warnings with distance and direction
-- **Tactical Awareness**: AI identifies threats, vehicles, and provides combat feedback
-- **Target Validation**: Verifies targets are actual enemies before engaging
+#### Step 2: Initialize from initServer.sqf
+Add to your `initServer.sqf`:
+```sqf
+// Load Elite AI Driving
+if (isServer) then {
+    [] execVM "scripts\AI_EliteDriving.sqf";
+};
+```
 
-#### 🔄 Squad Management
-- **VEE Formation**: Maintains tactical VEE formation automatically
-- **Auto-Follow**: AI stays close and maintains formation distance
-- **Respawn Handling**: Cleans up AI on player death, respawns after 15s cooldown
-- **Auto-Rearm**: Checks ammo every 30s, auto-resupplies from nearby ammo sources
+### Configuration
 
-#### ⚔️ Faction Configuration
-- **RESISTANCE/INDEPENDENT Faction**: AI belongs to this faction
-- **Hostile to EAST**: Automatically engages EAST (enemy) units
-- **Neutral to WEST**: Configurable for future zombie/AI compatibility
-
-## 📋 Requirements
-
-- **Arma 3**: Any version
-- **ExileMod**: Any version
-- **Server Access**: Ability to modify mission files
-- **No ACE Required**: Uses only Exile and vanilla Arma 3 items
-
-## 🔧 Installation
-
-### Method 1: Mission File Installation (Client-Side)
-
-1. **Download the Script**
-   ```
-   Download recruit_ai.sqf from this repository
-   ```
-
-2. **Add to Mission Root**
-   - Extract your mission PBO (e.g., `Exile.Altis.pbo`)
-   - Place `recruit_ai.sqf` in the root folder of your mission
-
-3. **Edit init.sqf**
-   - Open (or create) `init.sqf` in the mission root
-   - Add this line at the bottom:
-   ```sqf
-   [] execVM "recruit_ai.sqf";
-   ```
-
-4. **Repack Mission PBO**
-   - Repack your mission folder as a PBO
-   - Upload to server's `MPMissions` folder
-   - Restart mission/server
-
-### Method 2: Server-Side Installation (Recommended)
-
-1. **Add to Server Addon**
-   - Place `recruit_ai.sqf` in your server addon folder
-   - Example: `@ExileServer\addons\exile_server\scripts\`
-
-2. **Modify config.cpp**
-   - Add reference to the script in your server config
-   ```cpp
-   class CfgExileCustomCode
-   {
-       ExileServer_object_player_createBambi = "exile_server\scripts\recruit_ai.sqf";
-   };
-   ```
-
-3. **Alternative: Direct Execution**
-   - Add to your server's `initServer.sqf`:
-   ```sqf
-   [] execVM "path\to\recruit_ai.sqf";
-   ```
-
-### Method 3: Player addAction (Optional - For Manual Spawning)
-
-If you want players to manually recruit AI:
+Edit the script to choose which sides use enhanced driving:
 
 ```sqf
-player addAction [
-    "Recruit Elite Squad",
-    {
-        [] execVM "recruit_ai.sqf";
-    },
-    [],
-    1.5,
-    true,
-    true,
-    "",
-    "true",
-    5
+// Line ~15: Configure which sides use Elite Driving
+ELITE_DRIVING_SIDES = [
+    independent,  // AI missions (DMS, VEMF, etc.)
+    east,         // OPFOR AI
+    west          // BLUFOR AI
+    // civilian   // Uncomment to include civilians
 ];
 ```
 
-## ⚙️ Configuration
+### Parameters
 
-Edit these variables at the top of the script to customize behavior:
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `ELITE_DRIVING_SIDES` | Array of sides that use enhanced driving | `[independent]` |
+| Combat Speed | Speed when enemies nearby | 40 km/h |
+| Safe Speed | Speed when no threats | 80 km/h |
+| Update Interval | How often to check vehicles | 5 seconds |
 
-```sqf
-// Maximum AI squadmates (default: 3)
-private _maxSquadmates = 3;
+---
 
-// Detection ranges
-RECRUIT_VEHICLE_BOARD_RADIUS = 300;      // Vehicle auto-board distance
-RECRUIT_DETECTION_RADIUS = 1500;          // Enemy visual detection
-RECRUIT_AUDIO_DETECTION_RADIUS = 2000;    // Sound detection
-RECRUIT_CALLOUT_INTERVAL = 8;             // Enemy callout frequency (seconds)
-RECRUIT_REARM_CHECK_INTERVAL = 30;        // Ammo check interval (seconds)
-RECRUIT_RESPAWN_COOLDOWN = 15;            // Delay after respawn (seconds)
+## 🎯 AI Patrol System
+
+### Description
+Creates dynamic patrol routes for AI squads with intelligent waypoint placement and squad leader coordination.
+
+### Features
+- ✅ Dynamic waypoint generation
+- ✅ Squad leader coordination
+- ✅ Automatic patrol route creation
+- ✅ Building and cover awareness
+- ✅ Looping patrol routes
+- ✅ Configurable patrol radius and waypoints
+
+### Installation
+
+#### Step 1: Add Script to Mission
+Place `fn_aiPatrolSystem.sqf` in your mission folder:
+```
+Exile.YourMap/
+├── initServer.sqf
+└── scripts/
+    └── fn_aiPatrolSystem.sqf
 ```
 
-### Customizing AI Roles
-
-To modify AI loadouts, edit the `RECRUIT_fnc_rearmUnit` function (starts at line 180).
-
-### Changing Faction Relations
-
-Modify the faction configuration section (lines 54-75) to change who AI fights:
-
+#### Step 2: Compile Function
+Add to your `initServer.sqf`:
 ```sqf
-// Make AI hostile to EAST
-RESISTANCE setFriend [EAST, 0];
-EAST setFriend [RESISTANCE, 0];
-
-// Make AI friendly to WEST
-RESISTANCE setFriend [WEST, 1];
-WEST setFriend [RESISTANCE, 1];
+// Compile AI Patrol Function
+if (isServer) then {
+    fnc_aiPatrolSystem = compile preprocessFileLineNumbers "scripts\fn_aiPatrolSystem.sqf";
+};
 ```
 
-## 🎮 Usage
+### Usage
 
-### Automatic Mode (Default)
-- AI automatically spawns when you join the server
-- Maximum of 3 AI squadmates at all times
-- Respawns automatically after death (15s cooldown)
+#### Basic Patrol
+```sqf
+// Create patrol for a group around a position
+[_aiGroup, _centerPosition, 200] call fnc_aiPatrolSystem;
+```
 
-### In-Game Controls
-- **Vehicle Boarding**: Get within 300m of a vehicle, AI auto-boards
-- **Formations**: AI maintains VEE formation automatically
-- **Following**: AI follows player, maintains distance
-- **Combat**: AI engages enemies independently and aggressively
+#### Advanced Patrol
+```sqf
+// Full parameters
+[
+    _aiGroup,           // Group to patrol
+    _centerPosition,    // Center of patrol area [x,y,z]
+    _radius,           // Patrol radius in meters
+    _waypointCount     // Number of waypoints (optional, default: 4)
+] call fnc_aiPatrolSystem;
+```
 
-### Chat Commands & Feedback
-- System messages appear in chat for:
-  - AI spawn notifications
-  - Enemy contact callouts (with distance and direction)
-  - Vehicle boarding status
-  - Rearm notifications
-  - Respawn cooldown status
+#### Example with DMS Mission
+```sqf
+// In your DMS mission file
+_aiGroup = createGroup independent;
+// ... spawn AI units ...
 
-## 🐛 Troubleshooting
+// Set up patrol
+[_aiGroup, _missionCenter, 150, 6] call fnc_aiPatrolSystem;
+```
 
-### AI Not Spawning
-- Check that script is called from `init.sqf`
-- Verify no script errors in RPT logs
-- Confirm 15-second respawn cooldown has passed
-- Check `RECRUIT_RespawnInProgress` flag isn't stuck
+### Configuration
 
-### AI Not Following
-- Verify VEE formation is set: `(group player) setFormation "VEE"`
-- Check AI are in same group as player
-- Confirm AI have `ExileRecruited` variable set
+```sqf
+// Edit in script to customize behavior
+_radius = _this select 2;              // Patrol radius
+_waypointCount = _this param [3, 4];   // Number of waypoints (default: 4)
+_waypointTimeout = [10, 20, 30];       // Time at each waypoint [min, mid, max]
+```
 
-### AI Not Boarding Vehicles
-- Check vehicle is within 300m
-- Verify vehicle has empty seats
-- Ensure vehicle isn't moving too fast
-- Check that player is already in vehicle
+### Features Explained
 
-### AI Fleeing from Combat
-- Should never happen with this script (allowFleeing = 0)
-- If it occurs, check that setBehaviour "COMBAT" is applied
-- Verify all skills are set to 1.0
+**Squad Leader:**
+- First unit in group becomes squad leader
+- Other units follow leader's commands
+- Leader controls patrol route
 
-### Script Errors
-- Check RPT logs in: `C:\Users\[YourName]\AppData\Local\Arma 3\`
-- Common issues:
-  - Missing semicolons
-  - Invalid weapon/item classnames
-  - Syntax errors after modifications
+**Dynamic Waypoints:**
+- Placed around perimeter of patrol radius
+- Avoid water and extreme terrain
+- Return to start point on completion
 
-## 📝 Changelog
+---
 
-### v3.9.2 (Latest)
-- ✅ Removed invalid GM6 Lynx attachments (optic only)
-- ✅ Removed redundant NVGoggles (helmet has built-in NVG)
-- ✅ Fixed duplicate weapon loadouts
-- ✅ Cleaned up gear assignment logic
+## 👥 Elite AI Recruit System
 
-### v3.9.1
-- ✅ Fixed checkVisibility syntax error (line 126)
-- ✅ Fixed nearestObjects performance issue (line 406)
-- ✅ Fixed rearm logic critical bug (line 483)
-- ✅ AT specialist now uses AK-12 with full attachments
-- ✅ Sniper now uses GM6 Lynx .50 cal with APDS rounds
+### Description
+**Version 7.6** - Comprehensive AI recruit system that gives each player 3 AI teammates with full lifecycle management, death cleanup, and respawn handling.
 
-### v3.9
-- ✅ Fixed cleanup system for orphaned AI
-- ✅ Added respawn cooldown system
-- ✅ Fixed "Object not found" errors
-- ✅ Improved unit validation checks
+### Features
+- ✅ **3 AI teammates per player** (AT, AA, Sniper)
+- ✅ **Server-side death monitoring** - AI cleaned up instantly on death
+- ✅ **Proven cleanup system** - Uses same reliable code as disconnect
+- ✅ **Respawn handling** - Fresh AI spawn after respawn
+- ✅ **Vehicle seat assignment** - AI automatically board vehicles
+- ✅ **Strict 3 AI maximum** - Prevents duplicates
+- ✅ **VCOMAI integration** - Auto-detects and configures
+- ✅ **A3XAI blacklist** - Prevents AI mission conflicts
+- ✅ **Extensive logging** - Easy troubleshooting
 
-## ⚠️ Warnings
+### Installation
 
-### Performance Considerations
-- **High-End AI**: These AI are extremely resource-intensive
-- **Server Impact**: May affect server FPS with many players
-- **Recommended**: Test on development server first
-- **Monitor**: Watch server performance and adjust `_maxSquadmates` if needed
+#### Step 1: Add Script to Mission
+Place `recruit_ai.sqf` in your mission folder:
+```
+Exile.YourMap/
+├── initServer.sqf
+└── addons/
+    └── ai_recruit/
+        └── init.sqf  (rename recruit_ai.sqf to init.sqf)
+```
 
-### Balance Considerations
-- **Extremely Powerful**: AI have perfect accuracy and god-tier skills
-- **PvP Impact**: May create balance issues in PvP servers
-- **Difficulty**: Makes PvE content significantly easier
-- **Recommendation**: Consider reducing skill values for balanced gameplay
+#### Step 2: Initialize from initServer.sqf
+Add to your `initServer.sqf`:
+```sqf
+// Load Elite AI Recruit System
+if (isServer) then {
+    execVM "addons\ai_recruit\init.sqf";
+};
+```
 
-### Known Limitations
-- GM6 Lynx only supports optics (engine limitation)
-- AI may struggle with complex vehicle maneuvers
-- Heavy vehicle traffic may cause boarding issues
-- Large-scale battles may impact performance
+#### Step 3: Restart Server
+Restart your server and check RPT logs for:
+```
+========================================
+[AI RECRUIT] Elite AI Recruit System v7.6
+  • Death cleanup = Disconnect cleanup
+  • Server-side death monitoring
+  • STRICT 3 AI maximum
+  • Proven cleanup method
+========================================
+```
+
+### Configuration
+
+#### Change AI Types
+Edit lines 34-38 in the script:
+```sqf
+RECRUIT_AI_TYPES = [
+    "I_Soldier_AT_F",      // Anti-Tank (Titan Launcher)
+    "I_Soldier_AA_F",      // Anti-Air (Titan AA)
+    "I_Sniper_F"           // Sniper (Mk-I EMR)
+];
+```
+
+**Popular AI Types:**
+```sqf
+// Medic Support
+"I_medic_F"
+
+// Machine Gunner
+"I_Soldier_AR_F"
+
+// Grenadier
+"I_Soldier_GL_F"
+
+// Marksman
+"I_Soldier_M_F"
+
+// Engineer
+"I_engineer_F"
+
+// Heavy Gunner
+"I_HeavyGunner_F"
+```
+
+#### Adjust Death Check Interval
+Edit line 605:
+```sqf
+sleep 5; // Check every 5 seconds for player deaths
+```
+
+- **3 seconds** = Very responsive (more CPU usage)
+- **5 seconds** = Good balance (recommended)
+- **10 seconds** = Less responsive (lighter CPU)
+
+#### AI Skill Levels
+Edit lines 132-138 for standard AI (non-VCOMAI):
+```sqf
+{
+    _unit setSkill [_x, 1.0];  // Change 1.0 to 0.1-1.0
+} forEach [
+    "aimingAccuracy",  // 0.1 = poor aim, 1.0 = perfect aim
+    "aimingShake",     // 0.1 = shaky, 1.0 = steady
+    "spotDistance",    // 0.1 = blind, 1.0 = eagle eyes
+    "courage"          // 0.1 = coward, 1.0 = fearless
+];
+```
+
+### How It Works
+
+#### 1. Player Joins Server
+```
+Player connects → Wait 10 seconds → Setup event handlers → Spawn 3 AI
+```
+
+#### 2. During Gameplay
+```
+Every 30 seconds → Check if player has 3 AI → Spawn missing AI if needed
+AI dies → Wait 3 seconds → Respawn replacement AI
+```
+
+#### 3. Player Dies
+```
+Death detected (within 5 seconds) → Kill all AI → Delete AI → Clear tracking
+```
+
+#### 4. Player Respawns
+```
+Respawn → Clear old AI → Wait 5 seconds → Spawn 3 fresh AI
+```
+
+#### 5. Player Disconnects
+```
+Disconnect → Kill all AI → Delete AI → Clear tracking
+```
+
+### Troubleshooting
+
+#### AI Not Spawning on Join
+**Check:**
+- Server RPT shows `[AI RECRUIT] System initialized`
+- Player is fully spawned (not at spawn selection)
+- No script errors in RPT
+
+**Solution:**
+```sqf
+// Increase initial spawn delay (line 580)
+sleep 10; // Change to sleep 15;
+```
+
+#### AI Not Cleaned Up on Death
+**Check:**
+- RPT shows `[AI RECRUIT] !!!!! DEATH DETECTED`
+- Death monitoring loop is running
+
+**Solution:**
+Death cleanup happens within 5 seconds. If not working, check RPT logs for errors.
+
+#### Group Ownership Warnings
+**Issue:**
+```
+Warning: Adding units to a remote group is not safe
+```
+
+**Solution:**
+Update to latest version - this is fixed in v7.6 with proper group ownership transfer.
+
+#### Too Many AI After Multiple Deaths
+**Check:**
+- RPT logs show cleanup completing
+- Global map is being cleared
+
+**Solution:**
+Script enforces strict 3 AI maximum. Extra AI are automatically deleted. Check RPT for:
+```
+[AI RECRUIT] WARNING: Player has 5 AI! Removing extras...
+```
+
+#### AI Not Following Player
+**Check:**
+- VCOMAI compatibility (auto-detected)
+- A3XAI not interfering (auto-blacklisted)
+- AI behavior settings
+
+**Solution:**
+```sqf
+// Check RPT for:
+[AI RECRUIT] VCOMAI Integration: ENABLED
+```
+
+### Performance Impact
+
+| Aspect | Impact | Notes |
+|--------|--------|-------|
+| CPU Usage | Minimal | Checks every 5 seconds per player |
+| Memory | Low | Uses efficient hashmap tracking |
+| Network | Low | Only group synchronization |
+| AI Count | 3 per player | 10 players = 30 AI maximum |
+
+### Compatibility
+
+#### ✅ Compatible With:
+- Exile Mod (required)
+- VCOMAI (auto-detected)
+- A3XAI (auto-blacklisted)
+- DMS Missions
+- VEMF Reloaded
+- Occupation
+- Ryan's Zombies
+- Ravage Zombies
+
+#### ⚠️ May Conflict With:
+- Other AI recruit scripts (remove them)
+- Custom group management mods
+- Scripts that modify player respawn
+
+### Logs Reference
+
+#### Successful Startup
+```
+[AI RECRUIT] Starting initialization v7.6...
+[AI RECRUIT] VCOMAI Integration: ENABLED
+[AI RECRUIT] System initialized
+[AI RECRUIT] Setting up handlers for PlayerName
+[AI RECRUIT] Player PlayerName needs 3 AI
+[AI RECRUIT] Spawned I_Soldier_AT_F - Global map now has 1 AI
+[AI RECRUIT] Spawned I_Soldier_AA_F - Global map now has 2 AI
+[AI RECRUIT] Spawned I_Sniper_F - Global map now has 3 AI
+```
+
+#### Player Death
+```
+[AI RECRUIT] !!!!! DEATH DETECTED: PlayerName !!!!!
+[AI RECRUIT] CLEANUP START: PlayerName (UID: xxxxx)
+[AI RECRUIT] CLEANUP: Deleting 3 AI for PlayerName
+[AI RECRUIT]   From map: 3, From var: 3, From group: 3
+[AI RECRUIT]   Deleted: I_Soldier_AT_F
+[AI RECRUIT]   Deleted: I_Soldier_AA_F
+[AI RECRUIT]   Deleted: I_Sniper_F
+[AI RECRUIT] Cleanup complete - 3 AI removed
+```
+
+#### Player Respawn
+```
+[AI RECRUIT] Player PlayerName RESPAWNED
+[AI RECRUIT] Starting fresh AI spawn for PlayerName
+[AI RECRUIT] Player PlayerName needs 3 AI
+(spawning messages...)
+```
+
+---
+
+## 🔧 Complete Installation Example
+
+Here's a complete `initServer.sqf` with all three scripts:
+
+```sqf
+// ===================================================================
+// EXILE SERVER INITIALIZATION
+// ===================================================================
+
+if (!isServer) exitWith {};
+
+diag_log "[SERVER] Starting Exile server initialization...";
+
+// Wait for server to be ready
+waitUntil {time > 0};
+sleep 5;
+
+// ===================================================================
+// ELITE AI SYSTEMS
+// ===================================================================
+
+// Load Elite AI Driving
+diag_log "[SERVER] Loading Elite AI Driving...";
+[] execVM "scripts\AI_EliteDriving.sqf";
+
+// Compile AI Patrol System Function
+diag_log "[SERVER] Compiling AI Patrol System...";
+fnc_aiPatrolSystem = compile preprocessFileLineNumbers "scripts\fn_aiPatrolSystem.sqf";
+
+// Load Elite AI Recruit System
+diag_log "[SERVER] Loading Elite AI Recruit System...";
+execVM "addons\ai_recruit\init.sqf";
+
+diag_log "[SERVER] All Elite AI systems loaded!";
+
+// ===================================================================
+// CONTINUE WITH OTHER INITIALIZATION
+// ===================================================================
+```
+
+### Complete Folder Structure
+```
+Exile.Altis/
+├── mission.sqm
+├── description.ext
+├── initServer.sqf
+├── scripts/
+│   ├── AI_EliteDriving.sqf
+│   └── fn_aiPatrolSystem.sqf
+└── addons/
+    └── ai_recruit/
+        └── init.sqf
+```
+
+---
+
+## 📊 Version History
+
+### Elite AI Driving
+- **Latest:** Side-specific configuration
+- **Previous:** Applied to all AI vehicles
+
+### AI Patrol System
+- **Latest:** Added squad leader coordination
+- **Previous:** Basic waypoint system
+
+### Elite AI Recruit System
+- **v7.6:** Server-side death monitoring, proven cleanup
+- **v7.5:** Enhanced logging, 4-source tracking
+- **v7.4:** Simplified cleanup
+- **v7.0-7.3:** Initial versions
+
+---
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Test thoroughly on a development server
-4. Submit a pull request with detailed description
-
-## 📄 License
-
-This script is provided as-is for Arma 3 ExileMod communities.
-Free to use, modify, and distribute with credit.
-
-## 🙏 Credits
-
-- **Author**: [Your Name/Handle]
-- **Version**: 3.9.2 (Final)
-- **Tested On**: Arma 3 v2.18+ / ExileMod 1.0.4+
-- **Community**: ExileMod Community
-
-## 📞 Support
-
-- **Issues**: Report bugs via GitHub Issues
-- **Questions**: Check ExileMod forums or Discord
-- **Updates**: Watch this repository for updates
+1. Test thoroughly on your server
+2. Document any changes
+3. Submit pull requests with clear descriptions
+4. Include RPT logs for bug reports
 
 ---
 
-### Quick Start Summary
-1. Download `recruit_ai.sqf`
-2. Add to mission root
-3. Add `[] execVM "recruit_ai.sqf";` to `init.sqf`
-4. Repack PBO and restart server
-5. AI spawns automatically on player join
+## 📝 License
 
-**Enjoy your elite AI squad!** 🎯🚁💥
+Free to use and modify for your Arma 3 Exile server.  
+Please give credit if you redistribute or modify.
+
+---
+
+## 🐛 Reporting Issues
+
+When reporting issues, please include:
+- **Server RPT logs** (relevant sections)
+- **Script version** you're using
+- **Mods installed** (DMS, A3XAI, VCOMAI, etc.)
+- **Steps to reproduce** the issue
+- **Expected vs actual behavior**
+
+---
+
+## 📞 Support
+
+For support and updates:
+- Check RPT logs first
+- Review troubleshooting sections
+- Ensure you're using latest versions
+- Test scripts individually before combining
+
+---
+
+## 🎯 Credits
+
+- **Elite AI Driving:** Enhanced vehicle AI behavior
+- **AI Patrol System:** Dynamic patrol route generation
+- **Elite AI Recruit System:** Complete player AI teammate solution
+- **Exile Mod:** Community and server framework
+- **VCOMAI/A3XAI:** AI enhancement integration
+
+---
+
+## ⚡ Quick Start Checklist
+
+- [ ] Download all three scripts
+- [ ] Place in correct folders
+- [ ] Add initialization to initServer.sqf
+- [ ] Configure side settings (Elite Driving)
+- [ ] Configure AI types (Recruit System)
+- [ ] Restart server
+- [ ] Check RPT logs for successful initialization
+- [ ] Test in-game functionality
+- [ ] Monitor performance
+
+---
+
+**Enjoy your enhanced AI systems!** 🚀

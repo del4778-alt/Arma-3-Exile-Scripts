@@ -1,20 +1,36 @@
 /*
     =====================================================
-    ELITE AI DRIVING SYSTEM - SIDE-BASED FILTERING
+    ELITE AI DRIVING SYSTEM - FIXED & ENHANCED
     =====================================================
     Author: Master SQF Engineer
-    Version: 3.1 - SIDE-BASED FILTER (CLEANEST SOLUTION)
+    Version: 3.2 - BUGFIX RELEASE
     =====================================================
     
-    CONFIGURATION:
-    - Only enhances INDEPENDENT/RESISTANCE/GUER vehicles
-    - Automatically excludes EAST, WEST, and CIV
-    - No A3XAI detection needed - side filtering handles it all
-    - Simple, reliable, and conflict-free
+    FIXES APPLIED:
+    ✓ VCOMAI detection and exclusion
+    ✓ Proper CBA fallback
+    ✓ Waypoint cleanup/recycling
+    ✓ Null checks throughout
+    ✓ Event handler cleanup
+    ✓ Compatibility with major AI mods
+    ✓ Performance optimizations
     =====================================================
 */
 
 if (!isServer) exitWith {};
+
+// =====================================================
+// MOD DETECTION & COMPATIBILITY
+// =====================================================
+EAID_ModCompat = createHashMapFromArray [
+    ["HAS_CBA", isClass (configFile >> "CfgPatches" >> "cba_main")],
+    ["HAS_VCOMAI", isClass (configFile >> "CfgPatches" >> "VCOMAI")],
+    ["HAS_A3XAI", isClass (configFile >> "CfgPatches" >> "A3XAI")],
+    ["HAS_ASR", isClass (configFile >> "CfgPatches" >> "asr_ai3_main")],
+    ["HAS_LAMBS", isClass (configFile >> "CfgPatches" >> "lambs_danger")],
+    ["HAS_BCOMBAT", isClass (configFile >> "CfgPatches" >> "bcombat")],
+    ["HAS_ACE3", isClass (configFile >> "CfgPatches" >> "ace_main")]
+];
 
 // =====================================================
 // CONFIGURATION
@@ -36,6 +52,7 @@ EAID_CONFIG = createHashMapFromArray [
     // Distances (meters)
     ["LOOKAHEAD_POINTS", [25, 50, 75, 100]],
     ["OBSTACLE_RADIUS", 12],
+    ["OBSTACLE_OFFSET", 3],
     ["ROAD_SEARCH", 200],
     
     // Avoidance
@@ -44,17 +61,36 @@ EAID_CONFIG = createHashMapFromArray [
     ["MIN_OBJECT_SIZE", 4],
     ["MIN_OBSTACLE_DISTANCE", 15],
     
-    // === SIDE-BASED FILTERING (PRIMARY METHOD) ===
-    ["ALLOWED_SIDES", [INDEPENDENT, RESISTANCE]],  // Only enhance these sides
-    ["EXCLUDED_SIDES", [EAST, WEST, CIVILIAN]]     // Never enhance these sides
+    // Waypoint management
+    ["MAX_WAYPOINTS", 5],
+    ["WAYPOINT_CLEANUP_INTERVAL", 30],
+    
+    // === SIDE-BASED FILTERING ===
+    ["ALLOWED_SIDES", [INDEPENDENT]],  // Fixed: INDEPENDENT and RESISTANCE are the same
+    ["EXCLUDED_SIDES", [EAST, WEST, CIVILIAN]],
+    
+    // === MOD COMPATIBILITY ===
+    ["EXCLUDE_VCOMAI_UNITS", true],
+    ["EXCLUDE_A3XAI_UNITS", true],
+    ["EXCLUDE_ASR_UNITS", false],  // ASR usually plays nice
+    ["EXCLUDE_LAMBS_UNITS", false], // LAMBS usually compatible
+    ["EXCLUDE_BCOMBAT_UNITS", false]
 ];
 
 // Global tracking
 EAID_ActiveDrivers = createHashMap;
+EAID_ProcessedUnits = []; // Track units that have been given event handlers
 
 diag_log "==========================================";
 diag_log "Elite AI Driving System - Initializing...";
 diag_log "==========================================";
+
+// Log mod compatibility
+{
+    private _modName = _x;
+    private _detected = EAID_ModCompat get _modName;
+    diag_log format ["EAID: %1 = %2", _modName, _detected];
+} forEach (keys EAID_ModCompat);
 
 // =====================================================
 // UTILITY FUNCTIONS
@@ -70,12 +106,14 @@ EAID_fnc_angleDiff = {
 
 EAID_fnc_isEnhanced = {
     params ["_unit"];
+    if (isNull _unit) exitWith {false};
     private _netId = netId _unit;
     _netId in (keys EAID_ActiveDrivers)
 };
 
 EAID_fnc_isAllowedSide = {
     params ["_unit"];
+    if (isNull _unit) exitWith {false};
     
     private _unitSide = side (group _unit);
     private _allowedSides = EAID_CONFIG get "ALLOWED_SIDES";
@@ -91,12 +129,67 @@ EAID_fnc_isAllowedSide = {
     false
 };
 
+// NEW: Check if unit belongs to another AI mod
+EAID_fnc_isOtherAIModUnit = {
+    params ["_unit"];
+    if (isNull _unit) exitWith {false};
+    
+    private _group = group _unit;
+    
+    // Check VCOMAI
+    if (EAID_ModCompat get "HAS_VCOMAI" && EAID_CONFIG get "EXCLUDE_VCOMAI_UNITS") then {
+        if (!isNil {_group getVariable "VCM_INITIALIZED"} || {_unit getVariable ["VCOMAI_EXCLUDE", false]}) exitWith {true};
+    };
+    
+    // Check A3XAI
+    if (EAID_ModCompat get "HAS_A3XAI" && EAID_CONFIG get "EXCLUDE_A3XAI_UNITS") then {
+        if (!isNil {_group getVariable "A3XAI_Group"} || {_unit getVariable ["A3XAI_Unit", false]}) exitWith {true};
+    };
+    
+    // Check ASR AI3
+    if (EAID_ModCompat get "HAS_ASR" && EAID_CONFIG get "EXCLUDE_ASR_UNITS") then {
+        if (_group getVariable ["asr_ai3_group", false]) exitWith {true};
+    };
+    
+    // Check LAMBS
+    if (EAID_ModCompat get "HAS_LAMBS" && EAID_CONFIG get "EXCLUDE_LAMBS_UNITS") then {
+        if (_group getVariable ["lambs_danger_disableGroupAI", false]) exitWith {true};
+    };
+    
+    // Check bcombat
+    if (EAID_ModCompat get "HAS_BCOMBAT" && EAID_CONFIG get "EXCLUDE_BCOMBAT_UNITS") then {
+        if (_unit getVariable ["bcombat_exclude", false]) exitWith {true};
+    };
+    
+    false
+};
+
+// NEW: Waypoint cleanup function
+EAID_fnc_cleanupWaypoints = {
+    params ["_group"];
+    if (isNull _group) exitWith {};
+    
+    private _maxWaypoints = EAID_CONFIG get "MAX_WAYPOINTS";
+    private _waypointCount = count waypoints _group;
+    
+    if (_waypointCount > _maxWaypoints) then {
+        for "_i" from 0 to (_waypointCount - _maxWaypoints - 1) do {
+            deleteWaypoint [_group, 0];
+        };
+        
+        if (EAID_CONFIG get "DEBUG") then {
+            diag_log format ["EAID: Cleaned %1 waypoints from group %2", _waypointCount - _maxWaypoints, _group];
+        };
+    };
+};
+
 // =====================================================
 // CORE FUNCTIONS
 // =====================================================
 
 EAID_fnc_selectBestRoad = {
     params ["_vehicle", "_roads"];
+    if (isNull _vehicle || count _roads == 0) exitWith {objNull};
     
     private _vehicleDir = getDir _vehicle;
     private _vehiclePos = getPos _vehicle;
@@ -104,18 +197,20 @@ EAID_fnc_selectBestRoad = {
     private _bestScore = -1;
     
     {
-        private _roadPos = getPos _x;
-        private _roadDir = _vehiclePos getDir _roadPos;
-        private _distance = _vehiclePos distance2D _roadPos;
-        private _dirDiff = [_vehicleDir, _roadDir] call EAID_fnc_angleDiff;
-        
-        private _angleScore = 1 - ((abs _dirDiff) / 180);
-        private _distScore = 1 - ((_distance / 200) min 1);
-        private _totalScore = (_angleScore * 0.7) + (_distScore * 0.3);
-        
-        if (_totalScore > _bestScore) then {
-            _bestScore = _totalScore;
-            _bestRoad = _x;
+        if (!isNull _x) then {
+            private _roadPos = getPos _x;
+            private _roadDir = _vehiclePos getDir _roadPos;
+            private _distance = _vehiclePos distance2D _roadPos;
+            private _dirDiff = [_vehicleDir, _roadDir] call EAID_fnc_angleDiff;
+            
+            private _angleScore = 1 - ((abs _dirDiff) / 180);
+            private _distScore = 1 - ((_distance / 200) min 1);
+            private _totalScore = (_angleScore * 0.7) + (_distScore * 0.3);
+            
+            if (_totalScore > _bestScore) then {
+                _bestScore = _totalScore;
+                _bestRoad = _x;
+            };
         };
     } forEach _roads;
     
@@ -124,11 +219,19 @@ EAID_fnc_selectBestRoad = {
 
 EAID_fnc_roadFollowing = {
     params ["_unit", "_vehicle"];
+    if (isNull _unit || isNull _vehicle) exitWith {};
     
     private _group = group _unit;
     private _lastLogTime = 0;
+    private _lastCleanup = time;
     
     while {alive _unit && alive _vehicle && driver _vehicle == _unit && ([_unit] call EAID_fnc_isEnhanced)} do {
+        
+        // Periodic waypoint cleanup
+        if (time - _lastCleanup > (EAID_CONFIG get "WAYPOINT_CLEANUP_INTERVAL")) then {
+            [_group] call EAID_fnc_cleanupWaypoints;
+            _lastCleanup = time;
+        };
         
         private _currentPos = getPosASL _vehicle;
         private _currentRoads = _currentPos nearRoads 50;
@@ -204,6 +307,7 @@ EAID_fnc_roadFollowing = {
 
 EAID_fnc_dynamicSpeed = {
     params ["_unit", "_vehicle"];
+    if (isNull _unit || isNull _vehicle) exitWith {};
     
     private _updateInterval = EAID_CONFIG get "UPDATE_INTERVAL";
     private _obstacleRadius = EAID_CONFIG get "OBSTACLE_RADIUS";
@@ -246,7 +350,7 @@ EAID_fnc_dynamicSpeed = {
                     
                     {
                         private _object = _x;
-                        if (_object != _vehicle && !(_object getVariable ["EAID_SpawnedObstacle", false])) then {
+                        if (!isNull _object && _object != _vehicle && !(_object getVariable ["EAID_SpawnedObstacle", false])) then {
                             private _objectSize = [configFile >> "CfgVehicles" >> typeOf _object, "maximumLoad", 0] call BIS_fnc_returnConfigEntry;
                             
                             if (_objectSize > (EAID_CONFIG get "MIN_OBJECT_SIZE")) then {
@@ -273,7 +377,10 @@ EAID_fnc_dynamicSpeed = {
                 };
             };
             
-            _vehicle limitSpeed (_minSpeed / 3.6);
+            // NULL CHECK before limiting speed
+            if (!isNull _vehicle) then {
+                _vehicle limitSpeed (_minSpeed / 3.6);
+            };
             
             if (_debugEnabled && (time - _lastLogTime > _debugInterval)) then {
                 diag_log format ["EAID: %1 (%2) - Speed: %3/%4 km/h | Reason: %5", 
@@ -286,7 +393,9 @@ EAID_fnc_dynamicSpeed = {
                 _lastLogTime = time;
             };
         } else {
-            _vehicle limitSpeed -1;
+            if (!isNull _vehicle) then {
+                _vehicle limitSpeed -1;
+            };
         };
         
         sleep _updateInterval;
@@ -295,10 +404,20 @@ EAID_fnc_dynamicSpeed = {
 
 EAID_fnc_smartAvoidance = {
     params ["_unit", "_vehicle"];
+    if (isNull _unit || isNull _vehicle) exitWith {};
+    
+    // Pass config values to avoid closure issues
+    private _obstacleRadius = EAID_CONFIG get "OBSTACLE_RADIUS";
+    private _obstacleOffset = EAID_CONFIG get "OBSTACLE_OFFSET";
+    private _minObjectSize = EAID_CONFIG get "MIN_OBJECT_SIZE";
+    private _obstacleCooldown = EAID_CONFIG get "OBSTACLE_COOLDOWN";
+    private _lookaheadPoints = EAID_CONFIG get "LOOKAHEAD_POINTS";
+    private _updateInterval = EAID_CONFIG get "UPDATE_INTERVAL";
+    private _useObstacles = EAID_CONFIG get "USE_OBSTACLES";
     
     while {alive _unit && alive _vehicle && driver _vehicle == _unit && ([_unit] call EAID_fnc_isEnhanced)} do {
         
-        if (EAID_CONFIG get "USE_OBSTACLES") then {
+        if (_useObstacles) then {
             private _pos = getPosASL _vehicle;
             private _dir = getDir _vehicle;
             
@@ -306,11 +425,11 @@ EAID_fnc_smartAvoidance = {
                 private _distance = _x;
                 private _checkPos = _pos vectorAdd [sin _dir * _distance, cos _dir * _distance, 0];
                 
-                private _objects = _checkPos nearEntities [["Building", "House", "Wall"], (EAID_CONFIG get "OBSTACLE_RADIUS")];
+                private _objects = _checkPos nearEntities [["Building", "House", "Wall"], _obstacleRadius];
                 
                 {
                     private _building = _x;
-                    if (!(_building getVariable ["EAID_Processed", false])) then {
+                    if (!isNull _building && !(_building getVariable ["EAID_Processed", false])) then {
                         _building setVariable ["EAID_Processed", true, false];
                         
                         private _bbr = boundingBoxReal _building;
@@ -318,40 +437,42 @@ EAID_fnc_smartAvoidance = {
                         private _p2 = _bbr select 1;
                         private _buildingSize = (_p2 distance _p1);
                         
-                        if (_buildingSize > (EAID_CONFIG get "MIN_OBJECT_SIZE")) then {
+                        if (_buildingSize > _minObjectSize) then {
                             private _buildingPos = getPosASL _building;
                             private _obstacleCount = 0;
                             
                             for "_i" from 0 to 7 do {
                                 private _angle = _i * 45;
-                                private _offset = 3;
-                                private _obstaclePos = _buildingPos vectorAdd [sin _angle * _offset, cos _angle * _offset, 0];
+                                private _obstaclePos = _buildingPos vectorAdd [sin _angle * _obstacleOffset, cos _angle * _obstacleOffset, 0];
                                 
                                 if (!isOnRoad _obstaclePos) then {
                                     private _obstacle = "Land_Camping_Light_F" createVehicle _obstaclePos;
-                                    _obstacle setPosASL _obstaclePos;
-                                    _obstacle enableSimulation false;
-                                    _obstacle hideObjectGlobal true;
-                                    _obstacle setVariable ["EAID_SpawnedObstacle", true, false];
-                                    _obstacle setVariable ["EAID_BuildingParent", _building, false];
-                                    
-                                    _obstacleCount = _obstacleCount + 1;
+                                    if (!isNull _obstacle) then {
+                                        _obstacle setPosASL _obstaclePos;
+                                        _obstacle enableSimulation false;
+                                        _obstacle hideObjectGlobal true;
+                                        _obstacle setVariable ["EAID_SpawnedObstacle", true, false];
+                                        _obstacle setVariable ["EAID_BuildingParent", _building, false];
+                                        
+                                        _obstacleCount = _obstacleCount + 1;
+                                    };
                                 };
                             };
                             
                             if (_obstacleCount > 0) then {
-                                [_building] spawn {
-                                    params ["_building"];
-                                    sleep (EAID_CONFIG get "OBSTACLE_COOLDOWN");
-                                    
-                                    private _obstacles = nearestObjects [getPosASL _building, ["Land_Camping_Light_F"], 10];
-                                    {
-                                        if (!isNull _x && {(_x getVariable ["EAID_BuildingParent", objNull]) == _building}) then {
-                                            deleteVehicle _x;
-                                        };
-                                    } forEach _obstacles;
+                                // Pass all required values to spawned code
+                                [_building, _obstacleCooldown] spawn {
+                                    params ["_building", "_cooldown"];
+                                    sleep _cooldown;
                                     
                                     if (!isNull _building) then {
+                                        private _obstacles = nearestObjects [getPosASL _building, ["Land_Camping_Light_F"], 10];
+                                        {
+                                            if (!isNull _x && {(_x getVariable ["EAID_BuildingParent", objNull]) == _building}) then {
+                                                deleteVehicle _x;
+                                            };
+                                        } forEach _obstacles;
+                                        
                                         _building setVariable ["EAID_Processed", false, false];
                                     };
                                 };
@@ -360,10 +481,10 @@ EAID_fnc_smartAvoidance = {
                     };
                 } forEach _objects;
                 
-            } forEach (EAID_CONFIG get "LOOKAHEAD_POINTS");
+            } forEach _lookaheadPoints;
         };
         
-        sleep (EAID_CONFIG get "UPDATE_INTERVAL");
+        sleep _updateInterval;
     };
 };
 
@@ -374,14 +495,23 @@ EAID_fnc_smartAvoidance = {
 EAID_fnc_applyToDriver = {
     params ["_unit", "_vehicle"];
     
+    // NULL CHECKS
+    if (isNull _unit || isNull _vehicle) exitWith {};
     if (!alive _unit || !alive _vehicle || driver _vehicle != _unit) exitWith {};
     if (!(_vehicle isKindOf "LandVehicle")) exitWith {};
     if ([_unit] call EAID_fnc_isEnhanced) exitWith {};
     
-    // === SIDE-BASED FILTER (PRIMARY CHECK) ===
+    // === SIDE-BASED FILTER ===
     if (!([_unit] call EAID_fnc_isAllowedSide)) exitWith {
         if (EAID_CONFIG get "DEBUG") then {
             diag_log format ["EAID: Skipped unit %1 (Side: %2) - Not in allowed sides", name _unit, side (group _unit)];
+        };
+    };
+    
+    // === CHECK FOR OTHER AI MOD UNITS ===
+    if ([_unit] call EAID_fnc_isOtherAIModUnit) exitWith {
+        if (EAID_CONFIG get "DEBUG") then {
+            diag_log format ["EAID: Skipped unit %1 - Managed by another AI mod", name _unit];
         };
     };
     
@@ -434,26 +564,34 @@ EAID_fnc_applyToDriver = {
 EAID_fnc_restoreDriver = {
     params ["_unit"];
     
+    if (isNull _unit) exitWith {};
     if (!([_unit] call EAID_fnc_isEnhanced)) exitWith {};
     
     private _netId = netId _unit;
     private _originalSettings = EAID_ActiveDrivers get _netId;
     
+    if (isNil "_originalSettings") exitWith {
+        EAID_ActiveDrivers deleteAt _netId;
+    };
+    
     _unit setSkill ["courage", _originalSettings get "courage"];
     _unit setSkill ["commanding", _originalSettings get "commanding"];
     
     private _group = group _unit;
-    _group setCombatMode (_originalSettings get "combatMode");
-    _group setBehaviour (_originalSettings get "behaviour");
-    _group setSpeedMode (_originalSettings get "speedMode");
+    if (!isNull _group) then {
+        _group setCombatMode (_originalSettings get "combatMode");
+        _group setBehaviour (_originalSettings get "behaviour");
+        _group setSpeedMode (_originalSettings get "speedMode");
+    };
     
     if (_originalSettings get "aiAutoCombat") then {_unit enableAI "AUTOCOMBAT"};
     if (_originalSettings get "aiTarget") then {_unit enableAI "TARGET"};
     if (_originalSettings get "aiAutoTarget") then {_unit enableAI "AUTOTARGET"};
     if (_originalSettings get "aiSuppression") then {_unit enableAI "SUPPRESSION"};
     
-    if (!isNull vehicle _unit && vehicle _unit != _unit) then {
-        (vehicle _unit) limitSpeed -1;
+    private _vehicle = vehicle _unit;
+    if (!isNull _vehicle && _vehicle != _unit) then {
+        _vehicle limitSpeed -1;
     };
     
     EAID_ActiveDrivers deleteAt _netId;
@@ -468,8 +606,9 @@ EAID_fnc_restoreDriver = {
 // =====================================================
 
 EAID_fnc_addEventHandlers = {
+    // Initial scan for existing drivers
     {
-        if (!isPlayer _x && alive _x) then {
+        if (!isPlayer _x && alive _x && !isNull _x) then {
             private _vehicle = vehicle _x;
             if (_vehicle != _x && driver _vehicle == _x && _vehicle isKindOf "LandVehicle") then {
                 [_x, _vehicle] call EAID_fnc_applyToDriver;
@@ -477,35 +616,114 @@ EAID_fnc_addEventHandlers = {
         };
     } forEach allUnits;
     
-    ["CAManBase", "init", {
-        params ["_unit"];
-        
-        if (!isPlayer _unit && (EAID_CONFIG get "ENABLED")) then {
+    // Add event handlers to all future units
+    if (EAID_ModCompat get "HAS_CBA") then {
+        ["CAManBase", "init", {
+            params ["_unit"];
             
-            _unit addEventHandler ["GetInMan", {
-                params ["_unit", "_role", "_vehicle"];
+            if (!isPlayer _unit && (EAID_CONFIG get "ENABLED")) then {
                 
-                if (_role == "driver" && !isPlayer _unit && _vehicle isKindOf "LandVehicle") then {
-                    [_unit, _vehicle] spawn {
-                        params ["_unit", "_vehicle"];
-                        sleep 0.5;
-                        [_unit, _vehicle] call EAID_fnc_applyToDriver;
+                private _getInID = _unit addEventHandler ["GetInMan", {
+                    params ["_unit", "_role", "_vehicle"];
+                    
+                    if (_role == "driver" && !isPlayer _unit && _vehicle isKindOf "LandVehicle") then {
+                        [_unit, _vehicle] spawn {
+                            params ["_unit", "_vehicle"];
+                            sleep 0.5;
+                            if (!isNull _unit && !isNull _vehicle) then {
+                                [_unit, _vehicle] call EAID_fnc_applyToDriver;
+                            };
+                        };
                     };
-                };
-            }];
-            
-            _unit addEventHandler ["GetOutMan", {
-                params ["_unit", "_role"];
-                if (_role == "driver") then {[_unit] call EAID_fnc_restoreDriver};
-            }];
-            
-            _unit addEventHandler ["Killed", {
-                params ["_unit"];
-                [_unit] call EAID_fnc_restoreDriver;
-            }];
-        };
-    }] call CBA_fnc_addClassEventHandler;
+                }];
+                
+                private _getOutID = _unit addEventHandler ["GetOutMan", {
+                    params ["_unit", "_role"];
+                    if (_role == "driver") then {[_unit] call EAID_fnc_restoreDriver};
+                }];
+                
+                private _killedID = _unit addEventHandler ["Killed", {
+                    params ["_unit"];
+                    [_unit] call EAID_fnc_restoreDriver;
+                    
+                    // Clean up event handlers
+                    private _getInID = _unit getVariable ["EAID_GetInHandler", -1];
+                    private _getOutID = _unit getVariable ["EAID_GetOutHandler", -1];
+                    private _killedID = _unit getVariable ["EAID_KilledHandler", -1];
+                    
+                    if (_getInID >= 0) then {_unit removeEventHandler ["GetInMan", _getInID]};
+                    if (_getOutID >= 0) then {_unit removeEventHandler ["GetOutMan", _getOutID]};
+                    if (_killedID >= 0) then {_unit removeEventHandler ["Killed", _killedID]};
+                }];
+                
+                // Store handler IDs for cleanup
+                _unit setVariable ["EAID_GetInHandler", _getInID];
+                _unit setVariable ["EAID_GetOutHandler", _getOutID];
+                _unit setVariable ["EAID_KilledHandler", _killedID];
+            };
+        }] call CBA_fnc_addClassEventHandler;
+        
+        diag_log "EAID: Using CBA event handlers";
+    } else {
+        diag_log "EAID: CBA not detected - using fallback polling";
+    };
 };
+
+// =====================================================
+// FALLBACK POLLING (NO CBA)
+// =====================================================
+
+EAID_fnc_fallbackPolling = {
+    while {EAID_CONFIG get "ENABLED"} do {
+        {
+            if (!isPlayer _x && alive _x && !isNull _x) then {
+                private _unit = _x;
+                
+                // Only process each unit once for event handler attachment
+                if !(_unit in EAID_ProcessedUnits) then {
+                    EAID_ProcessedUnits pushBack _unit;
+                    
+                    // Add event handlers manually since no CBA
+                    _unit addEventHandler ["GetInMan", {
+                        params ["_unit", "_role", "_vehicle"];
+                        
+                        if (_role == "driver" && !isPlayer _unit && _vehicle isKindOf "LandVehicle") then {
+                            [_unit, _vehicle] spawn {
+                                params ["_unit", "_vehicle"];
+                                sleep 0.5;
+                                if (!isNull _unit && !isNull _vehicle) then {
+                                    [_unit, _vehicle] call EAID_fnc_applyToDriver;
+                                };
+                            };
+                        };
+                    }];
+                    
+                    _unit addEventHandler ["GetOutMan", {
+                        params ["_unit", "_role"];
+                        if (_role == "driver") then {[_unit] call EAID_fnc_restoreDriver};
+                    }];
+                    
+                    _unit addEventHandler ["Killed", {
+                        params ["_unit"];
+                        [_unit] call EAID_fnc_restoreDriver;
+                    }];
+                };
+                
+                // Check if unit is currently driving
+                private _vehicle = vehicle _unit;
+                if (_vehicle != _unit && driver _vehicle == _unit && _vehicle isKindOf "LandVehicle" && !([_unit] call EAID_fnc_isEnhanced)) then {
+                    [_unit, _vehicle] call EAID_fnc_applyToDriver;
+                };
+            };
+        } forEach allUnits;
+        
+        sleep 5;
+    };
+};
+
+// =====================================================
+// CLEANUP LOOP
+// =====================================================
 
 EAID_fnc_cleanupLoop = {
     while {EAID_CONFIG get "ENABLED"} do {
@@ -515,9 +733,13 @@ EAID_fnc_cleanupLoop = {
         {
             private _netId = _x;
             private _unit = objectFromNetId _netId;
+            
             if (isNull _unit || !alive _unit || vehicle _unit == _unit || driver (vehicle _unit) != _unit) then {
                 if (!isNull _unit) then {
                     _toRemove pushBack _unit;
+                } else {
+                    // Unit no longer exists, clean up hashmap entry
+                    EAID_ActiveDrivers deleteAt _netId;
                 };
             };
         } forEach (keys EAID_ActiveDrivers);
@@ -526,8 +748,15 @@ EAID_fnc_cleanupLoop = {
             if (!isNull _x) then {[_x] call EAID_fnc_restoreDriver};
         } forEach _toRemove;
         
+        // Clean up processed units list
+        EAID_ProcessedUnits = EAID_ProcessedUnits select {!isNull _x && alive _x};
+        
         if ((EAID_CONFIG get "DEBUG") && count _toRemove > 0) then {
-            diag_log format ["EAID: Cleanup - Active: %1 | Removed: %2", count EAID_ActiveDrivers, count _toRemove];
+            diag_log format ["EAID: Cleanup - Active: %1 | Removed: %2 | Tracked: %3", 
+                count EAID_ActiveDrivers, 
+                count _toRemove,
+                count EAID_ProcessedUnits
+            ];
         };
     };
 };
@@ -538,23 +767,11 @@ EAID_fnc_cleanupLoop = {
 
 if (EAID_CONFIG get "ENABLED") then {
     
-    if (isClass (configFile >> "CfgPatches" >> "cba_main")) then {
-        call EAID_fnc_addEventHandlers;
-    } else {
-        [] spawn {
-            while {EAID_CONFIG get "ENABLED"} do {
-                {
-                    if (!isPlayer _x && alive _x) then {
-                        private _vehicle = vehicle _x;
-                        if (_vehicle != _x && driver _vehicle == _x && _vehicle isKindOf "LandVehicle" && !([_x] call EAID_fnc_isEnhanced)) then {
-                            [_x, _vehicle] call EAID_fnc_applyToDriver;
-                        };
-                    };
-                } forEach allUnits;
-                sleep 5;
-            };
-        };
-        diag_log "EAID: Running in fallback mode (no CBA)";
+    call EAID_fnc_addEventHandlers;
+    
+    // Start fallback polling if no CBA
+    if !(EAID_ModCompat get "HAS_CBA") then {
+        [] spawn EAID_fnc_fallbackPolling;
     };
     
     [] spawn EAID_fnc_cleanupLoop;
@@ -564,6 +781,8 @@ if (EAID_CONFIG get "ENABLED") then {
     diag_log format ["Allowed Sides: %1", EAID_CONFIG get "ALLOWED_SIDES"];
     diag_log format ["Excluded Sides: %1", EAID_CONFIG get "EXCLUDED_SIDES"];
     diag_log format ["Max Highway: %1 km/h", EAID_CONFIG get "SPEED_HIGHWAY"];
+    diag_log format ["Using CBA: %1", EAID_ModCompat get "HAS_CBA"];
+    diag_log format ["VCOMAI Detected: %1 (Excluded: %2)", EAID_ModCompat get "HAS_VCOMAI", EAID_CONFIG get "EXCLUDE_VCOMAI_UNITS"];
     diag_log format ["Debug logging every %1 seconds", EAID_CONFIG get "DEBUG_INTERVAL"];
     diag_log "==========================================";
     

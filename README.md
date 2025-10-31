@@ -172,13 +172,12 @@ _waypointTimeout = [10, 20, 30];       // Time at each waypoint [min, mid, max]
 ### Installation
 
 #### Step 1: Add Script to Mission
-Place `recruit_ai.sqf` in your mission folder:
+Place `init_recruit.sqf` in your mission folder in a folder named addons:
 ```
 Exile.YourMap/
 ├── initServer.sqf
 └── addons/
-    └── ai_recruit/
-        └── init.sqf  (rename recruit_ai.sqf to init.sqf)
+    init_recruit.sqf
 ```
 
 #### Step 2: Initialize from initServer.sqf
@@ -186,7 +185,7 @@ Add to your `initServer.sqf`:
 ```sqf
 // Load Elite AI Recruit System
 if (isServer) then {
-    execVM "addons\ai_recruit\init.sqf";
+    execVM "addons\init_recruit.sqf";
 };
 ```
 

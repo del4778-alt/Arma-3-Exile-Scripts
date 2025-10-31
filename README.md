@@ -450,7 +450,7 @@ Exile.Altis/
 ├── scripts/
 │   ├── AI_EliteDriving.sqf
 │   └── fn_aiPatrolSystem.sqf
-    └── init.sqf
+    └── init_recruit.sqf
 
 ```
 

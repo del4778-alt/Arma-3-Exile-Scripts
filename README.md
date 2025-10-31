@@ -176,7 +176,7 @@ Place `init_recruit.sqf` in your mission folder in a folder named addons:
 ```
 Exile.YourMap/
 ├── initServer.sqf
-└── addons/
+└── scripts/
     init_recruit.sqf
 ```
 
@@ -450,9 +450,8 @@ Exile.Altis/
 ├── scripts/
 │   ├── AI_EliteDriving.sqf
 │   └── fn_aiPatrolSystem.sqf
-└── addons/
-    └── ai_recruit/
-        └── init.sqf
+    └── init.sqf
+
 ```
 
 ---

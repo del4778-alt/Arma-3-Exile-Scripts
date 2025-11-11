@@ -75,12 +75,12 @@ EAID_CONFIG = createHashMapFromArray [
     ["WAYPOINT_CLEANUP_INTERVAL", 15],
     
     // === SIDE-BASED FILTERING ===
-    ["ALLOWED_SIDES", [INDEPENDENT]],  // Fixed: INDEPENDENT and RESISTANCE are the same
-    ["EXCLUDED_SIDES", [EAST, WEST, CIVILIAN]],
-    
+    ["ALLOWED_SIDES", [INDEPENDENT, EAST]],  // INDEPENDENT (custom AI) + EAST (A3XAI)
+    ["EXCLUDED_SIDES", [WEST, CIVILIAN]],  // Exclude WEST (zombies) and CIVILIAN
+
     // === MOD COMPATIBILITY ===
     ["EXCLUDE_VCOMAI_UNITS", true],
-    ["EXCLUDE_A3XAI_UNITS", true],
+    ["EXCLUDE_A3XAI_UNITS", false],  // FIXED: Enable enhanced driving for A3XAI vehicles
     ["EXCLUDE_ASR_UNITS", false],  // ASR usually plays nice
     ["EXCLUDE_LAMBS_UNITS", false], // LAMBS usually compatible
     ["EXCLUDE_BCOMBAT_UNITS", false]

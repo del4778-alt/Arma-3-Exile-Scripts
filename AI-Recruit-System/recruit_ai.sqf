@@ -1,5 +1,6 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.11 - SIMPLIFIED FSM BRAIN
+    ELITE AI RECRUIT SYSTEM v7.12 - EXILE SESSION FIX
+    ✅ EXILE RESILIENT - Brain survives Exile session initialization
     ✅ STREAMLINED FSM - 4 states: Idle, Combat, Retreat, Heal
     ✅ INSTANT REACTION - Immediate response to threats (no delay)
     ✅ ENHANCED DETECTION - Visual detection within 30m + knowledge-based scanning
@@ -15,7 +16,7 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.11 (Simplified FSM Brain)...";
+diag_log "[AI RECRUIT] Starting initialization v7.12 (Exile Session Fix)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -211,17 +212,20 @@ fn_FSM_ExecuteState = {
 // FSM: Main brain loop for each AI unit
 // ====================================================================================
 fn_FSM_BrainLoop = {
-    params ["_unit", "_player", "_playerGroup"];
+    params ["_unit", "_playerUID", "_playerGroup"];
 
     // Initialize FSM state
     _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
     _unit setVariable ["FSM_StateTimer", time, false];
     _unit setVariable ["FSM_LastTransition", time, false];
 
-    diag_log format ["[AI RECRUIT FSM] Brain activated for %1 (Player: %2)", typeOf _unit, name _player];
+    diag_log format ["[AI RECRUIT FSM] Brain activated for %1 (UID: %2)", typeOf _unit, _playerUID];
 
-    while {!isNull _unit && alive _unit && !isNull _player} do {
-        if (alive _unit && alive _player) then {
+    while {!isNull _unit && alive _unit} do {
+        // Look up player by UID each loop (resilient to Exile session changes)
+        private _player = [_playerUID] call BIS_fnc_getUnitByUID;
+
+        if (!isNull _player && alive _player && alive _unit) then {
 
             private _currentState = _unit getVariable ["FSM_CurrentState", FSM_STATE_IDLE];
             private _stateTimer = _unit getVariable ["FSM_StateTimer", time];
@@ -498,7 +502,7 @@ fn_spawnAI = {
     // ============================================
     // ACTIVATE FSM BRAIN (replaces old tactical loops)
     // ============================================
-    [_unit, _player, _playerGroup] spawn fn_FSM_BrainLoop;
+    [_unit, getPlayerUID _player, _playerGroup] spawn fn_FSM_BrainLoop;
 
     // AI death handler - triggers respawn check with cooldown
     _unit addEventHandler ["Killed", {
@@ -1076,7 +1080,8 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.11 - SIMPLIFIED FSM BRAIN";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.12 - EXILE SESSION FIX";
+diag_log "  • EXILE RESILIENT: Brain survives Exile session initialization";
 diag_log "  • FSM BRAIN: 4-state streamlined system";
 diag_log "  • AI STATES: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
 diag_log "  • INSTANT REACTION: Immediate response to threats (no delay)";

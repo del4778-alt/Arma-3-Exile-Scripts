@@ -96,7 +96,7 @@ PATROL_LastZoneCount = -1;
 // CONFIG
 // ============================================
 
-EXILE_PATROL_CONFIG = [3, 300, 1000, 999, 2000]; // units, respawn, cache, maxAttempts, detection
+EXILE_PATROL_CONFIG = [2, 300, 1000, 999, 2000]; // units, respawn, cache, maxAttempts, detection - REDUCED from 3 (A3XAI integration)
 DEFENDER_ENHANCED_MOVEMENT = true;
 
 // ============================================

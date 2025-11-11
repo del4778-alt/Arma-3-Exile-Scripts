@@ -1,6 +1,9 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.7 - COMPREHENSIVE FIX
-    ✅ Event-based death detection (instant, no polling)
+    ELITE AI RECRUIT SYSTEM v7.7.1 - CRITICAL BUG FIXES
+    ✅ DUAL death detection: Event handlers (Killed + MPKilled) + backup polling
+    ✅ Parachute/altitude checks - AI won't spawn mid-air and die
+    ✅ EXTENSIVE logging - see exactly what's happening
+    ✅ Enhanced respawn handling - waits for player to land
     ✅ Fixed group cleanup logic
     ✅ Spawn cooldown to prevent cascading respawns
     ✅ Improved group ownership with error handling
@@ -12,7 +15,7 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.7...";
+diag_log "[AI RECRUIT] Starting initialization v7.7.1...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -67,6 +70,19 @@ fn_isPlayerReady = {
     if (_uid isEqualTo "") exitWith { false };
     if (isNull group _player) exitWith { false };
     if ((getPosATL _player) isEqualTo [0,0,0]) exitWith { false };
+
+    // Check if player is on the ground (not parachuting/in air)
+    if ((getPosATL _player select 2) > 3) exitWith {
+        diag_log format ["[AI RECRUIT] Player %1 is in air (altitude: %2m) - waiting for landing", name _player, round ((getPosATL _player select 2))];
+        false
+    };
+
+    // Check if player is in a parachute
+    private _veh = vehicle _player;
+    if (_veh != _player && {_veh isKindOf "ParachuteBase"}) exitWith {
+        diag_log format ["[AI RECRUIT] Player %1 is parachuting - waiting for landing", name _player];
+        false
+    };
 
     true
 };
@@ -373,22 +389,29 @@ fn_ensureTeam = {
 fn_cleanupPlayerAI = {
     params ["_uid", "_name"];
 
-    diag_log format ["[AI RECRUIT] CLEANUP START: %1 (UID: %2)", _name, _uid];
+    diag_log "========================================";
+    diag_log format ["[AI RECRUIT] *** CLEANUP START: %1 (UID: %2) ***", _name, _uid];
+    diag_log "========================================";
 
     if (_uid isEqualTo "") exitWith {
-        diag_log "[AI RECRUIT] ERROR: Empty UID";
+        diag_log "[AI RECRUIT] ERROR: Empty UID - cannot cleanup";
     };
 
     // Get player object if available
     private _player = [_uid] call BIS_fnc_getUnitByUID;
+    diag_log format ["[AI RECRUIT] Player object lookup: %1", if (isNull _player) then {"NULL"} else {"FOUND"}];
 
     // SOURCE 1: Global map
     private _ai_from_map = all_recruited_ai_map getOrDefault [_uid, []];
+    diag_log format ["[AI RECRUIT] Source 1 (Global Map): %1 AI found", count _ai_from_map];
 
     // SOURCE 2: Player variable (if player object exists)
     private _ai_from_var = [];
     if (!isNull _player) then {
         _ai_from_var = _player getVariable ["AssignedAI", []];
+        diag_log format ["[AI RECRUIT] Source 2 (Player Variable): %1 AI found", count _ai_from_var];
+    } else {
+        diag_log "[AI RECRUIT] Source 2 (Player Variable): Skipped (player object null)";
     };
 
     // SOURCE 3: Player's group (if player object exists and has group)
@@ -398,17 +421,21 @@ fn_cleanupPlayerAI = {
             !isPlayer _x &&
             {_x getVariable ["ExileRecruited", false]}
         };
+        diag_log format ["[AI RECRUIT] Source 3 (Player Group): %1 AI found", count _ai_from_group];
+    } else {
+        diag_log "[AI RECRUIT] Source 3 (Player Group): Skipped (player or group null)";
     };
 
     // Combine ALL sources
     private _ai_to_delete = _ai_from_map + _ai_from_var + _ai_from_group;
     _ai_to_delete = _ai_to_delete arrayIntersect _ai_to_delete;
 
-    diag_log format ["[AI RECRUIT] CLEANUP: Deleting %1 AI for %2", count _ai_to_delete, _name];
-    diag_log format ["[AI RECRUIT]   From map: %1, From var: %2, From group: %3", count _ai_from_map, count _ai_from_var, count _ai_from_group];
+    diag_log format ["[AI RECRUIT] Total unique AI to delete: %1", count _ai_to_delete];
+    diag_log format ["[AI RECRUIT]   From map: %1 | From var: %2 | From group: %3", count _ai_from_map, count _ai_from_var, count _ai_from_group];
 
     if (_ai_to_delete isEqualTo []) exitWith {
-        diag_log format ["[AI RECRUIT] No AI to cleanup for %1", _name];
+        diag_log format ["[AI RECRUIT] *** NO AI TO CLEANUP for %1 ***", _name];
+        diag_log "========================================";
     };
 
     // Collect groups for cleanup AFTER units are deleted
@@ -476,9 +503,13 @@ fn_cleanupPlayerAI = {
         _player setVariable ["_aiSpawning", false, true];
         _player setVariable ["_aiSpawnLockTime", 0, true];
         _player setVariable ["_prevVeh", objNull, true];
+        diag_log "[AI RECRUIT] Player variables cleared";
     };
 
-    diag_log format ["[AI RECRUIT] Cleanup complete for %1 - %2 AI removed, %3 groups cleaned", _name, count _ai_to_delete, count _groupsToClean];
+    diag_log "========================================";
+    diag_log format ["[AI RECRUIT] *** CLEANUP COMPLETE for %1 ***", _name];
+    diag_log format ["[AI RECRUIT] Results: %1 AI deleted, %2 groups cleaned", count _ai_to_delete, count _groupsToClean];
+    diag_log "========================================";
 };
 
 // ====================================================================================
@@ -551,16 +582,25 @@ fn_setupPlayerHandlers = {
 
     diag_log format ["[AI RECRUIT] Setting up handlers for %1 (UID: %2)", name _player, _uid];
 
-    // EVENT-BASED DEATH DETECTION (v7.7 improvement)
+    // MULTIPLE DEATH DETECTION METHODS (for reliability in Exile)
+
+    // Method 1: Killed event handler
     _player addEventHandler ["Killed", {
         params ["_unit", "_killer"];
-
         private _uid = getPlayerUID _unit;
-        diag_log format ["[AI RECRUIT] !!!!! PLAYER DEATH DETECTED (EVENT): %1 !!!!!", name _unit];
-
-        // Immediate cleanup on death
+        diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (Killed Event): %1 !!!!!", name _unit];
         [_uid, name _unit] call fn_cleanupPlayerAI;
     }];
+
+    // Method 2: MPKilled event handler (more reliable in multiplayer)
+    _player addEventHandler ["MPKilled", {
+        params ["_unit", "_killer", "_instigator", "_useEffects"];
+        private _uid = getPlayerUID _unit;
+        diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (MPKilled Event): %1 !!!!!", name _unit];
+        [_uid, name _unit] call fn_cleanupPlayerAI;
+    }];
+
+    diag_log format ["[AI RECRUIT] Death event handlers registered for %1", name _player];
 
     // GetInMan
     _player addEventHandler ["GetInMan", {
@@ -601,13 +641,18 @@ fn_setupPlayerHandlers = {
         params ["_unit", "_corpse"];
 
         private _uid = getPlayerUID _unit;
-        diag_log format ["[AI RECRUIT] Player %1 RESPAWNED (UID: %2)", name _unit, _uid];
+
+        diag_log "========================================";
+        diag_log format ["[AI RECRUIT] *** PLAYER RESPAWNED: %1 (UID: %2) ***", name _unit, _uid];
+        diag_log "========================================";
 
         // Clean up any existing AI for this UID (should already be clean from death event)
         private _existingAI = all_recruited_ai_map getOrDefault [_uid, []];
         if (count _existingAI > 0) then {
-            diag_log format ["[AI RECRUIT] Found %1 existing AI on respawn - cleaning up", count _existingAI];
+            diag_log format ["[AI RECRUIT] WARNING: Found %1 orphaned AI on respawn - cleaning up", count _existingAI];
             [_uid, name _unit] call fn_cleanupPlayerAI;
+        } else {
+            diag_log "[AI RECRUIT] Good: No orphaned AI found (cleanup worked correctly)";
         };
 
         // Clear variables
@@ -620,12 +665,22 @@ fn_setupPlayerHandlers = {
         // Spawn new AI after delay with cooldown
         [_unit, _uid] spawn {
             params ["_player", "_uid"];
-            sleep 5;
+
+            // Wait for player to land if parachuting
+            private _waitTime = 0;
+            while {!isNull _player && alive _player && !([_player] call fn_isPlayerReady) && _waitTime < 60} do {
+                sleep 1;
+                _waitTime = _waitTime + 1;
+            };
+
+            if (_waitTime >= 60) exitWith {
+                diag_log format ["[AI RECRUIT] ERROR: Player %1 not ready after 60 seconds - aborting AI spawn", name _player];
+            };
 
             if (!isNull _player && alive _player) then {
                 if ([_uid] call fn_checkSpawnCooldown) then {
                     [_uid] call fn_setSpawnCooldown;
-                    diag_log format ["[AI RECRUIT] Spawning fresh AI for %1", name _player];
+                    diag_log format ["[AI RECRUIT] Player %1 landed - spawning fresh AI", name _player];
                     [_player] call fn_ensureTeam;
                 } else {
                     diag_log format ["[AI RECRUIT] Respawn AI spawn skipped due to cooldown for %1", name _player];
@@ -643,7 +698,9 @@ fn_setupPlayerHandlers = {
 addMissionEventHandler ["PlayerDisconnected", {
     params ["_id", "_uid", "_name", "_jip"];
 
-    diag_log format ["[AI RECRUIT] Player disconnected: %1", _name];
+    diag_log "========================================";
+    diag_log format ["[AI RECRUIT] *** PLAYER DISCONNECTED: %1 ***", _name];
+    diag_log "========================================";
 
     // Use the SAME cleanup function that works for disconnect
     [_uid, _name] call fn_cleanupPlayerAI;
@@ -709,17 +766,36 @@ addMissionEventHandler ["PlayerConnected", {
     } forEach allPlayers;
 
     diag_log "[AI RECRUIT] System initialized";
-    diag_log "[AI RECRUIT] Death detection: EVENT-BASED (instant detection)";
+    diag_log "[AI RECRUIT] Death detection: EVENT-BASED + BACKUP POLLING";
 
-    // Maintenance loop - only checks for missing AI periodically
+    // Track player alive states
+    private _playerAliveStates = createHashMap;
+
+    // Maintenance loop - checks for missing AI + backup death detection
     while {true} do {
         {
             private _player = _x;
             private _uid = getPlayerUID _player;
 
-            if (_uid != "" && isPlayer _player && alive _player) then {
-                // Regular AI check (only if alive)
-                if ([_player] call fn_isPlayerReady) then {
+            if (_uid != "" && isPlayer _player) then {
+                private _isAlive = alive _player;
+                private _wasAlive = _playerAliveStates getOrDefault [_uid, true];
+
+                // BACKUP DEATH DETECTION (in case event handlers fail)
+                if (_wasAlive && !_isAlive) then {
+                    diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (BACKUP POLLING): %1 !!!!!", name _player];
+                    [_uid, name _player] call fn_cleanupPlayerAI;
+                    _playerAliveStates set [_uid, false];
+                };
+
+                // Update alive state
+                if (_isAlive && !_wasAlive) then {
+                    diag_log format ["[AI RECRUIT] Player %1 is alive again (respawned)", name _player];
+                    _playerAliveStates set [_uid, true];
+                };
+
+                // Regular AI check (only if alive and ready)
+                if (_isAlive && [_player] call fn_isPlayerReady) then {
                     private _lastCheck = _player getVariable ["_lastCheckTime", 0];
 
                     // Check every 30 seconds for missing AI
@@ -734,7 +810,7 @@ addMissionEventHandler ["PlayerConnected", {
             };
         } forEach allPlayers;
 
-        sleep 10; // Reduced frequency since death is event-based
+        sleep 5; // Check every 5 seconds for death + AI maintenance
     };
 };
 
@@ -742,12 +818,14 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.7";
-diag_log "  • EVENT-BASED death detection (instant)";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.7.1";
+diag_log "  • EVENT-BASED death detection (Killed + MPKilled)";
+diag_log "  • BACKUP POLLING death detection (fallback)";
+diag_log "  • Parachute/altitude checks (no mid-air spawns)";
 diag_log "  • Fixed group cleanup logic";
 diag_log "  • Spawn cooldown (5s) prevents cascading";
 diag_log "  • Enhanced spawn lock with timeout";
-diag_log "  • Optimized array operations";
+diag_log "  • EXTENSIVE LOGGING for debugging";
 diag_log "  • AI type validation";
 diag_log "  • STRICT 3 AI maximum";
 if (RECRUIT_VCOMAI_Active) then {

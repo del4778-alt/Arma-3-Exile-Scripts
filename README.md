@@ -2,414 +2,173 @@
 
 A collection of advanced AI enhancement scripts for Arma 3 Exile servers, providing intelligent driving, patrol systems, and player AI recruits.
 
-## 📦 Contents
+---
 
-- **[AI Elite Driving](#ai-elite-driving)** - Enhanced AI vehicle handling and combat driving
-- **[AI Patrol System](#ai-patrol-system)** - Dynamic patrol routes with squad leader coordination
-- **[Elite AI Recruit System](#elite-ai-recruit-system)** - Player AI teammates with full lifecycle management
+## 📦 **Quick Downloads**
+
+Click on any system to view details and download individually:
+
+| System | Version | Description | Download |
+|--------|---------|-------------|----------|
+| **[AI Recruit System](AI-Recruit-System/)** | v7.7.1 | 3 AI teammates per player with full lifecycle management | [📥 Download](AI-Recruit-System/recruit_ai.sqf) |
+| **[AI Elite Driving](AI-Elite-Driving/)** | v1.0 | Enhanced AI vehicle handling and combat driving | [📥 Download](AI-Elite-Driving/AI_EliteDriving.sqf) |
+| **[AI Patrol System](AI-Patrol-System/)** | v1.0 | Dynamic patrol routes with squad leader coordination | [📥 Download](AI-Patrol-System/fn_aiPatrolSystem.sqf) |
+| **[Server Installers](Server-Installers/)** | v1.0 | Automated Exile server setup scripts (Windows/Linux) | [📁 View](Server-Installers/) |
 
 ---
 
-## 🚗 AI Elite Driving
+## 🎯 **Featured: AI Recruit System v7.7.1**
 
-### Description
-Enhances AI driving behavior with realistic speeds, combat awareness, and side-specific configuration. AI will adjust speed based on threat level and vehicle type.
+### Latest Updates - Critical Bug Fixes
 
-### Features
-- ✅ Side-specific configuration (BLUFOR, OPFOR, Independent, Civilian)
-- ✅ Dynamic speed adjustment based on threat level
-- ✅ Vehicle-type awareness (light/heavy/armored)
-- ✅ Combat vs. safe driving modes
-- ✅ Automatic headlight control
-- ✅ Damage-based speed reduction
+**[View Full Documentation →](AI-Recruit-System/)**
 
-### Installation
+✅ **DUAL death detection** - Event handlers + backup polling
+✅ **Parachute checks** - AI won't spawn mid-air and die
+✅ **EXTENSIVE logging** - See exactly what's happening
+✅ **Enhanced respawn** - Waits for player to land
+✅ **Fixed group cleanup** - No memory leaks
+✅ **Spawn cooldown** - Prevents cascading respawns
 
-#### Step 1: Add Script to Mission
-Place `AI_EliteDriving.sqf` in your mission folder:
-```
-Exile.YourMap/
-├── initServer.sqf
-└── scripts/
-    └── AI_EliteDriving.sqf
-```
-
-#### Step 2: Initialize from initServer.sqf
-Add to your `initServer.sqf`:
+**Quick Install:**
 ```sqf
-// Load Elite AI Driving
+// initServer.sqf
 if (isServer) then {
-    [] execVM "scripts\AI_EliteDriving.sqf";
+    execVM "scripts\recruit_ai.sqf";
 };
 ```
 
-### Configuration
+---
 
-Edit the script to choose which sides use enhanced driving:
+## 📋 **All Systems Overview**
 
-```sqf
-// Line ~15: Configure which sides use Elite Driving
-ELITE_DRIVING_SIDES = [
-    independent,  // AI missions (DMS, VEMF, etc.)
-    east,         // OPFOR AI
-    west          // BLUFOR AI
-    // civilian   // Uncomment to include civilians
-];
-```
+### 🤖 **[AI Recruit System](AI-Recruit-System/)**
 
-### Parameters
+**What it does:** Gives each player 3 AI teammates (Anti-Tank, Anti-Air, Sniper) with automatic spawning, death cleanup, and respawn handling.
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `ELITE_DRIVING_SIDES` | Array of sides that use enhanced driving | `[independent]` |
-| Combat Speed | Speed when enemies nearby | 40 km/h |
-| Safe Speed | Speed when no threats | 80 km/h |
-| Update Interval | How often to check vehicles | 5 seconds |
+**Features:**
+- Dual death detection (instant + polling)
+- Parachute/altitude awareness
+- Vehicle seat assignment
+- VCOMAI/A3XAI integration
+- Extensive logging
+- Strict 3 AI limit
+
+**Perfect for:** Exile servers wanting to give players AI support without overpowering gameplay
+
+**[📖 Read Full Documentation →](AI-Recruit-System/README.md)**
 
 ---
 
-## 🎯 AI Patrol System
+### 🚗 **[AI Elite Driving](AI-Elite-Driving/)**
 
-### Description
-Creates dynamic patrol routes for AI squads with intelligent waypoint placement and squad leader coordination.
+**What it does:** Makes AI drivers act intelligently - slowing down in combat, adjusting for vehicle damage, and maintaining realistic speeds.
 
-### Features
-- ✅ Dynamic waypoint generation
-- ✅ Squad leader coordination
-- ✅ Automatic patrol route creation
-- ✅ Building and cover awareness
-- ✅ Looping patrol routes
-- ✅ Configurable patrol radius and waypoints
+**Features:**
+- Dynamic speed adjustment
+- Threat-based behavior
+- Vehicle-type awareness
+- Combat vs safe modes
+- Automatic headlights
+- Damage-based reduction
 
-### Installation
+**Perfect for:** Servers with AI missions (DMS, VEMF) wanting realistic vehicle behavior
 
-#### Step 1: Add Script to Mission
-Place `fn_aiPatrolSystem.sqf` in your mission folder:
-```
-Exile.YourMap/
-├── initServer.sqf
-└── scripts/
-    └── fn_aiPatrolSystem.sqf
-```
-
-#### Step 2: Compile Function
-Add to your `initServer.sqf`:
-```sqf
-// Compile AI Patrol Function
-if (isServer) then {
-    fnc_aiPatrolSystem = compile preprocessFileLineNumbers "scripts\fn_aiPatrolSystem.sqf";
-};
-```
-
-### Usage
-
-#### Basic Patrol
-```sqf
-// Create patrol for a group around a position
-[_aiGroup, _centerPosition, 200] call fnc_aiPatrolSystem;
-```
-
-#### Advanced Patrol
-```sqf
-// Full parameters
-[
-    _aiGroup,           // Group to patrol
-    _centerPosition,    // Center of patrol area [x,y,z]
-    _radius,           // Patrol radius in meters
-    _waypointCount     // Number of waypoints (optional, default: 4)
-] call fnc_aiPatrolSystem;
-```
-
-#### Example with DMS Mission
-```sqf
-// In your DMS mission file
-_aiGroup = createGroup independent;
-// ... spawn AI units ...
-
-// Set up patrol
-[_aiGroup, _missionCenter, 150, 6] call fnc_aiPatrolSystem;
-```
-
-### Configuration
-
-```sqf
-// Edit in script to customize behavior
-_radius = _this select 2;              // Patrol radius
-_waypointCount = _this param [3, 4];   // Number of waypoints (default: 4)
-_waypointTimeout = [10, 20, 30];       // Time at each waypoint [min, mid, max]
-```
-
-### Features Explained
-
-**Squad Leader:**
-- First unit in group becomes squad leader
-- Other units follow leader's commands
-- Leader controls patrol route
-
-**Dynamic Waypoints:**
-- Placed around perimeter of patrol radius
-- Avoid water and extreme terrain
-- Return to start point on completion
+**[📖 Read Full Documentation →](AI-Elite-Driving/README.md)**
 
 ---
 
-## 👥 Elite AI Recruit System
+### 🎯 **[AI Patrol System](AI-Patrol-System/)**
 
-### Description
-**Version 7.7** - Comprehensive AI recruit system that gives each player 3 AI teammates with full lifecycle management, death cleanup, and respawn handling. **Major bug fix release with event-based death detection and enhanced reliability.**
+**What it does:** Creates dynamic patrol routes for AI squads with intelligent waypoint placement.
 
-### Features
-- ✅ **3 AI teammates per player** (AT, AA, Sniper)
-- ✅ **EVENT-BASED death detection** - Instant cleanup (no polling delay)
-- ✅ **Fixed group cleanup** - Prevents memory leaks
-- ✅ **Spawn cooldown system** - Prevents cascading respawns
-- ✅ **Enhanced spawn lock** - Auto-recovery from stuck locks
-- ✅ **Respawn handling** - Fresh AI spawn after respawn
-- ✅ **Vehicle seat assignment** - AI automatically board vehicles
-- ✅ **Strict 3 AI maximum** - Prevents duplicates
-- ✅ **VCOMAI integration** - Auto-detects and configures
-- ✅ **A3XAI blacklist** - Prevents AI mission conflicts
-- ✅ **AI type validation** - Catches config errors early
-- ✅ **Extensive logging** - Easy troubleshooting
+**Features:**
+- Dynamic waypoint generation
+- Squad leader coordination
+- Looping patrol routes
+- Configurable radius/waypoints
+- Terrain awareness
+- Building avoidance
 
-### Installation
+**Perfect for:** Mission creators wanting AI to patrol areas naturally
 
-#### Step 1: Add Script to Mission
-Place `init_recruit.sqf` in your mission folder in a folder named addons:
-```
-Exile.YourMap/
-├── initServer.sqf
-└── scripts/
-    init_recruit.sqf
-```
+**[📖 Read Full Documentation →](AI-Patrol-System/README.md)**
 
-#### Step 2: Initialize from initServer.sqf
-Add to your `initServer.sqf`:
-```sqf
-// Load Elite AI Recruit System
-if (isServer) then {
-    execVM "addons\init_recruit.sqf";
-};
-```
+---
 
-#### Step 3: Restart Server
-Restart your server and check RPT logs for:
-```
-========================================
-[AI RECRUIT] Elite AI Recruit System v7.7
-  • EVENT-BASED death detection (instant)
-  • Fixed group cleanup logic
-  • Spawn cooldown (5s) prevents cascading
-  • Enhanced spawn lock with timeout
-  • Optimized array operations
-  • AI type validation
-  • STRICT 3 AI maximum
-========================================
+### 🖥️ **[Server Installers](Server-Installers/)**
+
+**What it does:** Automated installation scripts for setting up a complete Arma 3 Exile server from scratch.
+
+**Includes:**
+- Windows installer (.bat)
+- Linux installer (.sh)
+- SteamCMD setup
+- Arma 3 Dedicated Server
+- MySQL/MariaDB database
+- Configuration generation
+- Startup/stop scripts
+
+**Perfect for:** Backup solution if your rented server expires, or setting up a local test server
+
+**[📖 Read Full Documentation →](Server-Installers/README.md)**
+
+---
+
+## 🚀 **Quick Start**
+
+### **Option 1: Download Individual Scripts**
+
+Navigate to the system you want:
+- [AI-Recruit-System/](AI-Recruit-System/) → Download `recruit_ai.sqf`
+- [AI-Elite-Driving/](AI-Elite-Driving/) → Download `AI_EliteDriving.sqf`
+- [AI-Patrol-System/](AI-Patrol-System/) → Download `fn_aiPatrolSystem.sqf`
+
+### **Option 2: Clone Entire Repository**
+
+```bash
+git clone https://github.com/del4778-alt/Arma-3-Exile-Scripts.git
 ```
 
-### Configuration
+### **Option 3: Download Specific Folder**
 
-#### Change AI Types
-Edit lines 34-38 in the script:
-```sqf
-RECRUIT_AI_TYPES = [
-    "I_Soldier_AT_F",      // Anti-Tank (Titan Launcher)
-    "I_Soldier_AA_F",      // Anti-Air (Titan AA)
-    "I_Sniper_F"           // Sniper (Mk-I EMR)
-];
+Use GitHub's interface:
+1. Click on the folder you want
+2. Click "Code" → "Download ZIP"
+3. Extract only that folder
+
+---
+
+## 📁 **Repository Structure**
+
 ```
-
-**Popular AI Types:**
-```sqf
-// Medic Support
-"I_medic_F"
-
-// Machine Gunner
-"I_Soldier_AR_F"
-
-// Grenadier
-"I_Soldier_GL_F"
-
-// Marksman
-"I_Soldier_M_F"
-
-// Engineer
-"I_engineer_F"
-
-// Heavy Gunner
-"I_HeavyGunner_F"
-```
-
-#### Adjust Maintenance Loop Interval
-Edit line 738 (v7.7 uses event-based death detection, this only affects periodic AI checks):
-```sqf
-sleep 10; // Check every 10 seconds for missing AI
-```
-
-- **5 seconds** = Very frequent checks (more CPU usage)
-- **10 seconds** = Good balance (recommended)
-- **15 seconds** = Less frequent (lighter CPU)
-
-#### AI Skill Levels
-Edit lines 132-138 for standard AI (non-VCOMAI):
-```sqf
-{
-    _unit setSkill [_x, 1.0];  // Change 1.0 to 0.1-1.0
-} forEach [
-    "aimingAccuracy",  // 0.1 = poor aim, 1.0 = perfect aim
-    "aimingShake",     // 0.1 = shaky, 1.0 = steady
-    "spotDistance",    // 0.1 = blind, 1.0 = eagle eyes
-    "courage"          // 0.1 = coward, 1.0 = fearless
-];
-```
-
-### How It Works
-
-#### 1. Player Joins Server
-```
-Player connects → Wait 10 seconds → Setup event handlers → Spawn 3 AI
-```
-
-#### 2. During Gameplay
-```
-Every 30 seconds → Check if player has 3 AI → Spawn missing AI if needed
-AI dies → Wait 3 seconds → Respawn replacement AI
-```
-
-#### 3. Player Dies
-```
-Death detected (within 5 seconds) → Kill all AI → Delete AI → Clear tracking
-```
-
-#### 4. Player Respawns
-```
-Respawn → Clear old AI → Wait 5 seconds → Spawn 3 fresh AI
-```
-
-#### 5. Player Disconnects
-```
-Disconnect → Kill all AI → Delete AI → Clear tracking
-```
-
-### Troubleshooting
-
-#### AI Not Spawning on Join
-**Check:**
-- Server RPT shows `[AI RECRUIT] System initialized`
-- Player is fully spawned (not at spawn selection)
-- No script errors in RPT
-
-**Solution:**
-```sqf
-// Increase initial spawn delay (line 580)
-sleep 10; // Change to sleep 15;
-```
-
-#### AI Not Cleaned Up on Death
-**Check:**
-- RPT shows `[AI RECRUIT] !!!!! DEATH DETECTED`
-- Death monitoring loop is running
-
-**Solution:**
-Death cleanup happens within 5 seconds. If not working, check RPT logs for errors.
-
-#### Group Ownership Warnings
-**Issue:**
-```
-Warning: Adding units to a remote group is not safe
-```
-
-**Solution:**
-Update to latest version - this is fixed in v7.6 with proper group ownership transfer.
-
-#### Too Many AI After Multiple Deaths
-**Check:**
-- RPT logs show cleanup completing
-- Global map is being cleared
-
-**Solution:**
-Script enforces strict 3 AI maximum. Extra AI are automatically deleted. Check RPT for:
-```
-[AI RECRUIT] WARNING: Player has 5 AI! Removing extras...
-```
-
-#### AI Not Following Player
-**Check:**
-- VCOMAI compatibility (auto-detected)
-- A3XAI not interfering (auto-blacklisted)
-- AI behavior settings
-
-**Solution:**
-```sqf
-// Check RPT for:
-[AI RECRUIT] VCOMAI Integration: ENABLED
-```
-
-### Performance Impact
-
-| Aspect | Impact | Notes |
-|--------|--------|-------|
-| CPU Usage | Minimal | Checks every 5 seconds per player |
-| Memory | Low | Uses efficient hashmap tracking |
-| Network | Low | Only group synchronization |
-| AI Count | 3 per player | 10 players = 30 AI maximum |
-
-### Compatibility
-
-#### ✅ Compatible With:
-- Exile Mod (required)
-- VCOMAI (auto-detected)
-- A3XAI (auto-blacklisted)
-- DMS Missions
-- VEMF Reloaded
-- Occupation
-- Ryan's Zombies
-- Ravage Zombies
-
-#### ⚠️ May Conflict With:
-- Other AI recruit scripts (remove them)
-- Custom group management mods
-- Scripts that modify player respawn
-
-### Logs Reference
-
-#### Successful Startup
-```
-[AI RECRUIT] Starting initialization v7.6...
-[AI RECRUIT] VCOMAI Integration: ENABLED
-[AI RECRUIT] System initialized
-[AI RECRUIT] Setting up handlers for PlayerName
-[AI RECRUIT] Player PlayerName needs 3 AI
-[AI RECRUIT] Spawned I_Soldier_AT_F - Global map now has 1 AI
-[AI RECRUIT] Spawned I_Soldier_AA_F - Global map now has 2 AI
-[AI RECRUIT] Spawned I_Sniper_F - Global map now has 3 AI
-```
-
-#### Player Death
-```
-[AI RECRUIT] !!!!! DEATH DETECTED: PlayerName !!!!!
-[AI RECRUIT] CLEANUP START: PlayerName (UID: xxxxx)
-[AI RECRUIT] CLEANUP: Deleting 3 AI for PlayerName
-[AI RECRUIT]   From map: 3, From var: 3, From group: 3
-[AI RECRUIT]   Deleted: I_Soldier_AT_F
-[AI RECRUIT]   Deleted: I_Soldier_AA_F
-[AI RECRUIT]   Deleted: I_Sniper_F
-[AI RECRUIT] Cleanup complete - 3 AI removed
-```
-
-#### Player Respawn
-```
-[AI RECRUIT] Player PlayerName RESPAWNED
-[AI RECRUIT] Starting fresh AI spawn for PlayerName
-[AI RECRUIT] Player PlayerName needs 3 AI
-(spawning messages...)
+Arma-3-Exile-Scripts/
+├── README.md (this file)
+│
+├── AI-Recruit-System/
+│   ├── README.md
+│   ├── recruit_ai.sqf
+│   └── CHANGELOG_v7.7.md
+│
+├── AI-Elite-Driving/
+│   ├── README.md
+│   └── AI_EliteDriving.sqf
+│
+├── AI-Patrol-System/
+│   ├── README.md
+│   └── fn_aiPatrolSystem.sqf
+│
+└── Server-Installers/
+    ├── README.md
+    ├── install_exile_server.bat
+    └── install_exile_server.sh
 ```
 
 ---
 
-## 🔧 Complete Installation Example
+## ⚙️ **Installation Example**
 
-Here's a complete `initServer.sqf` with all three scripts:
+Complete `initServer.sqf` with all three AI systems:
 
 ```sqf
 // ===================================================================
@@ -438,54 +197,94 @@ fnc_aiPatrolSystem = compile preprocessFileLineNumbers "scripts\fn_aiPatrolSyste
 
 // Load Elite AI Recruit System
 diag_log "[SERVER] Loading Elite AI Recruit System...";
-execVM "addons\ai_recruit\init.sqf";
+execVM "scripts\recruit_ai.sqf";
 
 diag_log "[SERVER] All Elite AI systems loaded!";
-
-// ===================================================================
-// CONTINUE WITH OTHER INITIALIZATION
-// ===================================================================
-```
-
-### Complete Folder Structure
-```
-Exile.Altis/
-├── mission.sqm
-├── description.ext
-├── initServer.sqf
-├── scripts/
-│   ├── AI_EliteDriving.sqf
-│   └── fn_aiPatrolSystem.sqf
-    └── init_recruit.sqf
-
 ```
 
 ---
 
-## 📊 Version History
+## 🎮 **Compatibility**
 
-### Elite AI Driving
-- **Latest:** Side-specific configuration
-- **Previous:** Applied to all AI vehicles
+### ✅ **All Systems Compatible With:**
+- Arma 3 v2.18+
+- Exile Mod 1.0.4+
+- DMS (Defent's Mission System)
+- VEMF Reloaded
+- A3XAI
+- VCOMAI
+- Ryan's Zombies
+- Ravage Zombies
 
-### AI Patrol System
-- **Latest:** Added squad leader coordination
-- **Previous:** Basic waypoint system
-
-### Elite AI Recruit System
-- **v7.7:** EVENT-BASED death detection, fixed group cleanup, spawn cooldown, enhanced reliability (CURRENT)
-- **v7.6:** Server-side death monitoring, proven cleanup
-- **v7.5:** Enhanced logging, 4-source tracking
-- **v7.4:** Simplified cleanup
-- **v7.0-7.3:** Initial versions
-
-**See [CHANGELOG_v7.7.md](CHANGELOG_v7.7.md) for detailed v7.7 improvements**
+### ⚠️ **Potential Conflicts:**
+- Other AI recruit scripts (remove before installing)
+- Custom AI behavior overrides
+- Scripts that modify player respawn
 
 ---
 
-## 🤝 Contributing
+## 📊 **Performance Impact**
+
+| System | CPU Usage | Memory | Network | Notes |
+|--------|-----------|--------|---------|-------|
+| **AI Recruit** | Minimal | Low | Low | 3 AI per player |
+| **Elite Driving** | Very Low | Minimal | None | Server-side only |
+| **Patrol System** | Low | Minimal | None | Calculated once |
+
+**Combined Impact:** Suitable for servers with 60+ players
+
+---
+
+## 🆘 **Support**
+
+### **Getting Help**
+
+1. **Check the specific system's README** - Most issues are covered in detailed docs
+2. **Review RPT logs** - Extensive logging helps identify issues
+3. **GitHub Issues** - [Report bugs here](https://github.com/del4778-alt/Arma-3-Exile-Scripts/issues)
+
+### **When Reporting Issues**
+
+Include:
+- Which system (Recruit/Driving/Patrol)
+- Version number
+- Server RPT logs (relevant sections)
+- Mods installed
+- Steps to reproduce
+
+### **Resources**
+
+- **Exile Forums:** https://www.exilemod.com/forums/
+- **Exile Discord:** https://discord.gg/exile
+- **Arma 3 Wiki:** https://community.bistudio.com/wiki/Arma_3
+
+---
+
+## 🔄 **Version History**
+
+### **AI Recruit System**
+- **v7.7.1** (Current) - Critical bug fixes, parachute checks, dual death detection
+- **v7.7** - Event-based death detection, group cleanup fixes
+- **v7.6** - Server-side monitoring
+- **v7.0-7.5** - Initial releases
+
+**[See Full Changelog →](AI-Recruit-System/CHANGELOG_v7.7.md)**
+
+### **AI Elite Driving**
+- **v1.0** - Side-specific configuration, dynamic speed adjustment
+
+### **AI Patrol System**
+- **v1.0** - Squad leader coordination, dynamic waypoints
+
+### **Server Installers**
+- **v1.0** - Windows and Linux automated installers
+
+---
+
+## 🤝 **Contributing**
 
 Contributions are welcome! Please:
+
 1. Test thoroughly on your server
 2. Document any changes
 3. Submit pull requests with clear descriptions
@@ -493,56 +292,46 @@ Contributions are welcome! Please:
 
 ---
 
-## 📝 License
+## 📝 **License**
 
-Free to use and modify for your Arma 3 Exile server.  
+All scripts are provided free to use and modify for your Arma 3 Exile server.
 Please give credit if you redistribute or modify.
 
 ---
 
-## 🐛 Reporting Issues
+## 🙏 **Credits**
 
-When reporting issues, please include:
-- **Server RPT logs** (relevant sections)
-- **Script version** you're using
-- **Mods installed** (DMS, A3XAI, VCOMAI, etc.)
-- **Steps to reproduce** the issue
-- **Expected vs actual behavior**
-
----
-
-## 📞 Support
-
-For support and updates:
-- Check RPT logs first
-- Review troubleshooting sections
-- Ensure you're using latest versions
-- Test scripts individually before combining
-
----
-
-## 🎯 Credits
-
-- **Elite AI Driving:** Enhanced vehicle AI behavior
-- **AI Patrol System:** Dynamic patrol route generation
-- **Elite AI Recruit System:** Complete player AI teammate solution
-- **Exile Mod:** Community and server framework
+- **Script Author:** del4778-alt
+- **Exile Mod Team:** Framework and community
+- **Arma 3 Community:** Support and inspiration
 - **VCOMAI/A3XAI:** AI enhancement integration
 
 ---
 
-## ⚡ Quick Start Checklist
+## ⭐ **Show Your Support**
 
-- [ ] Download all three scripts
-- [ ] Place in correct folders
-- [ ] Add initialization to initServer.sqf
-- [ ] Configure side settings (Elite Driving)
-- [ ] Configure AI types (Recruit System)
-- [ ] Restart server
-- [ ] Check RPT logs for successful initialization
-- [ ] Test in-game functionality
-- [ ] Monitor performance
+If these scripts helped your server:
+- ⭐ Star this repository
+- 🐛 Report bugs to help improve
+- 💬 Share feedback in issues
+- 🔗 Link to this repo in your server
 
 ---
+
+## 📞 **Quick Links**
+
+| Link | Description |
+|------|-------------|
+| [AI Recruit System](AI-Recruit-System/) | Player AI teammates |
+| [AI Elite Driving](AI-Elite-Driving/) | Enhanced AI vehicle behavior |
+| [AI Patrol System](AI-Patrol-System/) | Dynamic AI patrols |
+| [Server Installers](Server-Installers/) | Automated server setup |
+| [Report Bug](https://github.com/del4778-alt/Arma-3-Exile-Scripts/issues) | GitHub Issues |
+
+---
+
+**Repository Version:** 1.0
+**Last Updated:** 2025
+**Tested On:** Arma 3 v2.18+, Exile 1.0.4+
 
 **Enjoy your enhanced AI systems!** 🚀

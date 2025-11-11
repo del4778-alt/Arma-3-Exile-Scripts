@@ -168,18 +168,14 @@ fn_FSM_ExecuteState = {
 
     switch (_state) do {
         case FSM_STATE_IDLE: {
-            _unit setBehaviour "SAFE";
-            _unit setSpeedMode "LIMITED";
+            _unit setBehaviour "AWARE";
+            _unit setSpeedMode "FULL";  // Fast movement
+            _unit setCombatMode "YELLOW";  // Return fire
             _playerGroup setFormation "COLUMN";
 
-            // Follow player closely
-            private _dist = _unit distance _player;
-            if (_dist > 6) then {
-                private _followPos = _player getPos [random [3, 4, 5], random 360];
-                _unit doMove _followPos;
-            };
-
-            _unit setUnitPos "MIDDLE"; // Crouch ready
+            // Set AI to follow player (allows command menu to work)
+            _unit doFollow _player;
+            _unit setUnitPos "AUTO";  // Allow stance changes via command menu
         };
 
         case FSM_STATE_INVESTIGATE: {
@@ -297,13 +293,13 @@ fn_FSM_ExecuteState = {
         };
 
         case FSM_STATE_HEAL: {
-            _unit setBehaviour "SAFE";
-            _unit setSpeedMode "LIMITED";
+            _unit setBehaviour "AWARE";
+            _unit setSpeedMode "FULL";
+            _unit setCombatMode "YELLOW";
             _playerGroup setFormation "COLUMN";
 
-            // Move to safe position near player
-            private _healPos = _player getPos [random [5, 7, 10], random 360];
-            _unit doMove _healPos;
+            // Follow player while healing
+            _unit doFollow _player;
 
             // Use FAK if available
             if ("FirstAidKit" in items _unit) then {
@@ -314,7 +310,7 @@ fn_FSM_ExecuteState = {
                 };
             };
 
-            _unit setUnitPos "MIDDLE";
+            _unit setUnitPos "AUTO";
         };
     };
 };
@@ -347,7 +343,7 @@ fn_FSM_BrainLoop = {
             if (_timeInState > 3) then {
                 private _nextState = [_unit, _currentState, _player] call fn_FSM_EvaluateNextState;
 
-                // State transition
+                // State transition - only execute state actions on transition
                 if (_nextState != _currentState) then {
                     diag_log format ["[AI RECRUIT FSM] %1: %2 → %3 (Threat: %4 @ %5m)",
                         name _unit, _currentState, _nextState,
@@ -359,11 +355,11 @@ fn_FSM_BrainLoop = {
                     _unit setVariable ["FSM_LastTransition", time, false];
 
                     _currentState = _nextState;
+
+                    // Execute state behavior ONLY on transition
+                    [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
                 };
             };
-
-            // Execute current state behavior
-            [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
 
             // Prevent prone at all times (CQB requirement)
             if (stance _unit == "PRONE") then {
@@ -528,17 +524,18 @@ fn_spawnAI = {
         ["general", 0.9]            // Overall competence
     ];
 
-    // Stance Control: NO PRONE, CROUCH ALLOWED
-    _unit setUnitPos "MIDDLE";  // Forces crouch/stand only (no prone)
+    // Stance Control: Allow player control via command menu
+    _unit setUnitPos "AUTO";
 
     // Enhanced Movement (BCombat/VCOMAI inspired)
-    _unit forceSpeed 1.3;           // Slightly faster movement
-    _unit setAnimSpeedCoef 1.3;     // Animation speed
+    _unit setAnimSpeedCoef 1.2;     // Slightly faster animations
     _unit allowFleeing 0;           // Never flee
 
-    // Combat Behavior (ASR AI inspired)
-    _unit setBehaviour "COMBAT";    // Always combat ready
-    _unit setCombatMode "RED";      // Weapons free
+    // Initial Behavior (FSM will control this)
+    _unit setBehaviour "AWARE";     // Alert but not combat
+    _unit setCombatMode "YELLOW";   // Return fire
+    _unit setSpeedMode "FULL";      // Fast movement
+    _unit doFollow _player;         // Follow player immediately
 
     // Advanced AI Features
     _unit enableAI "SUPPRESSION";   // Use suppressive fire

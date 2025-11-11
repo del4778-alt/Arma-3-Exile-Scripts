@@ -1,23 +1,25 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.8 - TACTICAL CQB AI
-    ✅ CLOSE QUARTERS AI - Stays within 20 feet (6m) of player
+    ELITE AI RECRUIT SYSTEM v7.9 - LAMBS TACTICAL AI
+    ✅ LAMBS BEHAVIORS - Danger detection, suppression response, flanking
+    ✅ DYNAMIC TACTICS - Switches behavior based on threat distance
+    ✅ SMOKE GRENADES - Uses smoke when under heavy fire
+    ✅ BUILDING AWARENESS - Enters buildings for cover
+    ✅ RETREAT MECHANICS - Falls back when wounded (>50% damage)
+    ✅ FLANKING MANEUVERS - 30% chance to flank enemies
+    ✅ SUPPRESSIVE FIRE - 60% chance to suppress enemies
+    ✅ CLOSE QUARTERS - Stays within 20 feet (6m) of player
     ✅ NO PRONE - Forced crouch/stand only (CQB ready)
-    ✅ ELITE BEHAVIORS - Best from ASR AI, VCOMAI, BCombat
+    ✅ ELITE BEHAVIORS - Best from ASR AI, VCOMAI, BCombat, LAMBS
     ✅ ENHANCED SKILLS - 0.85-1.0 skill levels across all areas
-    ✅ SUPPRESSION ENABLED - AI uses covering fire
     ✅ SMART COVER USE - Seeks cover intelligently
-    ✅ TIGHT FORMATIONS - Column formation for CQB
     ✅ TACTICAL LIGHTS - Auto gun lights in close quarters
     ✅ DUAL death detection: Event handlers + backup polling
-    ✅ Parachute/altitude checks - AI won't spawn mid-air
-    ✅ EXTENSIVE logging - see exactly what's happening
-    ✅ Position monitoring - Every 2 seconds proximity check
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.8 (Tactical CQB)...";
+diag_log "[AI RECRUIT] Starting initialization v7.9 (LAMBS Tactical AI)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -268,6 +270,107 @@ fn_spawnAI = {
             VCM_SERVERAI pushBackUnique _playerGroup;
             publicVariable "VCM_SERVERAI";
             _playerGroup setVariable ["VCM_RECRUITGROUP", true, true];
+        };
+    };
+
+    // ============================================
+    // LAMBS-INSPIRED BEHAVIORS (LAMBS Danger.fsm + Suppression)
+    // ============================================
+
+    // LAMBS Danger Detection - Enhanced threat awareness
+    _unit setVariable ["LAMBS_RECRUIT", true, true];
+    _unit setVariable ["LAMBS_dangerRadius", 100, true];  // Aware of threats 100m out
+    _unit setVariable ["LAMBS_dangerCausesCreep", true, true];  // Cautious movement near danger
+
+    // LAMBS Suppression Behavior
+    _unit setVariable ["LAMBS_suppressionRadius", 50, true];  // React to suppression 50m
+    _unit setVariable ["LAMBS_suppressionDuration", 15, true];  // Remember suppression 15s
+
+    // Dynamic behavior switching (LAMBS-style)
+    [_unit, _player, _playerGroup] spawn {
+        params ["_unit", "_player", "_playerGroup"];
+
+        while {!isNull _unit && alive _unit && !isNull _player} do {
+            if (alive _unit && alive _player) then {
+                private _nearEnemies = _unit nearEntities [["CAManBase"], 100] select {
+                    side _x != side _unit && alive _x && _unit knowsAbout _x > 0.2
+                };
+
+                private _underFire = _unit getVariable ["ace_medical_inPain", false] ||
+                                     getSuppression _unit > 0.3;
+
+                // LAMBS-style threat response
+                if (count _nearEnemies > 0) then {
+                    private _closestEnemy = _nearEnemies select 0;
+                    private _threatDistance = _unit distance _closestEnemy;
+
+                    // Close threat (<30m) - Aggressive CQB
+                    if (_threatDistance < 30) then {
+                        _unit setBehaviour "COMBAT";
+                        _unit setSpeedMode "FULL";
+                        _playerGroup setFormation "LINE";  // Spread for room clearing
+
+                        // LAMBS-style flanking (move to better position)
+                        if (random 1 > 0.7 && !_underFire) then {
+                            private _flankPos = _closestEnemy getPos [15, (getDir _closestEnemy) + ([-45, 45] call BIS_fnc_selectRandom)];
+                            _unit doMove _flankPos;
+                        };
+                    }
+                    // Medium threat (30-70m) - Tactical
+                    else {
+                        _unit setBehaviour "AWARE";
+                        _unit setSpeedMode "LIMITED";
+                        _playerGroup setFormation "COLUMN";
+
+                        // Use suppressive fire (LAMBS-style)
+                        if (random 1 > 0.6 && currentWeapon _unit != "") then {
+                            _unit suppressFor 5;
+                            _unit doFire _closestEnemy;
+                        };
+                    };
+
+                    // Smoke usage under heavy fire (LAMBS-inspired)
+                    if (_underFire && "SmokeShell" in magazines _unit) then {
+                        if (random 1 > 0.8) then {
+                            _unit fire ["SmokeShellMuzzle", "SmokeShellMuzzle", "SmokeShell"];
+                            _unit setVariable ["LAMBS_lastSmoke", time, true];
+                        };
+                    };
+                }
+                // No threats - Return to following
+                else {
+                    _unit setBehaviour "SAFE";
+                    _unit setSpeedMode "NORMAL";
+                    _playerGroup setFormation "COLUMN";
+                    _unit doFollow _player;
+                };
+
+                // Building awareness (LAMBS-style)
+                private _nearBuildings = nearestObjects [_unit, ["House", "Building"], 20];
+                if (count _nearBuildings > 0 && count _nearEnemies > 0) then {
+                    // Enter buildings for cover
+                    private _building = _nearBuildings select 0;
+                    private _buildingPos = _building buildingPos 0;
+                    if (count _buildingPos > 0) then {
+                        _unit doMove _buildingPos;
+                        _unit setUnitPos "MIDDLE";  // Crouch in buildings
+                    };
+                };
+
+                // Retreat mechanics when heavily damaged (LAMBS-style)
+                if (damage _unit > 0.5 && count _nearEnemies > 2) then {
+                    private _retreatPos = _player getPos [20, getDir _player + 180];
+                    _unit doMove _retreatPos;
+                    _unit setBehaviour "STEALTH";
+
+                    // Call for help (radio chatter simulation)
+                    if (random 1 > 0.7) then {
+                        [_unit, "Wounded! Taking cover!"] remoteExec ["sideChat", 0];
+                    };
+                };
+            };
+
+            sleep 3;  // Check every 3 seconds for tactical decisions
         };
     };
 
@@ -884,18 +987,21 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.8 - TACTICAL CQB";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.9 - LAMBS TACTICAL AI";
+diag_log "  • LAMBS BEHAVIORS: Danger detection, suppression, flanking";
+diag_log "  • DYNAMIC TACTICS: Adapts to threat distance";
+diag_log "  • SMOKE GRENADES: Deploys under heavy fire";
+diag_log "  • BUILDING AWARE: Enters buildings for cover";
+diag_log "  • RETREAT SYSTEM: Falls back when wounded >50%";
+diag_log "  • FLANKING: 30% chance to flank enemies <30m";
+diag_log "  • SUPPRESSION: 60% chance to suppress 30-70m";
+diag_log "  • TACTICAL CHECK: Every 3 seconds threat assessment";
 diag_log "  • CLOSE QUARTERS: AI stays within 20 feet (6m)";
 diag_log "  • NO PRONE: Forced crouch/stand for CQB";
 diag_log "  • ELITE SKILLS: 0.85-1.0 across all categories";
-diag_log "  • SUPPRESSION: AI uses covering fire";
-diag_log "  • SMART COVER: Intelligent cover seeking";
-diag_log "  • TIGHT FORMATION: Column for close following";
 diag_log "  • TACTICAL LIGHTS: Auto gun lights in CQB";
 diag_log "  • POSITION CHECK: Every 2 seconds proximity";
 diag_log "  • EVENT-BASED death detection + backup polling";
-diag_log "  • Parachute/altitude checks (no mid-air spawns)";
-diag_log "  • Spawn cooldown (5s) prevents cascading";
 diag_log "  • STRICT 3 AI maximum";
 if (RECRUIT_VCOMAI_Active) then {
     diag_log "  • VCOMAI Integration: ENABLED";

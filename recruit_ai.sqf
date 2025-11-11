@@ -125,9 +125,8 @@ fn_spawnAI = {
         waitUntil {sleep 0.1; groupOwner _playerGroup == 2 || time > _timeout};
 
         if (groupOwner _playerGroup != 2) then {
-            diag_log format ["[AI RECRUIT] ERROR: Failed to transfer group ownership for %1 - ABORTING SPAWN", name _player];
-            // Return null instead of continuing with remote group
-            objNull exitWith {};
+            diag_log format ["[AI RECRUIT] WARNING: Failed to transfer group ownership for %1 - continuing anyway", name _player];
+            diag_log format ["[AI RECRUIT] Units will be created in client-owned group (this is usually fine)"];
         } else {
             diag_log format ["[AI RECRUIT] Group ownership transferred successfully for %1", name _player];
         };

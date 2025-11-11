@@ -1,19 +1,14 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.10 - ADVANCED FSM BRAIN
-    ✅ LAMBS DANGER.FSM BRAIN - Full state machine implementation
-    ✅ 8 AI STATES - Idle, Investigate, Combat, Flank, Suppress, Retreat, Garrison, Heal
-    ✅ INTELLIGENT TRANSITIONS - Context-aware state switching
-    ✅ PRIORITY SYSTEM - Evaluates best action every 2 seconds
-    ✅ THREAT ANALYSIS - Distance, number, knowledge level assessment
-    ✅ DYNAMIC TACTICS - Adapts to changing battlefield conditions
-    ✅ COVER SEEKING - Uses terrain and buildings intelligently
-    ✅ FLANKING AI - Moves to advantageous positions
-    ✅ SUPPRESSION - Pins enemies while teammates maneuver
-    ✅ SELF-PRESERVATION - Retreats and heals when needed
-    ✅ BUILDING GARRISON - Occupies structures tactically
-    ✅ INVESTIGATION - Checks suspicious areas before engaging
-    ✅ CLOSE QUARTERS - Stays within 20 feet (6m) of player
-    ✅ NO PRONE - Forced crouch/stand only (CQB ready)
+    ELITE AI RECRUIT SYSTEM v7.12 - EXILE SESSION FIX
+    ✅ EXILE RESILIENT - Brain survives Exile session initialization
+    ✅ STREAMLINED FSM - 4 states: Idle, Combat, Retreat, Heal
+    ✅ INSTANT REACTION - Immediate response to threats (no delay)
+    ✅ ENHANCED DETECTION - Visual detection within 30m + knowledge-based scanning
+    ✅ SMART PRIORITY - Retreat when critical, fight when able, heal when safe
+    ✅ CALM FOLLOWING - Stays with player when no threats
+    ✅ AGGRESSIVE COMBAT - Full speed assault when enemies detected
+    ✅ COMMAND RESPONSIVE - Follows player orders via command menu
+    ✅ FULL SPEED - Fast movement at all times
     ✅ ELITE SKILLS - 0.85-1.0 skill levels across all areas
     ✅ DUAL death detection: Event handlers + backup polling
 */
@@ -21,7 +16,7 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.10 (Advanced FSM Brain)...";
+diag_log "[AI RECRUIT] Starting initialization v7.12 (Exile Session Fix)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -68,16 +63,12 @@ diag_log "[AI RECRUIT] Validating AI types...";
 
 // FSM States
 FSM_STATE_IDLE = "IDLE";           // Following player, no threats
-FSM_STATE_INVESTIGATE = "INVESTIGATE"; // Checking suspicious contact
-FSM_STATE_COMBAT = "COMBAT";       // Engaged with confirmed enemy
-FSM_STATE_FLANK = "FLANK";         // Moving to flanking position
-FSM_STATE_SUPPRESS = "SUPPRESS";   // Laying suppressive fire
-FSM_STATE_RETREAT = "RETREAT";     // Falling back to safety
-FSM_STATE_GARRISON = "GARRISON";   // Occupying building
-FSM_STATE_HEAL = "HEAL";           // Healing self or being healed
+FSM_STATE_COMBAT = "COMBAT";       // Engaged with enemy
+FSM_STATE_RETREAT = "RETREAT";     // Falling back when critically wounded
+FSM_STATE_HEAL = "HEAL";           // Healing self when safe
 
-diag_log "[AI RECRUIT] FSM Brain: 8-state system initialized";
-diag_log "[AI RECRUIT] States: IDLE → INVESTIGATE → COMBAT → FLANK/SUPPRESS/RETREAT/GARRISON → HEAL";
+diag_log "[AI RECRUIT] FSM Brain: 4-state simplified system initialized";
+diag_log "[AI RECRUIT] States: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
 
 // ====================================================================================
 // FSM: Analyze threat situation
@@ -85,9 +76,24 @@ diag_log "[AI RECRUIT] States: IDLE → INVESTIGATE → COMBAT → FLANK/SUPPRES
 fn_FSM_AnalyzeThreat = {
     params ["_unit"];
 
+    // Scan for nearby enemies - more aggressive detection
     private _threats = _unit nearEntities [["CAManBase"], 150] select {
-        side _x != side _unit && alive _x && _unit knowsAbout _x > 0.1
+        side _x != side _unit && alive _x && _unit knowsAbout _x > 0.05
     };
+
+    // Also check for very close enemies regardless of knowledge (visual detection)
+    private _veryClose = _unit nearEntities [["CAManBase"], 30] select {
+        side _x != side _unit && alive _x
+    };
+
+    // Merge both lists
+    {
+        if (!(_x in _threats)) then {
+            _threats pushBack _x;
+            // Reveal very close enemies immediately
+            _unit reveal [_x, 1.5];
+        };
+    } forEach _veryClose;
 
     if (count _threats == 0) exitWith {
         [0, objNull, 0, 0] // [count, closest, distance, avgKnowledge]
@@ -114,49 +120,18 @@ fn_FSM_EvaluateNextState = {
 
     private _damage = damage _unit;
     private _suppression = getSuppression _unit;
-    private _distToPlayer = _unit distance _player;
-    private _underFire = _unit getVariable ["ace_medical_inPain", false] || _suppression > 0.3;
 
-    // PRIORITY 1: Healing (if badly wounded and safe)
-    if (_damage > 0.5 && _threatCount == 0) exitWith { FSM_STATE_HEAL };
+    // PRIORITY 1: Retreat if critically wounded
+    if (_damage > 0.7) exitWith { FSM_STATE_RETREAT };
 
-    // PRIORITY 2: Retreat (if critically wounded or overwhelmed)
-    if (_damage > 0.7 || (_damage > 0.4 && _threatCount > 3)) exitWith { FSM_STATE_RETREAT };
+    // PRIORITY 2: Combat if threats detected
+    if (_threatCount > 0) exitWith { FSM_STATE_COMBAT };
 
-    // PRIORITY 3: Combat states (if threats present)
-    if (_threatCount > 0) then {
-        // High knowledge = confirmed enemy
-        if (_avgKnowledge > 0.5) then {
+    // PRIORITY 3: Heal if wounded but safe
+    if (_damage > 0.3) exitWith { FSM_STATE_HEAL };
 
-            // Close quarters (<25m) - Garrison or Flank
-            if (_threatDist < 25) then {
-                // Check for nearby building
-                private _nearBuildings = nearestObjects [_unit, ["House", "Building"], 15];
-                if (count _nearBuildings > 0 && random 1 > 0.6) exitWith { FSM_STATE_GARRISON };
-
-                // Otherwise flank
-                if (random 1 > 0.5) exitWith { FSM_STATE_FLANK };
-
-                FSM_STATE_COMBAT
-            }
-            // Medium range (25-60m) - Suppress or Combat
-            else {
-                if (_threatCount > 1 && random 1 > 0.4) exitWith { FSM_STATE_SUPPRESS };
-                FSM_STATE_COMBAT
-            }
-        }
-        // Low knowledge = suspicious contact
-        else {
-            FSM_STATE_INVESTIGATE
-        };
-    }
-    // PRIORITY 4: Return to idle if no threats and healthy
-    else {
-        // If wounded but safe, heal
-        if (_damage > 0.2) exitWith { FSM_STATE_HEAL };
-
-        FSM_STATE_IDLE
-    };
+    // PRIORITY 4: Stay with player (default)
+    FSM_STATE_IDLE
 };
 
 // ====================================================================================
@@ -168,153 +143,67 @@ fn_FSM_ExecuteState = {
 
     switch (_state) do {
         case FSM_STATE_IDLE: {
-            _unit setBehaviour "SAFE";
-            _unit setSpeedMode "LIMITED";
+            // Calm and quiet - just follow player
+            _unit setBehaviour "AWARE";
+            _unit setSpeedMode "FULL";
+            _unit setCombatMode "YELLOW";  // Return fire
             _playerGroup setFormation "COLUMN";
 
-            // Follow player closely
-            private _dist = _unit distance _player;
-            if (_dist > 6) then {
-                private _followPos = _player getPos [random [3, 4, 5], random 360];
-                _unit doMove _followPos;
-            };
-
-            _unit setUnitPos "MIDDLE"; // Crouch ready
-        };
-
-        case FSM_STATE_INVESTIGATE: {
-            _unit setBehaviour "AWARE";
-            _unit setSpeedMode "LIMITED";
-            _playerGroup setFormation "LINE";
-
-            if (!isNull _closestThreat) then {
-                // Move toward suspicious contact cautiously
-                private _investigatePos = _closestThreat getPos [random [10, 15, 20], random 360];
-                _unit doMove _investigatePos;
-                _unit doWatch (getPos _closestThreat);
-            };
-
-            _unit setUnitPos "MIDDLE";
+            // Follow player (allows command menu to work)
+            _unit doFollow _player;
+            _unit setUnitPos "AUTO";  // Player controls stance
         };
 
         case FSM_STATE_COMBAT: {
-            _unit setBehaviour "COMBAT";
-            _unit setSpeedMode "NORMAL";
-            _playerGroup setFormation "LINE";
-
-            if (!isNull _closestThreat) then {
-                _unit doTarget _closestThreat;
-                _unit doFire _closestThreat;
-            };
-
-            _unit setUnitPos "MIDDLE"; // Stay ready, no prone
-        };
-
-        case FSM_STATE_FLANK: {
+            // Enemy detected - engage aggressively
             _unit setBehaviour "COMBAT";
             _unit setSpeedMode "FULL";
+            _unit setCombatMode "RED";  // Fire at will
             _playerGroup setFormation "LINE";
 
-            if (!isNull _closestThreat) then {
-                // Move to flanking position (45-90 degrees from threat)
-                private _flankAngle = (getDir _closestThreat) + ([-90, -60, 60, 90] call BIS_fnc_selectRandom);
-                private _flankPos = _closestThreat getPos [random [15, 20, 25], _flankAngle];
-                _unit doMove _flankPos;
-                _unit doTarget _closestThreat;
-
-                if (random 1 > 0.7) then {
-                    [_unit, "Flanking!"] remoteExec ["sideChat", 0];
-                };
-            };
-
-            _unit setUnitPos "MIDDLE";
-        };
-
-        case FSM_STATE_SUPPRESS: {
-            _unit setBehaviour "COMBAT";
-            _unit setSpeedMode "LIMITED";
-            _playerGroup setFormation "LINE";
-
-            if (!isNull _closestThreat) then {
-                _unit suppressFor 8;
-                _unit doSuppressiveFire (getPos _closestThreat);
-
-                if (random 1 > 0.8) then {
-                    [_unit, "Suppressing!"] remoteExec ["sideChat", 0];
-                };
-            };
-
-            _unit setUnitPos "MIDDLE";
+            // AI will auto-engage with AUTOCOMBAT enabled
+            // No need to override their targeting
+            _unit setUnitPos "AUTO";  // Let AI choose best stance
         };
 
         case FSM_STATE_RETREAT: {
+            // Badly wounded - fall back to player
             _unit setBehaviour "AWARE";
             _unit setSpeedMode "FULL";
+            _unit setCombatMode "YELLOW";
             _playerGroup setFormation "COLUMN";
 
-            // Fall back toward player or away from threat
-            private _retreatPos = if (!isNull _closestThreat) then {
-                _closestThreat getPos [random [30, 40, 50], (getDir _closestThreat) + 180]
-            } else {
-                _player getPos [random [15, 20, 25], random 360]
-            };
-
-            _unit doMove _retreatPos;
+            // Move toward player
+            _unit doFollow _player;
 
             // Use smoke if available
-            if ("SmokeShell" in magazines _unit && random 1 > 0.6) then {
+            if ("SmokeShell" in magazines _unit && random 1 > 0.7) then {
                 _unit fire ["SmokeShellMuzzle", "SmokeShellMuzzle", "SmokeShell"];
             };
 
-            if (random 1 > 0.7) then {
-                [_unit, "Falling back!"] remoteExec ["sideChat", 0];
+            if (random 1 > 0.8) then {
+                [_unit, "I'm hit bad!"] remoteExec ["sideChat", 0];
             };
 
-            _unit setUnitPos "MIDDLE";
-        };
-
-        case FSM_STATE_GARRISON: {
-            _unit setBehaviour "COMBAT";
-            _unit setSpeedMode "NORMAL";
-            _playerGroup setFormation "LINE";
-
-            // Find and enter nearest building
-            private _nearBuildings = nearestObjects [_unit, ["House", "Building"], 25];
-            if (count _nearBuildings > 0) then {
-                private _building = _nearBuildings select 0;
-                private _buildingPos = _building buildingPos (floor random (count (_building buildingPos -1) max 0));
-
-                if (count _buildingPos > 0) then {
-                    _unit doMove _buildingPos;
-
-                    if (random 1 > 0.8) then {
-                        [_unit, "Taking position in building!"] remoteExec ["sideChat", 0];
-                    };
-                };
-            };
-
-            _unit setUnitPos "MIDDLE";
+            _unit setUnitPos "MIDDLE";  // Stay low when retreating
         };
 
         case FSM_STATE_HEAL: {
-            _unit setBehaviour "SAFE";
-            _unit setSpeedMode "LIMITED";
+            // Safe and wounded - heal up
+            _unit setBehaviour "AWARE";
+            _unit setSpeedMode "FULL";
+            _unit setCombatMode "YELLOW";
             _playerGroup setFormation "COLUMN";
 
-            // Move to safe position near player
-            private _healPos = _player getPos [random [5, 7, 10], random 360];
-            _unit doMove _healPos;
+            // Stay with player while healing
+            _unit doFollow _player;
 
             // Use FAK if available
             if ("FirstAidKit" in items _unit) then {
                 _unit action ["HealSoldierSelf", _unit];
-
-                if (random 1 > 0.8) then {
-                    [_unit, "Patching up..."] remoteExec ["sideChat", 0];
-                };
             };
 
-            _unit setUnitPos "MIDDLE";
+            _unit setUnitPos "AUTO";
         };
     };
 };
@@ -323,17 +212,20 @@ fn_FSM_ExecuteState = {
 // FSM: Main brain loop for each AI unit
 // ====================================================================================
 fn_FSM_BrainLoop = {
-    params ["_unit", "_player", "_playerGroup"];
+    params ["_unit", "_playerUID", "_playerGroup"];
 
     // Initialize FSM state
     _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
     _unit setVariable ["FSM_StateTimer", time, false];
     _unit setVariable ["FSM_LastTransition", time, false];
 
-    diag_log format ["[AI RECRUIT FSM] Brain activated for %1 (Player: %2)", typeOf _unit, name _player];
+    diag_log format ["[AI RECRUIT FSM] Brain activated for %1 (UID: %2)", typeOf _unit, _playerUID];
 
-    while {!isNull _unit && alive _unit && !isNull _player} do {
-        if (alive _unit && alive _player) then {
+    while {!isNull _unit && alive _unit} do {
+        // Look up player by UID each loop (resilient to Exile session changes)
+        private _player = [_playerUID] call BIS_fnc_getUnitByUID;
+
+        if (!isNull _player && alive _player && alive _unit) then {
 
             private _currentState = _unit getVariable ["FSM_CurrentState", FSM_STATE_IDLE];
             private _stateTimer = _unit getVariable ["FSM_StateTimer", time];
@@ -342,12 +234,19 @@ fn_FSM_BrainLoop = {
 
             // Analyze threat situation
             private _threatInfo = [_unit] call fn_FSM_AnalyzeThreat;
+            private _threatCount = _threatInfo select 0;
 
-            // Evaluate next state (with minimum 3 second state duration)
-            if (_timeInState > 3) then {
+            // Evaluate next state - instant reaction to threats, 2s delay for non-combat
+            private _canSwitch = if (_threatCount > 0) then {
+                true  // Instant reaction to threats
+            } else {
+                _timeInState > 2  // 2s minimum for non-combat states
+            };
+
+            if (_canSwitch) then {
                 private _nextState = [_unit, _currentState, _player] call fn_FSM_EvaluateNextState;
 
-                // State transition
+                // State transition - only execute state actions on transition
                 if (_nextState != _currentState) then {
                     diag_log format ["[AI RECRUIT FSM] %1: %2 → %3 (Threat: %4 @ %5m)",
                         name _unit, _currentState, _nextState,
@@ -359,15 +258,10 @@ fn_FSM_BrainLoop = {
                     _unit setVariable ["FSM_LastTransition", time, false];
 
                     _currentState = _nextState;
+
+                    // Execute state behavior ONLY on transition
+                    [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
                 };
-            };
-
-            // Execute current state behavior
-            [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
-
-            // Prevent prone at all times (CQB requirement)
-            if (stance _unit == "PRONE") then {
-                _unit setUnitPos "MIDDLE";
             };
 
         };
@@ -528,17 +422,18 @@ fn_spawnAI = {
         ["general", 0.9]            // Overall competence
     ];
 
-    // Stance Control: NO PRONE, CROUCH ALLOWED
-    _unit setUnitPos "MIDDLE";  // Forces crouch/stand only (no prone)
+    // Stance Control: Allow player control via command menu
+    _unit setUnitPos "AUTO";
 
     // Enhanced Movement (BCombat/VCOMAI inspired)
-    _unit forceSpeed 1.3;           // Slightly faster movement
-    _unit setAnimSpeedCoef 1.3;     // Animation speed
+    _unit setAnimSpeedCoef 1.2;     // Slightly faster animations
     _unit allowFleeing 0;           // Never flee
 
-    // Combat Behavior (ASR AI inspired)
-    _unit setBehaviour "COMBAT";    // Always combat ready
-    _unit setCombatMode "RED";      // Weapons free
+    // Initial Behavior (FSM will control this)
+    _unit setBehaviour "AWARE";     // Alert but not combat
+    _unit setCombatMode "YELLOW";   // Return fire
+    _unit setSpeedMode "FULL";      // Fast movement
+    _unit doFollow _player;         // Follow player immediately
 
     // Advanced AI Features
     _unit enableAI "SUPPRESSION";   // Use suppressive fire
@@ -607,7 +502,7 @@ fn_spawnAI = {
     // ============================================
     // ACTIVATE FSM BRAIN (replaces old tactical loops)
     // ============================================
-    [_unit, _player, _playerGroup] spawn fn_FSM_BrainLoop;
+    [_unit, getPlayerUID _player, _playerGroup] spawn fn_FSM_BrainLoop;
 
     // AI death handler - triggers respawn check with cooldown
     _unit addEventHandler ["Killed", {
@@ -1185,23 +1080,19 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.10 - ADVANCED FSM BRAIN";
-diag_log "  • FSM BRAIN: 8-state finite state machine (LAMBS Danger.fsm based)";
-diag_log "  • AI STATES: IDLE → INVESTIGATE → COMBAT → FLANK/SUPPRESS/RETREAT/GARRISON → HEAL";
-diag_log "  • PRIORITY SYSTEM: Evaluates best action every 2 seconds";
-diag_log "  • THREAT ANALYSIS: Distance, count, knowledge level assessment";
-diag_log "  • STATE TRANSITIONS: Context-aware intelligent switching";
-diag_log "  • INVESTIGATE: Checks suspicious contacts before engaging";
-diag_log "  • COMBAT: Direct engagement with confirmed enemies";
-diag_log "  • FLANK: Moves to advantageous positions (45-90° from threat)";
-diag_log "  • SUPPRESS: Lays suppressive fire for 8 seconds";
-diag_log "  • RETREAT: Falls back when wounded >40% or outnumbered";
-diag_log "  • GARRISON: Occupies buildings tactically";
-diag_log "  • HEAL: Self-heals when safe and wounded >20%";
-diag_log "  • SMOKE GRENADES: Deploys during retreat (60% chance)";
-diag_log "  • RADIO CALLOUTS: 'Flanking!', 'Suppressing!', 'Falling back!'";
-diag_log "  • CLOSE QUARTERS: AI stays within 20 feet (6m)";
-diag_log "  • NO PRONE: Forced crouch/stand for CQB";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.12 - EXILE SESSION FIX";
+diag_log "  • EXILE RESILIENT: Brain survives Exile session initialization";
+diag_log "  • FSM BRAIN: 4-state streamlined system";
+diag_log "  • AI STATES: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
+diag_log "  • INSTANT REACTION: Immediate response to threats (no delay)";
+diag_log "  • ENHANCED DETECTION: Visual detection within 30m + knowledge scanning";
+diag_log "  • IDLE: Follows player calmly, full speed, command menu responsive";
+diag_log "  • COMBAT: Aggressive engagement, full speed assault, fire at will";
+diag_log "  • RETREAT: Falls back when wounded >70%, deploys smoke";
+diag_log "  • HEAL: Self-heals when safe and wounded >30%";
+diag_log "  • FULL SPEED: Fast movement at all times (no slow walking)";
+diag_log "  • COMMAND RESPONSIVE: AI follow player orders via command menu";
+diag_log "  • AUTO STANCE: Player controls stance via commands";
 diag_log "  • ELITE SKILLS: 0.85-1.0 across all categories";
 diag_log "  • FSM LOGGING: State transitions logged to RPT";
 diag_log "  • EVENT-BASED death detection + backup polling";

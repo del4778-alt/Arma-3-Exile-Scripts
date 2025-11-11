@@ -1,8 +1,12 @@
 /*
     File: fn_aiPatrolSystem.sqf
-    Author: Elite Battle System v8.1.1 - BIS + VCOMAI Compatible (BUGFIXED)
+    Author: Elite Battle System v8.1.2 - BIS + VCOMAI Compatible (BUGFIXED)
     Description: Maximum performance patrol system with BIS function integration + VCOMAI compatibility
-        
+
+    v8.1.2 BUGFIXES:
+        - Fixed VCOMAI check scope issue (was private, now global function)
+        - Fixed variable scope in spawn blocks
+
     v8.1.1 BUGFIXES:
         - Fixed CBA dependency (now works without CBA)
         - Fixed distance check parentheses
@@ -32,23 +36,23 @@ if (!isServer) exitWith {};
 
 PATROL_VCOMAI_Active = false;
 
-// Check multiple VCOMAI indicators
-private _vcomCheck = {
-    (!isNil "VCM_ACTIVATEAI") || 
-    (!isNil "Vcm_Settings") || 
+// BUGFIX: Made global function so it's accessible in spawn scope
+DEFENDER_fnc_vcomCheck = {
+    (!isNil "VCM_ACTIVATEAI") ||
+    (!isNil "Vcm_Settings") ||
     (!isNil "VCM_SERVERAI") ||
     (!isNil "VCM_fnc_INITAI")
 };
 
 // Initial check
-if (call _vcomCheck) then {
+if (call DEFENDER_fnc_vcomCheck) then {
     PATROL_VCOMAI_Active = true;
     ["VCOMAI detected - Enhanced AI behavior enabled"] call BIS_fnc_log;
 } else {
     // FIX: Use spawn instead of CBA for compatibility
     [] spawn {
         sleep 2;
-        if (call _vcomCheck) then {
+        if (call DEFENDER_fnc_vcomCheck) then {
             PATROL_VCOMAI_Active = true;
             ["VCOMAI detected after delay - Enhanced AI behavior enabled"] call BIS_fnc_log;
         } else {
@@ -113,7 +117,7 @@ if (isNil "PATROL_FactionsConfigured") then {
     ["Faction relations configured"] call BIS_fnc_log;
 };
 
-["Initializing v8.1.1 BIS Optimized (Bugfixed)..."] call BIS_fnc_log;
+["Initializing v8.1.2 BIS Optimized (Bugfixed)..."] call BIS_fnc_log;
 
 // ============================================
 // UTILITY FUNCTIONS (BIS Optimized + FIXED)
@@ -709,9 +713,10 @@ DEFENDER_fnc_cleanup = {
     sleep 3; // Wait for VCOMAI check to complete
     
     ["========================================"] call BIS_fnc_log;
-    ["AI PATROL v8.1.1 - BIS + VCOMAI COMPATIBLE (BUGFIXED)"] call BIS_fnc_log;
+    ["AI PATROL v8.1.2 - BIS + VCOMAI COMPATIBLE (BUGFIXED)"] call BIS_fnc_log;
     ["----------------------------------------"] call BIS_fnc_log;
-    ["BUGFIXES:"] call BIS_fnc_log;
+    ["BUGFIXES (v8.1.2):"] call BIS_fnc_log;
+    ["  • Fixed VCOMAI scope issue in spawn"] call BIS_fnc_log;
     ["  • No CBA dependency (uses spawn)"] call BIS_fnc_log;
     ["  • Fixed distance check parentheses"] call BIS_fnc_log;
     ["  • Fixed ammo counting logic"] call BIS_fnc_log;

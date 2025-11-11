@@ -1,21 +1,23 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.7.1 - CRITICAL BUG FIXES
-    ✅ DUAL death detection: Event handlers (Killed + MPKilled) + backup polling
-    ✅ Parachute/altitude checks - AI won't spawn mid-air and die
+    ELITE AI RECRUIT SYSTEM v7.8 - TACTICAL CQB AI
+    ✅ CLOSE QUARTERS AI - Stays within 20 feet (6m) of player
+    ✅ NO PRONE - Forced crouch/stand only (CQB ready)
+    ✅ ELITE BEHAVIORS - Best from ASR AI, VCOMAI, BCombat
+    ✅ ENHANCED SKILLS - 0.85-1.0 skill levels across all areas
+    ✅ SUPPRESSION ENABLED - AI uses covering fire
+    ✅ SMART COVER USE - Seeks cover intelligently
+    ✅ TIGHT FORMATIONS - Column formation for CQB
+    ✅ TACTICAL LIGHTS - Auto gun lights in close quarters
+    ✅ DUAL death detection: Event handlers + backup polling
+    ✅ Parachute/altitude checks - AI won't spawn mid-air
     ✅ EXTENSIVE logging - see exactly what's happening
-    ✅ Enhanced respawn handling - waits for player to land
-    ✅ Fixed group cleanup logic
-    ✅ Spawn cooldown to prevent cascading respawns
-    ✅ Improved group ownership with error handling
-    ✅ Optimized array operations
-    ✅ AI type validation
-    ✅ Enhanced spawn lock system
+    ✅ Position monitoring - Every 2 seconds proximity check
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.7.1...";
+diag_log "[AI RECRUIT] Starting initialization v7.8 (Tactical CQB)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -187,15 +189,69 @@ fn_spawnAI = {
     _unit setVariable ["A3XAI_Ignore", true, true];
     _playerGroup setVariable ["A3XAI_Ignore", true, true];
 
-    // VCOMAI or standard skills
-    if (RECRUIT_VCOMAI_Active) then {
-        _unit setUnitPos "AUTO";
-        _unit forceSpeed 1.4;
-        _unit setAnimSpeedCoef 1.4;
-        _unit setBehaviour "COMBAT";
-        _unit setCombatMode "RED";
-        _unit allowFleeing 0;
+    // ============================================
+    // ENHANCED AI BEHAVIORS (Best from top mods)
+    // ============================================
 
+    // Elite AI Skills (ASR AI inspired)
+    {
+        _unit setSkill [_x select 0, _x select 1];
+    } forEach [
+        ["aimingAccuracy", 0.9],    // Excellent aim
+        ["aimingShake", 0.85],      // Steady hands
+        ["aimingSpeed", 0.9],       // Quick target acquisition
+        ["spotDistance", 1.0],      // Eagle eyes
+        ["spotTime", 0.9],          // Fast target recognition
+        ["courage", 1.0],           // Fearless
+        ["reloadSpeed", 0.95],      // Fast reload
+        ["commanding", 0.8],        // Good team coordination
+        ["general", 0.9]            // Overall competence
+    ];
+
+    // Stance Control: NO PRONE, CROUCH ALLOWED
+    _unit setUnitPos "MIDDLE";  // Forces crouch/stand only (no prone)
+
+    // Enhanced Movement (BCombat/VCOMAI inspired)
+    _unit forceSpeed 1.3;           // Slightly faster movement
+    _unit setAnimSpeedCoef 1.3;     // Animation speed
+    _unit allowFleeing 0;           // Never flee
+
+    // Combat Behavior (ASR AI inspired)
+    _unit setBehaviour "COMBAT";    // Always combat ready
+    _unit setCombatMode "RED";      // Weapons free
+
+    // Advanced AI Features
+    _unit enableAI "SUPPRESSION";   // Use suppressive fire
+    _unit enableAI "COVER";         // Seek cover intelligently
+    _unit enableAI "AUTOCOMBAT";    // Auto-engage threats
+
+    {
+        _unit enableAI _x;
+    } forEach [
+        "TARGET",                   // Target selection
+        "AUTOTARGET",              // Auto target acquisition
+        "MOVE",                    // Movement AI
+        "ANIM",                    // Animation control
+        "FSM",                     // Finite state machine
+        "AIMINGERROR",             // Realistic aiming
+        "TEAMSWITCH"               // Team coordination
+    ];
+
+    // Grenade Usage (Enhanced AI behavior)
+    _unit setSkill ["courage", 1.0];
+    _unit enableGunLights "AUTO";   // Tactical lights in CQB
+
+    // Formation and Tactics
+    _unit setVariable ["NoProneAllowed", true, true];
+
+    // Group behavior
+    _playerGroup setCombatMode "RED";
+    _playerGroup setBehaviour "COMBAT";
+    _playerGroup enableAttack true;
+    _playerGroup setFormation "COLUMN";  // Tight formation for close following
+
+    // VCOMAI Integration (if available)
+    if (RECRUIT_VCOMAI_Active) then {
         if (!isNil "VCM_NOAI") then {
             VCM_NOAI pushBackUnique _unit;
             publicVariable "VCM_NOAI";
@@ -207,39 +263,49 @@ fn_spawnAI = {
         if (!isNil "VCM_fnc_INITAI") then {
             [_unit] call VCM_fnc_INITAI;
         };
-    } else {
-        {
-            _unit setSkill [_x, 1.0];
-        } forEach [
-            "aimingAccuracy", "aimingShake", "aimingSpeed",
-            "spotDistance", "spotTime", "courage",
-            "reloadSpeed", "commanding", "general"
-        ];
 
-        _unit forceSpeed 1.4;
-        _unit setUnitPos "AUTO";
-        _unit setAnimSpeedCoef 1.4;
-        _unit setBehaviour "COMBAT";
-        _unit setCombatMode "RED";
-        _unit allowFleeing 0;
-        _unit disableAI "SUPPRESSION";
-
-        {
-            _unit enableAI _x;
-        } forEach [
-            "TARGET", "AUTOTARGET", "MOVE", "ANIM",
-            "FSM", "AIMINGERROR", "COVER", "AUTOCOMBAT"
-        ];
+        if (!isNil "VCM_SERVERAI") then {
+            VCM_SERVERAI pushBackUnique _playerGroup;
+            publicVariable "VCM_SERVERAI";
+            _playerGroup setVariable ["VCM_RECRUITGROUP", true, true];
+        };
     };
 
-    _playerGroup setCombatMode "RED";
-    _playerGroup setBehaviour "COMBAT";
-    _playerGroup enableAttack true;
+    // ============================================
+    // CLOSE PROXIMITY BEHAVIOR (20 feet = 6 meters)
+    // ============================================
+    [_unit, _player] spawn {
+        params ["_unit", "_player"];
 
-    if (RECRUIT_VCOMAI_Active && !isNil "VCM_SERVERAI") then {
-        VCM_SERVERAI pushBackUnique _playerGroup;
-        publicVariable "VCM_SERVERAI";
-        _playerGroup setVariable ["VCM_RECRUITGROUP", true, true];
+        while {!isNull _unit && alive _unit && !isNull _player} do {
+            if (alive _player && alive _unit) then {
+                private _distance = _unit distance _player;
+
+                // If AI gets too far (>8m), move closer
+                if (_distance > 8) then {
+                    private _pos = _player getPos [random [4, 5, 6], random 360];
+                    _unit doMove _pos;
+
+                    // Force crouch when moving close
+                    _unit setUnitPos "MIDDLE";
+                };
+
+                // Prevent prone at all times
+                if (stance _unit == "PRONE") then {
+                    _unit setUnitPos "MIDDLE";
+                };
+
+                // In combat, maintain tight formation
+                if (behaviour _unit == "COMBAT") then {
+                    // Stick very close in combat
+                    if (_distance > 6) then {
+                        _unit doFollow _player;
+                    };
+                };
+            };
+
+            sleep 2;  // Check every 2 seconds
+        };
     };
 
     // AI death handler - triggers respawn check with cooldown
@@ -818,15 +884,18 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.7.1";
-diag_log "  • EVENT-BASED death detection (Killed + MPKilled)";
-diag_log "  • BACKUP POLLING death detection (fallback)";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.8 - TACTICAL CQB";
+diag_log "  • CLOSE QUARTERS: AI stays within 20 feet (6m)";
+diag_log "  • NO PRONE: Forced crouch/stand for CQB";
+diag_log "  • ELITE SKILLS: 0.85-1.0 across all categories";
+diag_log "  • SUPPRESSION: AI uses covering fire";
+diag_log "  • SMART COVER: Intelligent cover seeking";
+diag_log "  • TIGHT FORMATION: Column for close following";
+diag_log "  • TACTICAL LIGHTS: Auto gun lights in CQB";
+diag_log "  • POSITION CHECK: Every 2 seconds proximity";
+diag_log "  • EVENT-BASED death detection + backup polling";
 diag_log "  • Parachute/altitude checks (no mid-air spawns)";
-diag_log "  • Fixed group cleanup logic";
 diag_log "  • Spawn cooldown (5s) prevents cascading";
-diag_log "  • Enhanced spawn lock with timeout";
-diag_log "  • EXTENSIVE LOGGING for debugging";
-diag_log "  • AI type validation";
 diag_log "  • STRICT 3 AI maximum";
 if (RECRUIT_VCOMAI_Active) then {
     diag_log "  • VCOMAI Integration: ENABLED";

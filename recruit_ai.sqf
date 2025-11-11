@@ -124,13 +124,12 @@ fn_spawnAI = {
         private _timeout = time + 2;
         waitUntil {sleep 0.1; groupOwner _playerGroup == 2 || time > _timeout};
 
-        if (groupOwner _playerGroup != 2) then {
+        if (groupOwner _playerGroup != 2) exitWith {
             diag_log format ["[AI RECRUIT] ERROR: Failed to transfer group ownership for %1 - ABORTING SPAWN", name _player];
-            // Return null instead of continuing with remote group
-            objNull exitWith {};
-        } else {
-            diag_log format ["[AI RECRUIT] Group ownership transferred successfully for %1", name _player];
+            objNull
         };
+
+        diag_log format ["[AI RECRUIT] Group ownership transferred successfully for %1", name _player];
     };
 
     private _offset = 3 + (_spawnIndex * 0.5);

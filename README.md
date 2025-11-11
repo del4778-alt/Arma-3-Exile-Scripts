@@ -156,17 +156,20 @@ _waypointTimeout = [10, 20, 30];       // Time at each waypoint [min, mid, max]
 ## 👥 Elite AI Recruit System
 
 ### Description
-**Version 7.6** - Comprehensive AI recruit system that gives each player 3 AI teammates with full lifecycle management, death cleanup, and respawn handling.
+**Version 7.7** - Comprehensive AI recruit system that gives each player 3 AI teammates with full lifecycle management, death cleanup, and respawn handling. **Major bug fix release with event-based death detection and enhanced reliability.**
 
 ### Features
 - ✅ **3 AI teammates per player** (AT, AA, Sniper)
-- ✅ **Server-side death monitoring** - AI cleaned up instantly on death
-- ✅ **Proven cleanup system** - Uses same reliable code as disconnect
+- ✅ **EVENT-BASED death detection** - Instant cleanup (no polling delay)
+- ✅ **Fixed group cleanup** - Prevents memory leaks
+- ✅ **Spawn cooldown system** - Prevents cascading respawns
+- ✅ **Enhanced spawn lock** - Auto-recovery from stuck locks
 - ✅ **Respawn handling** - Fresh AI spawn after respawn
 - ✅ **Vehicle seat assignment** - AI automatically board vehicles
 - ✅ **Strict 3 AI maximum** - Prevents duplicates
 - ✅ **VCOMAI integration** - Auto-detects and configures
 - ✅ **A3XAI blacklist** - Prevents AI mission conflicts
+- ✅ **AI type validation** - Catches config errors early
 - ✅ **Extensive logging** - Easy troubleshooting
 
 ### Installation
@@ -193,11 +196,14 @@ if (isServer) then {
 Restart your server and check RPT logs for:
 ```
 ========================================
-[AI RECRUIT] Elite AI Recruit System v7.6
-  • Death cleanup = Disconnect cleanup
-  • Server-side death monitoring
+[AI RECRUIT] Elite AI Recruit System v7.7
+  • EVENT-BASED death detection (instant)
+  • Fixed group cleanup logic
+  • Spawn cooldown (5s) prevents cascading
+  • Enhanced spawn lock with timeout
+  • Optimized array operations
+  • AI type validation
   • STRICT 3 AI maximum
-  • Proven cleanup method
 ========================================
 ```
 
@@ -234,15 +240,15 @@ RECRUIT_AI_TYPES = [
 "I_HeavyGunner_F"
 ```
 
-#### Adjust Death Check Interval
-Edit line 605:
+#### Adjust Maintenance Loop Interval
+Edit line 738 (v7.7 uses event-based death detection, this only affects periodic AI checks):
 ```sqf
-sleep 5; // Check every 5 seconds for player deaths
+sleep 10; // Check every 10 seconds for missing AI
 ```
 
-- **3 seconds** = Very responsive (more CPU usage)
-- **5 seconds** = Good balance (recommended)
-- **10 seconds** = Less responsive (lighter CPU)
+- **5 seconds** = Very frequent checks (more CPU usage)
+- **10 seconds** = Good balance (recommended)
+- **15 seconds** = Less frequent (lighter CPU)
 
 #### AI Skill Levels
 Edit lines 132-138 for standard AI (non-VCOMAI):
@@ -467,10 +473,13 @@ Exile.Altis/
 - **Previous:** Basic waypoint system
 
 ### Elite AI Recruit System
+- **v7.7:** EVENT-BASED death detection, fixed group cleanup, spawn cooldown, enhanced reliability (CURRENT)
 - **v7.6:** Server-side death monitoring, proven cleanup
 - **v7.5:** Enhanced logging, 4-source tracking
 - **v7.4:** Simplified cleanup
 - **v7.0-7.3:** Initial versions
+
+**See [CHANGELOG_v7.7.md](CHANGELOG_v7.7.md) for detailed v7.7 improvements**
 
 ---
 

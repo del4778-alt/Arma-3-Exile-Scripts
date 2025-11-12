@@ -1,33 +1,20 @@
-// ============================================================
-// DEPRECATED FILE - USE NEW LOCATION
-// ============================================================
-// This file has been reorganized into a proper folder structure.
-// Please use the new location:
-//
-//   Ravage-Exile-Integration/
-//   ├── README.md                        (Overview)
-//   ├── INSTALLATION.md                  (Full setup guide)
-//   ├── CONFIGURATION_TEMPLATE.txt       (Config reference)
-//   └── scripts/
-//       └── rmg_ravage_exile_config.sqf  (Main script)
-//
-// This file is kept for reference only.
-// ============================================================
-
-1) Save as rmg_ravage_exile_config.sqf in your mission's scripts/ folder (Exile.Altis/scripts/)
 /*
     rmg_ravage_exile_config.sqf
-    Single-file Exile integration:
-    - Ambient bandits/scavengers (light patrols)
-    - NO global zed spawner; zeds ONLY resurrect from AI killed (server-side)
-    - 90% single-zed, 10% horde on AI death
-    - Trader/safe-zone protection (3 trader zones configured)
-    - Zombie faction setup: EAST, RESISTANCE, and WEST all attack zombies
-    - Zombie kill rewards: 100 poptabs + 250 respect per kill
-    - Calls Ravage only for zed init if function is present
-    - Optimized performance with AI cap culling
 
-    Drop-in: add one line to initServer.sqf (see bottom of this file).
+    Ravage Mod Integration for Exile
+
+    Features:
+    - Zombie resurrection system (AI death -> zombie spawn)
+    - 90% single zombie, 10% horde (6-12 zombies)
+    - Ambient bandit/scavenger patrols
+    - Trader zone protection (no spawns in safe zones)
+    - Zombie faction hostility (EAST, RESISTANCE, WEST attack zombies)
+    - Zombie kill rewards (100 poptabs + 250 respect per kill)
+    - Performance optimized with AI cap culling
+    - Server-side only execution
+
+    Author: RMG
+    Version: 2.0
 */
 
 if (!isServer) exitWith {};
@@ -45,7 +32,7 @@ private _CFG = [
     ["spawnOffset", 1.0],             // lift above ground to avoid clipping
     ["chanceHorde", 0.10],            // 10%
     ["spawnFromSides", [east, resistance, west]], // AI sides that can resurrect
-    ["minPlayerDist", 40],            // don’t spawn if a player is closer than this
+    ["minPlayerDist", 40],            // don't spawn if a player is closer than this
 
     // --- Ambient bandits/scavengers
     ["ambientEnabled", true],
@@ -183,7 +170,7 @@ private _spawnZed = {
         if ([_pos] call _nearestPlayerDist < (["minPlayerDist"] call _get)) exitWith { objNull };
     };
 
-    private _grp = createGroup [civilian, true];  // zeds usually don’t need command side
+    private _grp = createGroup [civilian, true];  // zeds usually don't need command side
     private _u = _grp createUnit [_cls, [(_pos select 0), (_pos select 1), (_pos select 2) + (["spawnOffset"] call _get)], [], 0, "NONE"];
     if (!isNil "rvg_fnc_zed_init") then { [_u] spawn rvg_fnc_zed_init; };
     _u
@@ -300,34 +287,4 @@ if (["ambientEnabled"] call _get) then {
     };
 };
 
-// ================== HOW TO ENABLE ==================
-//
-// In initServer.sqf (mission root), append exactly this:
-//
-// if (!isServer) exitWith {};
-// [] execVM "rmg_ravage_exile_config.sqf";
-//
-// That’s it.
-// ===================================================
-
-2) Add one line to initServer.sqf (mission root)
-if (!isServer) exitWith {};
-[] execVM "rmg_ravage_exile_config.sqf";
-
-Notes / edits you might want
-
-Trader Zones: Configured for MafiaTraderCity, TraderZoneSilderas, and TraderZoneFolia with 175m radius. Update safeZoneMarkers if yours differ.
-
-Zed classes: Using ["zombie_runner","zombie_bolter","zombie_walker"]. If any name differs in your build, swap it in zedClasses at the top—no other edits needed.
-
-Zombie faction: Zombies spawn on CIVILIAN side and are configured to be hostile to EAST, RESISTANCE, and WEST. All three AI factions will automatically attack zombies on sight.
-
-Zombie rewards: Players get 100 poptabs and 250 respect per zombie kill (no negative effects for killing CIVILIAN zombies). Adjust zombieKillRewardPoptabs and zombieKillRewardRespect to change rewards.
-
-Ravage init: If rvg_fnc_zed_init exists, each spawned zed calls it automatically; if it's missing, spawns still work (they'll just be regular units with the zed class behavior).
-
-Ambient bandits: Edit ambientClasses to RHS/CUP/your faction packs anytime.
-
-Performance: Tweak globalAICap and patrol sizes/delays; the script culls farthest AI if the cap is exceeded. Optimized for minimal server load.
-
-Safe zones: Add/remove markers in safeZoneMarkers. Zeds and bandits won't spawn inside, and zed resurrection won't fire there.
+diag_log "[RMG:Ravage] Exile integration complete - all systems active";

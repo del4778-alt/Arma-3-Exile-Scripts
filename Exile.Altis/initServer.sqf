@@ -504,6 +504,9 @@ enableDynamicSimulationSystem true;
         _x params ["_fid","_pos","_dir","_template"];
         [_pos,_dir,_fid,_template] call WB_fnc_buildFortress;
     } forEach WB_fortressPositions;
+
+    // Load extended Warbands systems (Mount & Blade features)
+    call compile preprocessFileLineNumbers "warbands\WB_Init_Server.sqf";
 };
 
 diag_log "[SERVER] Warbands system initialized!";

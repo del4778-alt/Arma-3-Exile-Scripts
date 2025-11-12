@@ -45,11 +45,25 @@ private _CFG = [
     ]],
 
     // --- Performance / safety
-    ["globalAICap", 220]  // hard ceiling for all non-player units (bandits + zeds)
+    ["globalAICap", 220],  // hard ceiling for all non-player units (bandits + zeds)
+
+    // --- Zombie faction hostility (sides that will attack zombies)
+    ["zombieHostileSides", [east, resistance]]  // Add 'west' if you have BLUFOR AI
 ];
 
 // quick access
 private _get = { params ["_k"]; (_CFG select (_CFG findIf {(_x select 0) isEqualTo _k})) select 1 };
+
+// =================== ZOMBIE FACTION SETUP ===================
+// Make zombies (CIVILIAN side) hostile to configured AI sides
+// This ensures AI factions will attack zombies on sight
+private _hostileSides = ["zombieHostileSides"] call _get;
+{
+    civilian setFriend [_x, 0];  // zombies hostile to this side
+    _x setFriend [civilian, 0];  // this side hostile to zombies
+} forEach _hostileSides;
+
+diag_log format ["[RMG:Ravage] Zombie faction relations configured: CIVILIAN hostile to %1", _hostileSides];
 
 // ========================= HELPERS ==========================
 private _inSafeZone = {
@@ -67,10 +81,10 @@ private _inSafeZone = {
 
 private _nearestPlayerDist = {
     params ["_pos"];
+    if (count allPlayers == 0) exitWith { 99999 };
     private _d = 99999;
     {
-        private _p = vehicle _x;
-        private _dd = _pos distance2D (getPos _p);
+        private _dd = _pos distance2D (getPosATL _x);
         if (_dd < _d) then { _d = _dd };
     } forEach allPlayers;
     _d
@@ -83,13 +97,9 @@ private _capCull = {
     private _over = (count _units) - _cap;
     if (_over <= 0) exitWith {};
     private _center = if (count allPlayers > 0) then { getPosASL (allPlayers select 0) } else { [0,0,0] };
-    private _arr = _units apply [ { (_x distance2D _center) }, { _x } ];
-    // transform to [dist,unit] pairs
-    private _pairs = [];
-    {
-        _pairs pushBack [ _arr select [ _forEachIndex, 1 ] select 0, _units select _forEachIndex ];
-    } forEach _units;
-    _pairs sort false; // farthest-first
+    // Create [distance, unit] pairs and sort by distance (farthest first)
+    private _pairs = _units apply { [_x distance2D _center, _x] };
+    _pairs sort false;
     private _culled = 0;
     {
         deleteVehicle (_x select 1);
@@ -242,10 +252,12 @@ Notes / edits you might want
 
 Zed classes: I used your ["zombie_runner","zombie_bolter","zombie_walker"]. If any name differs in your build, swap it in zedClasses at the top—no other edits needed.
 
-Ravage init: If rvg_fnc_zed_init exists, each spawned zed calls it automatically; if it’s missing, spawns still work (they’ll just be regular units with the zed class behavior).
+Ravage init: If rvg_fnc_zed_init exists, each spawned zed calls it automatically; if it's missing, spawns still work (they'll just be regular units with the zed class behavior).
+
+Zombie faction: Zombies spawn on CIVILIAN side and are configured to be hostile to EAST and RESISTANCE by default. If you have BLUFOR (west) AI, add 'west' to zombieHostileSides in config. This makes AI automatically attack zombies.
 
 Ambient bandits: Edit ambientClasses to RHS/CUP/your faction packs anytime.
 
-Performance: Tweak globalAICap and patrol sizes/delays; the script culls farthest AI if the cap is exceeded.
+Performance: Tweak globalAICap and patrol sizes/delays; the script culls farthest AI if the cap is exceeded. Optimized for minimal server load.
 
-Safe zones: Add/remove markers in safeZoneMarkers. Zeds and bandits won’t spawn inside, and zed resurrection won’t fire there.
+Safe zones: Add/remove markers in safeZoneMarkers. Zeds and bandits won't spawn inside, and zed resurrection won't fire there.

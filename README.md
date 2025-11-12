@@ -235,6 +235,37 @@ diag_log "[SERVER] All Elite AI systems loaded!";
 
 ---
 
+## 🔧 **Troubleshooting Common Issues**
+
+### **Ravage Mod RemoteExec Errors**
+
+If you see errors like:
+```
+User tried to remoteExec a disabled function: 'say3d'
+User tried to remoteExec a disabled function: 'call'
+```
+
+**Solution:** These functions need to be whitelisted in your mission's CfgRemoteExec configuration.
+
+**[📖 Read Complete Fix Guide →](RAVAGE_REMOTEEXEC_FIX.md)**
+
+### **AI Won't Spawn**
+- Check server RPT logs for errors
+- Verify initServer.sqf is loading the script
+- Ensure player is alive and on ground (not in air)
+
+### **AI Dies Immediately**
+- Check if spawning at high altitude (parachute check failed)
+- Verify no conflicts with other AI mods
+- Review death detection logs
+
+### **Performance Issues**
+- Reduce AI count per player (edit script)
+- Check for conflicting mods
+- Monitor server FPS and memory
+
+---
+
 ## 🆘 **Support**
 
 ### **Getting Help**

@@ -515,6 +515,11 @@ fn_spawnAI = {
 
         private _owner = [_ownerUID] call BIS_fnc_getUnitByUID;
 
+        // BIS_fnc_getUnitByUID can return a vehicle - get the actual unit
+        if (!isNull _owner && {!(_owner isKindOf "CAManBase")}) then {
+            _owner = effectiveCommander _owner;
+        };
+
         if (!isNull _owner && alive _owner) then {
             private _assigned = _owner getVariable ["AssignedAI", []];
             _assigned = _assigned - [_unit];
@@ -848,19 +853,11 @@ fn_setupPlayerHandlers = {
 
     // MULTIPLE DEATH DETECTION METHODS (for reliability in Exile)
 
-    // Method 1: Killed event handler
+    // Killed event handler (cleanup AI when player dies)
     _player addEventHandler ["Killed", {
         params ["_unit", "_killer"];
         private _uid = getPlayerUID _unit;
-        diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (Killed Event): %1 !!!!!", name _unit];
-        [_uid, name _unit] call fn_cleanupPlayerAI;
-    }];
-
-    // Method 2: MPKilled event handler (more reliable in multiplayer)
-    _player addEventHandler ["MPKilled", {
-        params ["_unit", "_killer", "_instigator", "_useEffects"];
-        private _uid = getPlayerUID _unit;
-        diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (MPKilled Event): %1 !!!!!", name _unit];
+        diag_log format ["[AI RECRUIT] Player death detected: %1 - cleaning up AI", name _unit];
         [_uid, name _unit] call fn_cleanupPlayerAI;
     }];
 

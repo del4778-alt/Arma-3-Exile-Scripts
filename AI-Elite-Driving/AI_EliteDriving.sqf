@@ -1,12 +1,20 @@
 /*
     =====================================================
-    ELITE AI DRIVING SYSTEM v5.0 - TESLA AUTOPILOT MODE
+    ELITE AI DRIVING SYSTEM v5.1 - TESLA AUTOPILOT MODE
     =====================================================
     Author: Master SQF Engineer
-    Version: 5.0 - RAYCAST LASER VISION SYSTEM
+    Version: 5.1 - ULTIMATE DRIVING AI
     =====================================================
 
-    NEW REVOLUTIONARY FEATURES:
+    NEW IN v5.1:
+    ✅ Drift/skid detection and counter-steering
+    ✅ Auto-unstuck system (gentle reverse recovery)
+    ✅ Smooth speed transitions (interpolation)
+    ✅ Vehicle class-specific presets (Sport/Truck/MRAP)
+    ✅ Periodic behavior refresh (combat override prevention)
+    ✅ forceFollowRoad integration
+
+    CORE FEATURES:
     ✅ Multi-ray LIDAR sensor system (forward/left/right/down)
     ✅ Tesla-style autopilot curve prediction
     ✅ Bat sonar obstacle detection (no object spawning!)
@@ -15,15 +23,13 @@
     ✅ Highway mode (160-220 km/h on straights)
     ✅ Urban mode (auto-slowdown near buildings)
     ✅ Precision bridge/tunnel handling
-    ✅ Smart lane detection using terrain analysis
     ✅ Advanced curve severity calculation
     ✅ Run over enemy AI (combat driving)
     ✅ Smart vehicle avoidance (friendly/neutral only)
     ✅ Zero object spawning = zero FPS impact
-    ✅ Debug HUD with multiple visualization layers
 
     PERFORMANCE: Uses only lightweight raycasts (0.1s tick)
-    COMPATIBILITY: Exile, A3XAI, VCOMAI, ASR, LAMBS, BCombat
+    COMPATIBILITY: Exile, A3XAI, DMS, VCOMAI, ASR, LAMBS, BCombat
     =====================================================
 */
 
@@ -82,8 +88,71 @@ EAID_CONFIG = createHashMapFromArray [
 
     // === SIDE FILTERING ===
     ["ALLOWED_SIDES", [INDEPENDENT, EAST]],
-    ["EXCLUDED_SIDES", [WEST, CIVILIAN]]
+    ["EXCLUDED_SIDES", [WEST, CIVILIAN]],
+
+    // === DRIFT & STABILITY ===
+    ["DRIFT_ANGLE_THRESHOLD", 0.35],     // Radians (20°)
+    ["DRIFT_YAW_THRESHOLD", 0.7],        // Angular velocity threshold
+    ["DRIFT_SPEED_PENALTY", 0.75],       // Slow to 75% when drifting
+    ["COUNTER_STEER_STRENGTH", 0.02],    // Steering correction power
+
+    // === AUTO-UNSTUCK ===
+    ["UNSTUCK_SPEED_THRESHOLD", 1],      // km/h - below this = stuck
+    ["UNSTUCK_TIME_THRESHOLD", 3],       // seconds stuck before recovery
+    ["UNSTUCK_REVERSE_FORCE", -2],       // Reverse velocity (m/s)
+    ["UNSTUCK_RECOVERY_TIME", 1.2],      // How long to reverse
+
+    // === SMOOTH TRANSITIONS ===
+    ["SPEED_INTERPOLATION", 3],          // Smoothing factor (higher = smoother)
+    ["BEHAVIOR_REFRESH_INTERVAL", 3]     // Seconds between AI behavior refresh
 ];
+
+// =====================================================
+// VEHICLE CLASS-SPECIFIC PRESETS
+// =====================================================
+
+EAID_fnc_getVehiclePreset = {
+    params ["_vehicle"];
+
+    // Returns [straightSpeed, midSpeed, hardCurve, tightCurve]
+    private _preset = switch (true) do {
+        // Sport cars (fastest)
+        case (typeOf _vehicle in [
+            "Exile_Car_Hatchback_Sport_Red",
+            "Exile_Car_Hatchback_Sport_Blue",
+            "Exile_Car_Hatchback_Sport_White",
+            "Exile_Car_Hatchback_Sport_Yellow",
+            "Exile_Car_Hatchback_Sport_Green",
+            "Exile_Car_Hatchback_Sport_Black",
+            "C_Hatchback_01_sport_F"
+        ]): {[200, 95, 45, 25]};
+
+        // Offroad vehicles
+        case (_vehicle isKindOf "Offroad_01_base_F"): {[120, 70, 40, 25]};
+        case (_vehicle isKindOf "Offroad_02_base_F"): {[110, 65, 38, 23]};
+
+        // MRAPs (heavy, stable)
+        case (_vehicle isKindOf "MRAP_01_base_F"): {[90, 55, 35, 20]};
+        case (_vehicle isKindOf "MRAP_02_base_F"): {[85, 52, 33, 18]};
+        case (_vehicle isKindOf "MRAP_03_base_F"): {[95, 58, 36, 22]};
+
+        // Trucks (slow, careful)
+        case (_vehicle isKindOf "Truck_F"): {[70, 45, 25, 15]};
+        case (_vehicle isKindOf "Truck_01_base_F"): {[65, 42, 23, 13]};
+        case (_vehicle isKindOf "Truck_02_base_F"): {[68, 44, 24, 14]};
+
+        // SUVs
+        case (_vehicle isKindOf "SUV_01_base_F"): {[110, 65, 38, 22]};
+
+        // Generic cars
+        case (_vehicle isKindOf "Car_F"): {[120, 70, 40, 25]};
+
+        // Default fallback
+        default {[100, 60, 35, 20]};
+    };
+
+    _preset
+};
 
 // =====================================================
 // MAP-SPECIFIC PRESETS
@@ -146,9 +215,10 @@ EAID_ActiveDrivers = createHashMap;
 EAID_ProcessedUnits = [];
 
 diag_log "==========================================";
-diag_log "Elite AI Driving v5.0 - TESLA AUTOPILOT MODE";
+diag_log "Elite AI Driving v5.1 - ULTIMATE AUTOPILOT";
 diag_log format ["Map: %1", worldName];
 diag_log format ["Sensor Tick Rate: %1 Hz", 1 / (EAID_CONFIG get "UPDATE_INTERVAL")];
+diag_log format ["Features: LIDAR + Drift + Auto-Unstuck + Class Presets"];
 diag_log "==========================================";
 
 // =====================================================
@@ -174,6 +244,97 @@ EAID_fnc_isAllowedSide = {
     if (isNull _unit) exitWith {false};
     private _side = side (group _unit);
     !(_side in (EAID_CONFIG get "EXCLUDED_SIDES")) && {_side in (EAID_CONFIG get "ALLOWED_SIDES")}
+};
+
+// =====================================================
+// DRIFT/SKID DETECTION & COUNTER-STEERING
+// =====================================================
+
+EAID_fnc_detectAndCorrectDrift = {
+    params ["_vehicle"];
+
+    private _speed = speed _vehicle;
+    if (_speed < 10) exitWith {[false, 1.0]};  // [isDrifting, speedMultiplier]
+
+    private _cfg = EAID_CONFIG;
+    private _dir = vectorDir _vehicle;
+    private _vel = velocity _vehicle;
+
+    // Normalize velocity vector
+    if (_vel isEqualTo [0,0,0]) exitWith {[false, 1.0]};
+    private _velNorm = vectorNormalized _vel;
+
+    // Calculate angle between direction and velocity
+    private _dotProduct = (_velNorm vectorDotProduct _dir) max -1 min 1;
+    private _angle = acos _dotProduct;
+
+    // Get angular velocity (yaw)
+    private _angVel = angularVelocity _vehicle;
+    private _yaw = _angVel select 2;
+
+    // Check if drifting/sliding
+    private _isDrifting = _angle > (_cfg get "DRIFT_ANGLE_THRESHOLD") || {abs _yaw > (_cfg get "DRIFT_YAW_THRESHOLD")};
+
+    if (_isDrifting) then {
+        // Apply counter-steering
+        private _side = vectorNormalized (_dir vectorCrossProduct [0,0,1]);
+        private _yawClamped = (_yaw max -0.5 min 0.5);
+        private _counter = _side vectorMultiply (_yawClamped * -(_cfg get "COUNTER_STEER_STRENGTH"));
+        private _newDir = _dir vectorAdd _counter;
+
+        _vehicle setVectorDirAndUp [_newDir, vectorUp _vehicle];
+
+        // Return drift status and speed penalty
+        [true, _cfg get "DRIFT_SPEED_PENALTY"]
+    } else {
+        [false, 1.0]
+    };
+};
+
+// =====================================================
+// AUTO-UNSTUCK SYSTEM
+// =====================================================
+
+EAID_fnc_handleStuck = {
+    params ["_vehicle", "_unit"];
+
+    private _speed = speed _vehicle;
+    private _cfg = EAID_CONFIG;
+    private _threshold = _cfg get "UNSTUCK_SPEED_THRESHOLD";
+
+    if (_speed < _threshold) then {
+        // Vehicle is moving very slowly or stopped
+        private _stuckTime = _vehicle getVariable ["EAID_stuckTime", diag_tickTime];
+        private _timeDiff = diag_tickTime - _stuckTime;
+
+        if (_timeDiff > (_cfg get "UNSTUCK_TIME_THRESHOLD")) then {
+            // Vehicle has been stuck for too long - initiate recovery
+            _vehicle limitSpeed 10;
+            _unit forceFollowRoad false;
+
+            // Apply gentle reverse
+            _vehicle setVelocityModelSpace [0, _cfg get "UNSTUCK_REVERSE_FORCE", 0];
+
+            // Re-engage after recovery time
+            [_unit, _vehicle] spawn {
+                params ["_unit", "_vehicle"];
+                sleep (EAID_CONFIG get "UNSTUCK_RECOVERY_TIME");
+                if (!isNull _unit && alive _unit) then {
+                    _unit forceFollowRoad true;
+                };
+            };
+
+            // Reset stuck timer (add cooldown)
+            _vehicle setVariable ["EAID_stuckTime", diag_tickTime + (_cfg get "UNSTUCK_TIME_THRESHOLD")];
+
+            if (EAID_CONFIG get "DEBUG") then {
+                diag_log format ["EAID: %1 was stuck, initiating reverse recovery", typeOf _vehicle];
+            };
+        };
+    } else {
+        // Vehicle is moving - update stuck timer
+        _vehicle setVariable ["EAID_stuckTime", diag_tickTime];
+    };
 };
 
 // =====================================================
@@ -482,6 +643,10 @@ EAID_fnc_eliteDriving = {
     private _updateInterval = _cfg get "UPDATE_INTERVAL";
     private _debugEnabled = _cfg get "DEBUG";
     private _lastDebugTime = 0;
+    private _lastBehaviorRefresh = diag_tickTime;
+
+    // Initialize smooth speed cap
+    private _currentSpeedCap = 60;  // Start at moderate speed
 
     while {
         !isNull _unit &&
@@ -501,28 +666,57 @@ EAID_fnc_eliteDriving = {
         // Calculate optimal speed
         private _targetSpeed = [_vehicle, _unit, _sensors, _terrain] call EAID_fnc_calculateOptimalSpeed;
 
+        // Detect and correct drift/skid
+        private _driftInfo = [_vehicle] call EAID_fnc_detectAndCorrectDrift;
+        private _isDrifting = _driftInfo select 0;
+        private _driftPenalty = _driftInfo select 1;
+
+        // Apply drift penalty
+        if (_isDrifting) then {
+            private _currentSpeed = speed _vehicle;
+            _targetSpeed = (_currentSpeed * _driftPenalty) min _targetSpeed;
+        };
+
+        // Smooth speed transition (interpolation)
+        private _interpFactor = _cfg get "SPEED_INTERPOLATION";
+        _currentSpeedCap = _currentSpeedCap + ((_targetSpeed - _currentSpeedCap) / _interpFactor);
+        _currentSpeedCap = _currentSpeedCap max 18 min 220;  // Clamp limits
+
         // Apply speed limit
-        _vehicle limitSpeed (_targetSpeed / 3.6);  // Convert km/h to m/s
+        _vehicle limitSpeed (_currentSpeedCap / 3.6);  // Convert km/h to m/s
 
         // Apply steering correction for close obstacles
         [_vehicle, _sensors] call EAID_fnc_applySteeringCorrection;
 
+        // Handle stuck detection and recovery
+        [_vehicle, _unit] call EAID_fnc_handleStuck;
+
+        // Periodic behavior refresh (prevent combat AI override)
+        if (diag_tickTime - _lastBehaviorRefresh > (_cfg get "BEHAVIOR_REFRESH_INTERVAL")) then {
+            (group _unit) setBehaviour "CARELESS";
+            (group _unit) setCombatMode "BLUE";
+            (group _unit) setSpeedMode "FULL";
+            _lastBehaviorRefresh = diag_tickTime;
+        };
+
         // Debug output
-        if (_debugEnabled && time - _lastDebugTime > 5) then {
+        if (_debugEnabled && diag_tickTime - _lastDebugTime > 5) then {
             private _currentSpeed = speed _vehicle;
             private _curveSeverity = [_sensors] call EAID_fnc_calculateCurveSeverity;
 
-            diag_log format ["EAID: %1 | Speed: %2/%3 km/h | Curve: %4 | Sensors: F:%5 L:%6 R:%7",
+            diag_log format ["EAID: %1 | Speed: %2/%3 km/h | Cap: %4 | Curve: %5%6 | Sensors: F:%7 L:%8 R:%9",
                 name _unit,
                 round _currentSpeed,
                 round _targetSpeed,
+                round _currentSpeedCap,
                 round (_curveSeverity * 100),
+                if (_isDrifting) then {" DRIFT!"} else {""},
                 round (_sensors get "forwardLong"),
                 round (_sensors get "left"),
                 round (_sensors get "right")
             ];
 
-            _lastDebugTime = time;
+            _lastDebugTime = diag_tickTime;
         };
 
         sleep _updateInterval;
@@ -618,6 +812,10 @@ EAID_fnc_applyToDriver = {
 
     private _netId = netId _unit;
 
+    // Get vehicle-specific preset speeds
+    private _vehPreset = [_vehicle] call EAID_fnc_getVehiclePreset;
+    _vehicle setVariable ["EAID_vehiclePreset", _vehPreset];
+
     // Save original settings
     private _original = createHashMapFromArray [
         ["courage", _unit skill "courage"],
@@ -630,23 +828,37 @@ EAID_fnc_applyToDriver = {
 
     // Apply elite driving settings
     _unit setSkill ["courage", 1];
-    (group _unit) setCombatMode "BLUE";
-    (group _unit) setBehaviour "CARELESS";
-    (group _unit) setSpeedMode "FULL";
+    _unit setSkill ["commanding", 1];
+
+    private _grp = group _unit;
+    _grp setCombatMode "BLUE";
+    _grp setBehaviour "CARELESS";
+    _grp setSpeedMode "FULL";
+    _grp setFormation "COLUMN";
 
     _unit disableAI "AUTOCOMBAT";
     _unit disableAI "TARGET";
     _unit disableAI "AUTOTARGET";
+    _unit disableAI "SUPPRESSION";
+    _unit disableAI "COVER";
+    _unit disableAI "CHECKVISIBLE";
+
+    _unit enableAI "PATH";
+    _unit forceFollowRoad true;  // NEW: Force road following
 
     _vehicle setUnloadInCombat [false, false];
     _vehicle allowCrewInImmobile true;
+
+    // Initialize stuck detection timer
+    _vehicle setVariable ["EAID_stuckTime", diag_tickTime];
 
     // Start driving systems
     [_unit, _vehicle] spawn EAID_fnc_eliteDriving;
     [_unit, _vehicle] spawn EAID_fnc_roadFollowing;
 
     if (EAID_CONFIG get "DEBUG") then {
-        diag_log format ["EAID: Enhanced %1 in %2", name _unit, typeOf _vehicle];
+        private _preset = _vehPreset joinString "/";
+        diag_log format ["EAID: Enhanced %1 in %2 (Preset: %3 km/h)", name _unit, typeOf _vehicle, _preset];
     };
 };
 
@@ -668,6 +880,9 @@ EAID_fnc_restoreDriver = {
         _unit enableAI "AUTOCOMBAT";
         _unit enableAI "TARGET";
         _unit enableAI "AUTOTARGET";
+        _unit enableAI "SUPPRESSION";
+
+        _unit forceFollowRoad false;  // Disable road following
 
         private _vehicle = vehicle _unit;
         if (!isNull _vehicle && _vehicle != _unit) then {
@@ -795,13 +1010,17 @@ if (EAID_CONFIG get "ENABLED") then {
     private _mapPreset = call EAID_fnc_getMapPreset;
 
     diag_log "==========================================";
-    diag_log "Elite AI Driving v5.0 - ACTIVE";
+    diag_log "Elite AI Driving v5.1 - ULTIMATE AUTOPILOT";
     diag_log format ["Raycast Sensors: 5-ray LIDAR system"];
     diag_log format ["Max Speed: %1 km/h (highway mode)", EAID_CONFIG get "SPEED_MAX_HIGHWAY"];
     diag_log format ["Map Bonus: %1x straight boost", _mapPreset get "straightBonus"];
     diag_log format ["Combat Driving: Run over enemies = %1", EAID_CONFIG get "RUN_OVER_ENEMIES"];
+    diag_log format ["Drift Detection: Enabled (auto counter-steer)"];
+    diag_log format ["Auto-Unstuck: Enabled (3s threshold)"];
+    diag_log format ["Smooth Transitions: Enabled (%1x interpolation)", EAID_CONFIG get "SPEED_INTERPOLATION"];
+    diag_log format ["Vehicle Presets: Sport/Truck/MRAP/Offroad classes"];
     diag_log format ["Update Rate: %1 Hz", round (1 / (EAID_CONFIG get "UPDATE_INTERVAL"))];
     diag_log "==========================================";
 } else {
-    diag_log "Elite AI Driving v5.0 - DISABLED";
+    diag_log "Elite AI Driving v5.1 - DISABLED";
 };

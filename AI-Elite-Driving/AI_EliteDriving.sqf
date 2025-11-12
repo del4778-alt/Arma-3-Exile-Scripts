@@ -87,8 +87,8 @@ EAID_CONFIG = createHashMapFromArray [
     ["WAYPOINT_CLEANUP_INTERVAL", 15],
 
     // === SIDE FILTERING ===
-    ["ALLOWED_SIDES", [INDEPENDENT, EAST]],
-    ["EXCLUDED_SIDES", [WEST, CIVILIAN]],
+    ["ALLOWED_SIDES", [INDEPENDENT, EAST, WEST, CIVILIAN]],  // ALL AI sides
+    ["EXCLUDED_SIDES", []],  // No exclusions - applies to ALL AI on server
 
     // === DRIFT & STABILITY ===
     ["DRIFT_ANGLE_THRESHOLD", 0.35],     // Radians (20°)
@@ -1011,6 +1011,7 @@ if (EAID_CONFIG get "ENABLED") then {
 
     diag_log "==========================================";
     diag_log "Elite AI Driving v5.1 - ULTIMATE AUTOPILOT";
+    diag_log format ["Applies To: ALL AI sides (EAST/WEST/INDEPENDENT/CIVILIAN)"];
     diag_log format ["Raycast Sensors: 5-ray LIDAR system"];
     diag_log format ["Max Speed: %1 km/h (highway mode)", EAID_CONFIG get "SPEED_MAX_HIGHWAY"];
     diag_log format ["Map Bonus: %1x straight boost", _mapPreset get "straightBonus"];

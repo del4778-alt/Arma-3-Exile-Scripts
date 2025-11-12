@@ -5,8 +5,11 @@
     - Ambient bandits/scavengers (light patrols)
     - NO global zed spawner; zeds ONLY resurrect from AI killed (server-side)
     - 90% single-zed, 10% horde on AI death
-    - Trader/safe-zone protection
+    - Trader/safe-zone protection (3 trader zones configured)
+    - Zombie faction setup: EAST, RESISTANCE, and WEST all attack zombies
+    - Zombie kill rewards: 100 poptabs + 250 respect per kill
     - Calls Ravage only for zed init if function is present
+    - Optimized performance with AI cap culling
 
     Drop-in: add one line to initServer.sqf (see bottom of this file).
 */
@@ -16,8 +19,8 @@ if (!isServer) exitWith {};
 // ========================== CONFIG ==========================
 private _CFG = [
     // --- Safe zones (traders)
-    ["safeZoneMarkers", ["ExileTraderZone1","ExileTraderZone2","ExileTraderZone3"]],
-    ["safeZoneRadius", 300],
+    ["safeZoneMarkers", ["MafiaTraderCity","TraderZoneSilderas","TraderZoneFolia"]],
+    ["safeZoneRadius", 175],  // matches your trader zone radius
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_runner","zombie_bolter","zombie_walker"]],   // <- your classes
@@ -48,7 +51,11 @@ private _CFG = [
     ["globalAICap", 220],  // hard ceiling for all non-player units (bandits + zeds)
 
     // --- Zombie faction hostility (sides that will attack zombies)
-    ["zombieHostileSides", [east, resistance]]  // Add 'west' if you have BLUFOR AI
+    ["zombieHostileSides", [east, resistance, west]],  // All AI factions hostile to zombies
+
+    // --- Zombie kill rewards (Exile)
+    ["zombieKillRewardPoptabs", 100],   // poptabs per zombie kill
+    ["zombieKillRewardRespect", 250]    // respect per zombie kill
 ];
 
 // quick access
@@ -64,6 +71,49 @@ private _hostileSides = ["zombieHostileSides"] call _get;
 } forEach _hostileSides;
 
 diag_log format ["[RMG:Ravage] Zombie faction relations configured: CIVILIAN hostile to %1", _hostileSides];
+
+// =================== ZOMBIE KILL REWARDS ====================
+// Reward players for killing zombies (Exile integration)
+// Adds poptabs and respect, prevents negative effects for killing CIVILIAN zombies
+addMissionEventHandler ["EntityKilled", {
+    params ["_killed", "_killer", "_instigator", "_useEffects"];
+
+    // Determine the actual player (handle vehicle kills)
+    private _actualKiller = if (!isNull _instigator && {isPlayer _instigator}) then { _instigator } else { _killer };
+
+    // Check if a player killed a zombie
+    if (!isNull _killed && {!isNull _actualKiller} && {isPlayer _actualKiller}) then {
+        private _zedClasses = ["zedClasses"] call _get;
+        private _killedType = typeOf _killed;
+
+        // Is the killed unit a zombie?
+        if (_killedType in _zedClasses) then {
+            private _poptabs = ["zombieKillRewardPoptabs"] call _get;
+            private _respect = ["zombieKillRewardRespect"] call _get;
+
+            // Add poptabs to player's account
+            if (_poptabs > 0) then {
+                _actualKiller setVariable ["ExileMoney", (_actualKiller getVariable ["ExileMoney", 0]) + _poptabs, true];
+            };
+
+            // Add respect to player's score
+            if (_respect > 0) then {
+                _actualKiller setVariable ["ExileScore", (_actualKiller getVariable ["ExileScore", 0]) + _respect, true];
+            };
+
+            // Notify player
+            if (_poptabs > 0 || _respect > 0) then {
+                private _msg = format ["Zombie Kill: +%1 Poptabs, +%2 Respect", _poptabs, _respect];
+                [["Success", _msg], "ExileClient_system_notification_create", _actualKiller, true] call ExileServer_system_network_send_to;
+            };
+
+            diag_log format ["[RMG:Ravage] Player %1 killed zombie %2: +%3 poptabs, +%4 respect",
+                name _actualKiller, _killedType, _poptabs, _respect];
+        };
+    };
+}];
+
+diag_log "[RMG:Ravage] Zombie kill reward system initialized";
 
 // ========================= HELPERS ==========================
 private _inSafeZone = {
@@ -250,11 +300,15 @@ if (!isServer) exitWith {};
 
 Notes / edits you might want
 
-Zed classes: I used your ["zombie_runner","zombie_bolter","zombie_walker"]. If any name differs in your build, swap it in zedClasses at the top—no other edits needed.
+Trader Zones: Configured for MafiaTraderCity, TraderZoneSilderas, and TraderZoneFolia with 175m radius. Update safeZoneMarkers if yours differ.
+
+Zed classes: Using ["zombie_runner","zombie_bolter","zombie_walker"]. If any name differs in your build, swap it in zedClasses at the top—no other edits needed.
+
+Zombie faction: Zombies spawn on CIVILIAN side and are configured to be hostile to EAST, RESISTANCE, and WEST. All three AI factions will automatically attack zombies on sight.
+
+Zombie rewards: Players get 100 poptabs and 250 respect per zombie kill (no negative effects for killing CIVILIAN zombies). Adjust zombieKillRewardPoptabs and zombieKillRewardRespect to change rewards.
 
 Ravage init: If rvg_fnc_zed_init exists, each spawned zed calls it automatically; if it's missing, spawns still work (they'll just be regular units with the zed class behavior).
-
-Zombie faction: Zombies spawn on CIVILIAN side and are configured to be hostile to EAST and RESISTANCE by default. If you have BLUFOR (west) AI, add 'west' to zombieHostileSides in config. This makes AI automatically attack zombies.
 
 Ambient bandits: Edit ambientClasses to RHS/CUP/your faction packs anytime.
 

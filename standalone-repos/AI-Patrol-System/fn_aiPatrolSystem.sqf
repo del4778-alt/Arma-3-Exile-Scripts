@@ -1,7 +1,13 @@
 /*
     File: fn_aiPatrolSystem.sqf
-    Author: Elite Battle System v8.1.2 - BIS + VCOMAI Compatible (BUGFIXED)
+    Author: Elite Battle System v8.1.3 - BIS + VCOMAI Compatible (PRODUCTION READY)
     Description: Maximum performance patrol system with BIS function integration + VCOMAI compatibility
+
+    v8.1.3 VCOMAI FIX (CRITICAL):
+        - Fixed VCOMAI registration conflict (was blacklisting then initializing)
+        - Removed VCM_NOAI addition (VCOMAI respects VCM_CUSTOMAI flag)
+        - Added PATROL_UNIT marker for identification
+        - Now fully compatible with VCOMAI enhanced AI
 
     v8.1.2 BUGFIXES:
         - Fixed VCOMAI check scope issue (was private, now global function)
@@ -117,7 +123,7 @@ if (isNil "PATROL_FactionsConfigured") then {
     ["Faction relations configured"] call BIS_fnc_log;
 };
 
-["Initializing v8.1.2 BIS Optimized (Bugfixed)..."] call BIS_fnc_log;
+["Initializing v8.1.3 BIS Optimized (Production Ready)..."] call BIS_fnc_log;
 
 // ============================================
 // UTILITY FUNCTIONS (BIS Optimized + FIXED)
@@ -460,16 +466,11 @@ DEFENDER_fnc_spawnZones = {
                     
                     // Register with VCOMAI if available
                     if (PATROL_VCOMAI_Active) then {
-                        // Add to VCOMAI exclusion list to prevent double-processing
-                        if (!isNil "VCM_NOAI") then {
-                            VCM_NOAI pushBackUnique _u;
-                            publicVariable "VCM_NOAI";
-                        };
-                        
-                        // Let VCOMAI know this is a custom AI unit
+                        // Mark as custom AI - VCOMAI will respect this flag
                         _u setVariable ["VCM_CUSTOMAI", true, true];
-                        
-                        // Initialize VCOMAI on this unit
+                        _u setVariable ["PATROL_UNIT", true, true];
+
+                        // Initialize VCOMAI on this unit for enhanced behavior
                         if (!isNil "VCM_fnc_INITAI") then {
                             [_u] call VCM_fnc_INITAI;
                         };
@@ -713,13 +714,12 @@ DEFENDER_fnc_cleanup = {
     sleep 3; // Wait for VCOMAI check to complete
     
     ["========================================"] call BIS_fnc_log;
-    ["AI PATROL v8.1.2 - BIS + VCOMAI COMPATIBLE (BUGFIXED)"] call BIS_fnc_log;
+    ["AI PATROL v8.1.3 - BIS + VCOMAI COMPATIBLE (PRODUCTION READY)"] call BIS_fnc_log;
     ["----------------------------------------"] call BIS_fnc_log;
-    ["BUGFIXES (v8.1.2):"] call BIS_fnc_log;
-    ["  • Fixed VCOMAI scope issue in spawn"] call BIS_fnc_log;
-    ["  • No CBA dependency (uses spawn)"] call BIS_fnc_log;
-    ["  • Fixed distance check parentheses"] call BIS_fnc_log;
-    ["  • Fixed ammo counting logic"] call BIS_fnc_log;
+    ["CRITICAL FIX (v8.1.3):"] call BIS_fnc_log;
+    ["  • Fixed VCOMAI registration conflict"] call BIS_fnc_log;
+    ["  • Removed VCM_NOAI blacklist (was blocking init)"] call BIS_fnc_log;
+    ["  • VCOMAI now properly enhances patrol AI"] call BIS_fnc_log;
     ["----------------------------------------"] call BIS_fnc_log;
     ["Units per patrol: %1", EXILE_PATROL_CONFIG select 0] call BIS_fnc_logFormat;
     ["Respawn delay: %1s", EXILE_PATROL_CONFIG select 1] call BIS_fnc_logFormat;

@@ -26,7 +26,7 @@ This script seamlessly integrates the Ravage zombie mod with Exile, providing:
 - Ravage Mod (Steam Workshop or manual)
 - CBA_A3 (required dependency)
 
-### 2. Installation (3 steps)
+### 2. Installation (4 steps)
 
 **Step 1**: Copy the script
 ```
@@ -39,7 +39,14 @@ To: mpmissions/Exile.Altis/scripts/rmg_ravage_exile_config.sqf
 [] execVM "scripts\rmg_ravage_exile_config.sqf";
 ```
 
-**Step 3**: Configure trader zones (in the script)
+**Step 3**: ⚠️ **REQUIRED** - Apply description.ext patch
+```
+Open: description.ext.patch
+Follow instructions to add Ravage remoteExec whitelist
+(Fixes: "tried to remoteExec a disabled function" errors)
+```
+
+**Step 4**: Configure trader zones (in the script)
 ```sqf
 ["safeZoneMarkers", ["YourTraderZone1", "YourTraderZone2"]],
 ```

@@ -14,33 +14,39 @@
     - Server-side only execution
 
     Author: RMG
-    Version: 2.0
+    Version: 2.3 - SUSPENSION FIX (Spawn wrapper for uiSleep)
 */
 
 if (!isServer) exitWith {};
+
+diag_log "========================================";
+diag_log "[RMG:Ravage] Initializing Ravage/Exile integration v2.3...";
+diag_log "========================================";
 
 // ========================== CONFIG ==========================
 private _CFG = [
     // --- Safe zones (traders)
     ["safeZoneMarkers", ["MafiaTraderCity","TraderZoneSilderas","TraderZoneFolia"]],
-    ["safeZoneRadius", 175],  // matches your trader zone radius
+    ["safeZoneRadius", 500],  // matches your trader zone radius
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_runner","zombie_bolter","zombie_walker"]],   // <- your classes
     ["hordeSizeRange", [6, 12]],      // inclusive min,max for 10% horde
-    ["spawnDelay", 0.75],             // seconds after death before spawn
+    ["spawnDelay", 0.10],             // seconds after death before spawn
     ["spawnOffset", 1.0],             // lift above ground to avoid clipping
     ["chanceHorde", 0.10],            // 10%
     ["spawnFromSides", [east, resistance, west]], // AI sides that can resurrect
-    ["minPlayerDist", 40],            // don't spawn if a player is closer than this
+    // NOTE: Recruit AI are usually 'resistance'. A3XAI are typically 'east'.
+    // Add 'civilian' here if you want civilian-side AI to resurrect
+    ["minPlayerDist", 10],            // don't spawn if a player is closer than this
 
     // --- Ambient bandits/scavengers
     ["ambientEnabled", true],
     ["ambientMaxGroups", 6],
     ["ambientGroupSize", [2,4]],
-    ["ambientSpawnRadius", [800, 1600]], // from a random online player
+    ["ambientSpawnRadius", [100, 200]], // from a random online player
     ["ambientMinPlayerDist", 300],
-    ["ambientDespawnDist", 2200],
+    ["ambientDespawnDist", 1000],
     ["ambientPatrolRadius", 250],
     ["ambientRespawnDelay", [60, 120]],  // seconds
     // vanilla light bandit/scav classes (edit to taste or to RHS/CUP etc.)
@@ -51,18 +57,28 @@ private _CFG = [
     ]],
 
     // --- Performance / safety
-    ["globalAICap", 220],  // hard ceiling for all non-player units (bandits + zeds)
+    ["globalAICap", 80],  // hard ceiling for all non-player units (bandits + zeds)
 
     // --- Zombie faction hostility (sides that will attack zombies)
     ["zombieHostileSides", [east, resistance, west]],  // All AI factions hostile to zombies
 
     // --- Zombie kill rewards (Exile)
-    ["zombieKillRewardPoptabs", 100],   // poptabs per zombie kill
+    ["zombieKillRewardPoptabs", 200],   // poptabs per zombie kill
     ["zombieKillRewardRespect", 250]    // respect per zombie kill
 ];
 
-// quick access
-private _get = { params ["_k"]; (_CFG select (_CFG findIf {(_x select 0) isEqualTo _k})) select 1 };
+// Convert to GLOBAL functions with namespace prefix for event handler access
+RMG_Ravage_CFG = _CFG;
+
+RMG_Ravage_get = {
+    params ["_k"];
+    private _index = RMG_Ravage_CFG findIf {(_x select 0) isEqualTo _k};
+    if (_index == -1) exitWith { nil };
+    (RMG_Ravage_CFG select _index) select 1
+};
+
+// Local alias for convenience (most code uses this)
+private _get = RMG_Ravage_get;
 
 // =================== ZOMBIE FACTION SETUP ===================
 // Make zombies (CIVILIAN side) hostile to configured AI sides
@@ -86,13 +102,13 @@ addMissionEventHandler ["EntityKilled", {
 
     // Check if a player killed a zombie
     if (!isNull _killed && {!isNull _actualKiller} && {isPlayer _actualKiller}) then {
-        private _zedClasses = ["zedClasses"] call _get;
+        private _zedClasses = ["zedClasses"] call RMG_Ravage_get;
         private _killedType = typeOf _killed;
 
         // Is the killed unit a zombie?
         if (_killedType in _zedClasses) then {
-            private _poptabs = ["zombieKillRewardPoptabs"] call _get;
-            private _respect = ["zombieKillRewardRespect"] call _get;
+            private _poptabs = ["zombieKillRewardPoptabs"] call RMG_Ravage_get;
+            private _respect = ["zombieKillRewardRespect"] call RMG_Ravage_get;
 
             // Add poptabs to player's account
             if (_poptabs > 0) then {
@@ -119,10 +135,11 @@ addMissionEventHandler ["EntityKilled", {
 diag_log "[RMG:Ravage] Zombie kill reward system initialized";
 
 // ========================= HELPERS ==========================
-private _inSafeZone = {
+// Make helper functions GLOBAL for event handler access
+RMG_Ravage_inSafeZone = {
     params ["_pos"];
-    private _markers = call { ["safeZoneMarkers"] call _get };
-    private _r = ["safeZoneRadius"] call _get;
+    private _markers = ["safeZoneMarkers"] call RMG_Ravage_get;
+    private _r = ["safeZoneRadius"] call RMG_Ravage_get;
     {
         private _mPos = getMarkerPos _x;
         if !(_mPos isEqualTo [0,0,0]) then {
@@ -132,7 +149,7 @@ private _inSafeZone = {
     false
 };
 
-private _nearestPlayerDist = {
+RMG_Ravage_nearestPlayerDist = {
     params ["_pos"];
     if (count allPlayers == 0) exitWith { 99999 };
     private _d = 99999;
@@ -143,9 +160,9 @@ private _nearestPlayerDist = {
     _d
 };
 
-private _capCull = {
+RMG_Ravage_capCull = {
     // Cull farthest non-player AI if we exceed the cap.
-    private _cap = ["globalAICap"] call _get;
+    private _cap = ["globalAICap"] call RMG_Ravage_get;
     private _units = allUnits select { !isPlayer _x && alive _x };
     private _over = (count _units) - _cap;
     if (_over <= 0) exitWith {};
@@ -163,112 +180,105 @@ private _capCull = {
 };
 
 // spawn one zed of given class at pos, call ravage init if present
-private _spawnZed = {
+RMG_Ravage_spawnZed = {
     params ["_cls", "_pos"];
-    if ([_pos] call _inSafeZone) exitWith { objNull };
-    if (["minPlayerDist"] call _get > 0) then {
-        if ([_pos] call _nearestPlayerDist < (["minPlayerDist"] call _get)) exitWith { objNull };
+    if ([_pos] call RMG_Ravage_inSafeZone) exitWith { objNull };
+    if ((["minPlayerDist"] call RMG_Ravage_get) > 0) then {
+        if (([_pos] call RMG_Ravage_nearestPlayerDist) < (["minPlayerDist"] call RMG_Ravage_get)) exitWith { objNull };
     };
 
     private _grp = createGroup [civilian, true];  // zeds usually don't need command side
-    private _u = _grp createUnit [_cls, [(_pos select 0), (_pos select 1), (_pos select 2) + (["spawnOffset"] call _get)], [], 0, "NONE"];
+    private _u = _grp createUnit [_cls, [(_pos select 0), (_pos select 1), (_pos select 2) + (["spawnOffset"] call RMG_Ravage_get)], [], 0, "NONE"];
     if (!isNil "rvg_fnc_zed_init") then { [_u] spawn rvg_fnc_zed_init; };
     _u
 };
 
+// Local aliases for backward compatibility
+private _inSafeZone = RMG_Ravage_inSafeZone;
+private _nearestPlayerDist = RMG_Ravage_nearestPlayerDist;
+private _capCull = RMG_Ravage_capCull;
+private _spawnZed = RMG_Ravage_spawnZed;
+
 // ====================== ZED RESURRECTION =====================
+diag_log "[RMG:Ravage] Registering zombie resurrection event handler...";
+
 addMissionEventHandler ["EntityKilled", {
     params ["_killed", "_killer", "_instigator", "_useEffects"];
 
     // Only non-player AI on allowed sides resurrect
     if (!isNull _killed && {_killed isKindOf "CAManBase"} && {!isPlayer _killed}) then {
-        private _sides = ["spawnFromSides"] call _get;
-        if ((side _killed) in _sides) then {
+        private _sides = ["spawnFromSides"] call RMG_Ravage_get;
+        private _killedSide = side _killed;
+        
+        // DEBUG: Log all AI deaths with their side
+        diag_log format ["[RMG:Ravage] AI killed: %1 (Type: %2, Side: %3)", 
+            name _killed, typeOf _killed, _killedSide];
+        
+        if (_killedSide in _sides) then {
             private _pos = getPosATL _killed;
-            if ([_pos] call _inSafeZone) exitWith {};
-
-            // delay a bit for drama
-            uiSleep (["spawnDelay"] call _get);
-
-            // chance split: 10% horde, 90% single
-            private _hordeChance = ["chanceHorde"] call _get;
-            private _pool = ["zedClasses"] call _get;
-
-            if ((random 1) < _hordeChance) then {
-                private _minMax = ["hordeSizeRange"] call _get;
-                private _count = floor ( (_minMax select 0) + random ((_minMax select 1) - (_minMax select 0) + 1) );
-                private _rad = 8 max (_count * 0.7);
-                for "_i" from 1 to _count do {
-                    private _pick = selectRandom _pool;
-                    private _theta = random 360;
-                    private _r = random _rad;
-                    private _p = [_pos select 0, _pos select 1, _pos select 2];
-                    _p set [0, (_p select 0) + (sin _theta) * _r];
-                    _p set [1, (_p select 1) + (cos _theta) * _r];
-                    [_pick, _p] call _spawnZed;
+            private _killedName = name _killed;
+            
+            // SPAWN a new thread so we can use sleep commands
+            [_pos, _killedName] spawn {
+                params ["_pos", "_killedName"];
+                
+                // Check safe zone
+                if ([_pos] call RMG_Ravage_inSafeZone) exitWith {
+                    diag_log format ["[RMG:Ravage] Zombie spawn blocked - %1 died in safe zone", _killedName];
                 };
-            } else {
-                private _pick = selectRandom _pool;
-                [_pick, _pos] call _spawnZed;
-            };
 
-            call _capCull;
+                // delay a bit for drama
+                uiSleep (["spawnDelay"] call RMG_Ravage_get);
+
+                // chance split: 10% horde, 90% single
+                private _hordeChance = ["chanceHorde"] call RMG_Ravage_get;
+                private _pool = ["zedClasses"] call RMG_Ravage_get;
+
+                if ((random 1) < _hordeChance) then {
+                    private _minMax = ["hordeSizeRange"] call RMG_Ravage_get;
+                    private _count = floor ( (_minMax select 0) + random ((_minMax select 1) - (_minMax select 0) + 1) );
+                    private _rad = 8 max (_count * 0.7);
+                    diag_log format ["[RMG:Ravage] Spawning HORDE of %1 zombies from %2", _count, _killedName];
+                    for "_i" from 1 to _count do {
+                        private _pick = selectRandom _pool;
+                        private _theta = random 360;
+                        private _r = random _rad;
+                        private _p = [_pos select 0, _pos select 1, _pos select 2];
+                        _p set [0, (_p select 0) + (sin _theta) * _r];
+                        _p set [1, (_p select 1) + (cos _theta) * _r];
+                        [_pick, _p] call RMG_Ravage_spawnZed;
+                    };
+                } else {
+                    diag_log format ["[RMG:Ravage] Spawning single zombie from %1", _killedName];
+                    private _pick = selectRandom _pool;
+                    [_pick, _pos] call RMG_Ravage_spawnZed;
+                };
+
+                call RMG_Ravage_capCull;
+            };
+        } else {
+            diag_log format ["[RMG:Ravage] Zombie spawn SKIPPED - %1 is on side %2 (not in allowed sides: %3)", 
+                name _killed, _killedSide, _sides];
         };
     };
 }];
 
+diag_log "[RMG:Ravage] Zombie resurrection event handler registered successfully!";
+
 // ================== AMBIENT BANDITS / SCAVENGERS =================
 if (["ambientEnabled"] call _get) then {
-    // Capture all config values BEFORE spawn (scope issue fix)
-    private _ambientConfig = [
-        ["maxGroups", ["ambientMaxGroups"] call _get],
-        ["spawnRadius", ["ambientSpawnRadius"] call _get],
-        ["minPlayerDist", ["ambientMinPlayerDist"] call _get],
-        ["despawnDist", ["ambientDespawnDist"] call _get],
-        ["groupSize", ["ambientGroupSize"] call _get],
-        ["classes", ["ambientClasses"] call _get],
-        ["patrolRadius", ["ambientPatrolRadius"] call _get],
-        ["respawnDelay", ["ambientRespawnDelay"] call _get],
-        ["safeZoneMarkers", ["safeZoneMarkers"] call _get],
-        ["safeZoneRadius", ["safeZoneRadius"] call _get]
-    ];
-
-    [_ambientConfig] spawn {
-        params ["_cfg"];
-
-        // Local config accessor
-        private _getCfg = {
+    [_CFG, _inSafeZone, _nearestPlayerDist, _capCull] spawn {
+        params ["_CFG", "_inSafeZone", "_nearestPlayerDist", "_capCull"];
+        
+        // Recreate _get function in this scope
+        private _get = {
             params ["_k"];
-            (_cfg select (_cfg findIf {(_x select 0) isEqualTo _k})) select 1
+            private _index = _CFG findIf {(_x select 0) isEqualTo _k};
+            if (_index == -1) exitWith { nil };
+            (_CFG select _index) select 1
         };
-
-        // Local helper: check if position is in safe zone
-        private _inSafeZone = {
-            params ["_pos"];
-            private _markers = ["safeZoneMarkers"] call _getCfg;
-            private _r = ["safeZoneRadius"] call _getCfg;
-            {
-                private _mPos = getMarkerPos _x;
-                if !(_mPos isEqualTo [0,0,0]) then {
-                    if ((_pos distance2D _mPos) <= _r) exitWith { true };
-                };
-            } forEach _markers;
-            false
-        };
-
-        // Local helper: get nearest player distance
-        private _nearestPlayerDist = {
-            params ["_pos"];
-            if (count allPlayers == 0) exitWith { 99999 };
-            private _d = 99999;
-            {
-                private _dd = _pos distance2D (getPosATL _x);
-                if (_dd < _d) then { _d = _dd };
-            } forEach allPlayers;
-            _d
-        };
-
-        private _maxGroups = ["maxGroups"] call _getCfg;
+        
+        private _maxGroups = ["ambientMaxGroups"] call _get;
         private _aliveGroups = [];
 
         while {true} do {
@@ -277,18 +287,18 @@ if (["ambientEnabled"] call _get) then {
 
             if ((count _aliveGroups) < _maxGroups && {count allPlayers > 0}) then {
                 private _anchor = selectRandom allPlayers;
-                private _spawnR = ["spawnRadius"] call _getCfg;
+                private _spawnR = ["ambientSpawnRadius"] call _get;
                 private _dist = (_spawnR select 0) + random ((_spawnR select 1) - (_spawnR select 0));
                 private _ang = random 360;
                 private _pos = (getPos _anchor) getPos [ _dist, _ang ];
 
                 // respect min player dist and safe zones
                 if ([_pos] call _inSafeZone) then { uiSleep 3; continue };
-                if ([_pos] call _nearestPlayerDist < (["minPlayerDist"] call _getCfg)) then { uiSleep 3; continue };
+                if (([_pos] call _nearestPlayerDist) < (["ambientMinPlayerDist"] call _get)) then { uiSleep 3; continue };
 
-                private _size = ["groupSize"] call _getCfg;
+                private _size = ["ambientGroupSize"] call _get;
                 private _n = floor ( (_size select 0) + random ((_size select 1) - (_size select 0) + 1) );
-                private _clsPool = ["classes"] call _getCfg;
+                private _clsPool = ["ambientClasses"] call _get;
 
                 private _grp = createGroup [resistance, true];
                 for "_i" from 1 to _n do {
@@ -297,7 +307,7 @@ if (["ambientEnabled"] call _get) then {
                 };
 
                 // simple patrol
-                private _pr = ["patrolRadius"] call _getCfg;
+                private _pr = ["ambientPatrolRadius"] call _get;
                 for "_w" from 1 to 4 do {
                     private _wpPos = _pos getPos [ random _pr, random 360 ];
                     private _wp = _grp addWaypoint [_wpPos, 0];
@@ -310,26 +320,37 @@ if (["ambientEnabled"] call _get) then {
                 (_grp addWaypoint [_pos, 0]) setWaypointType "CYCLE";
 
                 _aliveGroups pushBack _grp;
+
+                // soft cap cull if needed
+                call _capCull;
             };
 
             // Despawn logic for far groups
-            private _despawnDist = ["despawnDist"] call _getCfg;
+            private _despawnDist = ["ambientDespawnDist"] call _get;
             {
                 private _g = _x;
                 private _lead = leader _g;
-                if (isNull _lead) exitWith {};
-                private _pDist = [_lead] call _nearestPlayerDist;
-                if (_pDist > _despawnDist) then {
-                    { deleteVehicle _x } forEach units _g;
-                    deleteGroup _g;
+                if (!isNull _lead) then {
+                    private _pDist = [getPosATL _lead] call _nearestPlayerDist;
+                    if (_pDist > _despawnDist) then {
+                        { deleteVehicle _x } forEach units _g;
+                        deleteGroup _g;
+                    };
                 };
             } forEach +_aliveGroups;
 
-            uiSleep ( (["respawnDelay"] call _getCfg) call {
+            uiSleep ( (["ambientRespawnDelay"] call _get) call {
                 params ["_min","_max"]; _min + random (_max - _min)
             });
         };
     };
 };
 
-diag_log "[RMG:Ravage] Exile integration complete - all systems active";
+diag_log "========================================";
+diag_log "[RMG:Ravage] Exile integration complete!";
+diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE";
+diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
+diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE";
+diag_log "[RMG:Ravage] - Faction hostility: CONFIGURED";
+diag_log "[RMG:Ravage] All systems operational.";
+diag_log "========================================";

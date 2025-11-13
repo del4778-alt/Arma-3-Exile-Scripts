@@ -71,52 +71,63 @@ if (!isServer) exitWith {};
 [] execVM "scripts\rmg_ravage_exile_config.sqf";
 ```
 
-### Step 4: Description.ext Configuration
+### Step 4: Description.ext Configuration (REQUIRED)
 
-Open your mission's `description.ext` file.
+Open your mission's `description.ext` file and apply the Ravage mod patch.
 
-#### A. Add Ravage Sounds (if not already present)
+#### CRITICAL: Apply description.ext Patch
 
-Add this section to enable Ravage zombie sounds:
+Ravage mod requires specific functions to be whitelisted in your `description.ext` file. Without this patch, you'll see errors like:
 
-```cpp
-class CfgSounds
-{
-    // Ravage mod sounds (if not already included)
-    // These are typically handled by the Ravage mod itself
-    // No manual additions needed unless you have custom sounds
-};
+```
+User tried to remoteExec a disabled function: 'setidentity'
+User tried to remoteExec a disabled function: 'say3d'
 ```
 
-#### B. Verify CfgRemoteExec
+**Option 1: Use the Patch File (Recommended)**
 
-**Important**: Exile already whitelists `ExileServer_system_network_send_to` by default.
+1. Open `description.ext.patch` (included in this folder)
+2. Follow the instructions in the patch file to add Ravage support
+3. The patch adds these functions:
+   - `setIdentity` - For zombie appearance customization
+   - `say3d` / `say3D` - For zombie sound effects
 
-Verify your `description.ext` has this section:
+**Option 2: Manual Configuration**
+
+Add these sections to your `description.ext`:
 
 ```cpp
 class CfgRemoteExec
 {
     class Functions
     {
-        mode = 1; // 0=anybody, 1=whitelist, 2=blacklist
+        mode = 1; // Whitelist mode
         jip = 0;
 
-        // Exile functions (should already exist)
-        class ExileServer_system_network_send_to { allowedTargets = 2; };
+        // Existing Exile functions (keep these!)
+        class ExileServer_system_network_dispatchIncomingMessage
+        {
+            allowedTargets = 2;
+        };
 
-        // Add other Exile functions as needed
+        // ADD THESE FOR RAVAGE:
+        class setIdentity { allowedTargets = 0; jip = 0; };
+        class say3d       { allowedTargets = 0; jip = 0; };
     };
 
     class Commands
     {
-        mode = 1;
+        mode = 1;  // IMPORTANT: Change from 0 to 1!
         jip = 0;
+
+        // ADD THESE FOR RAVAGE:
+        class setIdentity { allowedTargets = 0; };
+        class say3D       { allowedTargets = 0; };
     };
 };
 ```
 
-**Note**: If you're using the default Exile `description.ext`, this should already be configured correctly. The script uses only Exile's built-in network functions.
+**⚠️ IMPORTANT**: Make sure `Commands` mode is set to `1` (not `0`), otherwise the commands won't be whitelisted!
 
 ---
 
@@ -342,7 +353,7 @@ If you have multiple AI factions:
 ## Support & Credits
 
 **Author**: RMG
-**Version**: 2.0
+**Version**: 2.3
 **License**: Free to use and modify
 
 ### Credits:
@@ -359,6 +370,13 @@ If you have multiple AI factions:
 ---
 
 ## Changelog
+
+### Version 2.3 (Latest)
+- **FIXED**: Suspension errors by using spawn wrapper for uiSleep
+- **ADDED**: description.ext.patch file for easy remoteExec configuration
+- **ADDED**: setIdentity and say3d remoteExec whitelist requirements
+- **IMPROVED**: Installation documentation with patch instructions
+- **FIXED**: Zombie spawn blocking in safe zones with detailed logging
 
 ### Version 2.0
 - Added zombie kill reward system (poptabs + respect)

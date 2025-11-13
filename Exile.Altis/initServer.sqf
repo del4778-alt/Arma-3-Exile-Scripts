@@ -469,8 +469,6 @@ diag_log "[SERVER] Loading AI Patrol System...";
 diag_log "[SERVER] Loading Elite AI Recruit System...";
 execVM "scripts\recruit_ai.sqf";
 
-[] execVM "scripts\rmg_ravage_exile_config.sqf";
-
 diag_log "[SERVER] All Elite AI systems loaded!";
 
 ///////////////////////////////////////////////////////////////////////////////

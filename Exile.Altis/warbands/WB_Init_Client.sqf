@@ -7,9 +7,19 @@ if (!hasInterface) exitWith {};
 
 diag_log "[WB] Client initialization starting...";
 
-// Load skill system
+// Load Fallout 4 systems
+call compile preprocessFileLineNumbers "warbands\systems\WB_VATS_System.sqf";
+diag_log "[WB] VATS system loaded (client)";
+
+call compile preprocessFileLineNumbers "warbands\systems\WB_LegendaryWeapons.sqf";
+diag_log "[WB] Legendary weapons loaded (client)";
+
+call compile preprocessFileLineNumbers "warbands\systems\WB_Crafting_System.sqf";
+diag_log "[WB] Crafting system loaded (client)";
+
+// Load skill system (now with SPECIAL)
 call compile preprocessFileLineNumbers "warbands\systems\WB_SkillSystem.sqf";
-diag_log "[WB] Skill system loaded (client)";
+diag_log "[WB] SPECIAL system loaded (client)";
 
 // Load player data from server
 [] spawn {

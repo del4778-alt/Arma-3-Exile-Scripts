@@ -92,12 +92,20 @@ class CfgRemoteExec
         class WB_fnc_captureUnit        { allowedTargets = 2; };
         class WB_fnc_prisonManage       { allowedTargets = 2; };
         class WB_fnc_blacksmithCraft    { allowedTargets = 2; };
+
+        // Ravage Mod Support
+        class setIdentity               { allowedTargets = 0; jip = 0; };
+        class say3d                     { allowedTargets = 0; jip = 0; };
     };
 
     class Commands
     {
-		mode = 0;
+		mode = 1;
 		jip = 0;
+
+		// Ravage Mod Support
+		class setIdentity               { allowedTargets = 0; };
+		class say3D                     { allowedTargets = 0; };
     };
 };
 

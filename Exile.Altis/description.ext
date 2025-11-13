@@ -83,6 +83,15 @@ class CfgRemoteExec
         {
             allowedTargets = 2;
         };
+
+        // Warbands Remote Exec Permissions
+        class WB_fnc_arenaStart         { allowedTargets = 2; };
+        class WB_fnc_arenaPlaceBet      { allowedTargets = 2; };
+        class WB_fnc_joinFaction        { allowedTargets = 2; };
+        class WB_fnc_claimVillage       { allowedTargets = 2; };
+        class WB_fnc_captureUnit        { allowedTargets = 2; };
+        class WB_fnc_prisonManage       { allowedTargets = 2; };
+        class WB_fnc_blacksmithCraft    { allowedTargets = 2; };
     };
 
     class Commands
@@ -90,4 +99,52 @@ class CfgRemoteExec
 		mode = 0;
 		jip = 0;
     };
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// Warbands System Integration
+///////////////////////////////////////////////////////////////////////////////
+#include "warbands\ui\WB_RscHUD.hpp"
+
+class CfgFunctions
+{
+    class WB
+    {
+        tag = "WB";
+        class Core
+        {
+            file = "warbands\functions";
+            class init               { preInit = 1; };
+            class startStrategicCycle{};
+            class updateOwnership    {};
+            class spawnWarband       {};
+            class spawnCaravan       {};
+            class tryWarbandBattle   {};
+            class arenaStart         {};
+            class professionInit     { postInit = 1; };
+            class economyTick        {};
+            class joinFaction        {};
+            class claimVillage       {};
+            class allianceSystem     {};
+            class captureUnit        {};
+            class prisonManage       {};
+            class arenaPlaceBet      {};
+            class arenaSpectate      {};
+            class spawnFactionTraders{};
+            class taxTick            {};
+            class blacksmithCraft    {};
+            class troopUpgradeTick   {};
+            class buildFortress      {};
+            class registerFortress   {};
+            class spawnGarrison      {};
+            class siegeEvent         {};
+            class captureFortress    {};
+        };
+    };
+};
+
+// Dynamic Simulation recommended
+class DynSim
+{
+    enable = 1;
 };

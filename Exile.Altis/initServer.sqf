@@ -472,3 +472,41 @@ execVM "scripts\recruit_ai.sqf";
 [] execVM "scripts\rmg_ravage_exile_config.sqf";
 
 diag_log "[SERVER] All Elite AI systems loaded!";
+
+///////////////////////////////////////////////////////////////////////////////
+// Warbands System Initialization
+///////////////////////////////////////////////////////////////////////////////
+
+// Turn on Dynamic Simulation globally
+enableDynamicSimulationSystem true;
+
+// Basic categories
+"Group" setDynamicSimulationDistance 1200;
+"Vehicle" setDynamicSimulationDistance 1200;
+"Prop" setDynamicSimulationDistance 800;
+"EmptyVehicle" setDynamicSimulationDistance 800;
+"IsMoving" setDynamicSimulationDistanceCoef 2;
+
+// Wait for Exile and initialize Warbands
+[] spawn {
+    waitUntil { !isNil "ExileServerIsLoading" && {!ExileServerIsLoading} };
+    diag_log "[WB] Server bootstrap: Exile ready.";
+
+    // Fortress positions (Altis example). You can move these.
+    WB_fortressPositions = [
+        ["KAV", [3584,13060,0], 90,  "warbands\fortress\fortress_templates\fortress_west.sqf"],
+        ["PYR", [16868,12862,0],270, "warbands\fortress\fortress_templates\fortress_east.sqf"],
+        ["ATH", [13961,18764,0],180, "warbands\fortress\fortress_templates\fortress_independent.sqf"],
+        ["CIV", [25500,21300,0],180, "warbands\fortress\fortress_templates\fortress_civilian.sqf"]
+    ];
+
+    {
+        _x params ["_fid","_pos","_dir","_template"];
+        [_pos,_dir,_fid,_template] call WB_fnc_buildFortress;
+    } forEach WB_fortressPositions;
+
+    // Load extended Warbands systems (Mount & Blade features)
+    call compile preprocessFileLineNumbers "warbands\WB_Init_Server.sqf";
+};
+
+diag_log "[SERVER] Warbands system initialized!";

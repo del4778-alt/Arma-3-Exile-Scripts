@@ -1,10 +1,8 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.15 - EXTREME ELITE OPERATORS
+    ELITE AI RECRUIT SYSTEM v7.16 - EXTREME ELITE OPERATORS
     ✅ EXTREME SKILLS - 1.0 (perfect) accuracy, speed, spotting - HEADSHOT MASTERS
     ✅ 300M SIGHT RANGE - Detect and engage enemies at extreme distance
     ✅ 1.4X SPEED - Lightning fast movement and reactions
-    ✅ SAFE MODE RUNNING - Run standing with player when no threats
-    ✅ INSTANT COMBAT - Switch to COMBAT mode when enemies detected
     ✅ PERFECT AIM - No shake, instant acquisition, headshot preference
     ✅ STEALTH BONUS - 50% harder to spot, 50% quieter
     ✅ NO FLEEING - Fearless warriors who never retreat (except when critically wounded)
@@ -13,14 +11,22 @@
     ✅ INSTANT REACTION - Immediate response to threats
     ✅ DUAL death detection: Event handlers + backup polling
     ✅ NO VEHICLE BOARDING - AI stay on foot for maximum tactical flexibility
-    ✅ SMART FOLLOWING - AI follow player in all states, return to formation after combat
-    ✅ ANTI-WANDER - Continuous enforcement prevents AI from straying >50m
+
+    COMBAT BEHAVIOR:
+    ✅ FULL AUTONOMY - AI have complete freedom to engage, flank, take cover
+    ✅ NO RESTRICTIONS - Can spread out and use advanced tactics in combat
+    ✅ TARGET SHARING - Group shares enemy information automatically
+
+    NON-COMBAT BEHAVIOR:
+    ✅ TIGHT FORMATION - Stay within 30m, mirror player movement closely
+    ✅ STRICT FOLLOWING - Force AI to stay in column formation when safe
+    ✅ AUTO-RETURN - Seamlessly return to tight formation after combat ends
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.15 (Extreme Elite Operators)...";
+diag_log "[AI RECRUIT] Starting initialization v7.16 (Extreme Elite Operators)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -147,28 +153,35 @@ fn_FSM_ExecuteState = {
 
     switch (_state) do {
         case FSM_STATE_IDLE: {
-            // Safe and calm - run with player
+            // Safe and calm - TIGHT FORMATION, mirror player movement
             _unit setBehaviour "SAFE";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "YELLOW";
-            _playerGroup setFormation "COLUMN";
+            _playerGroup setFormation "COLUMN";  // Tight column formation
 
-            // Force standing/running (not crouched)
+            // Force standing/running (not crouched) - mirror player stance
             _unit setUnitPos "UP";
 
-            // Follow player closely
+            // STRICT following - stay close to player
             _unit doFollow _player;
+
+            // Mirror player movement more closely
+            private _distToPlayer = _unit distance _player;
+            if (_distToPlayer > 10) then {
+                _unit doMove (getPos _player);
+            };
         };
 
         case FSM_STATE_COMBAT: {
-            // Enemy detected - extreme combat mode
+            // Enemy detected - FULL COMBAT AUTONOMY
             _unit setBehaviour "COMBAT";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "RED";  // Fire at will
             _playerGroup setFormation "LINE";
 
-            // Stay with player while engaging enemies
-            _unit doFollow _player;
+            // COMPLETE FREEDOM in combat - no movement restrictions
+            // AI can flank, take cover, spread out, use tactics freely
+            // Group shares target information automatically
 
             // Let AI choose stance for combat
             _unit setUnitPos "AUTO";
@@ -270,22 +283,22 @@ fn_FSM_BrainLoop = {
                 };
             };
 
-            // Continuous follow enforcement - ensure AI stay with player
-            // This prevents AI from wandering too far during combat or getting stuck
-            private _distanceToPlayer = _unit distance _player;
+            // Continuous follow enforcement - ONLY when NOT in combat
+            // In combat, AI have complete freedom to engage and maneuver
+            if (_currentState != FSM_STATE_COMBAT) then {
+                private _distanceToPlayer = _unit distance _player;
 
-            // If AI is too far from player (>50m), force them to follow
-            if (_distanceToPlayer > 50) then {
-                _unit doFollow _player;
-                if (_currentState == FSM_STATE_COMBAT) then {
-                    // In combat, move them toward player while maintaining combat readiness
+                // Strict formation enforcement when safe
+                // Force AI to stay close and mirror player movement
+                if (_distanceToPlayer > 30) then {
+                    _unit doFollow _player;
                     _unit doMove (getPos _player);
                 };
-            };
 
-            // Periodic follow refresh every loop to prevent AI from breaking formation
-            if (_timeInState > 4) then {
-                _unit doFollow _player;
+                // Periodic follow refresh to keep tight formation
+                if (_timeInState > 2) then {
+                    _unit doFollow _player;
+                };
             };
 
         };
@@ -1008,17 +1021,23 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.15 - EXTREME ELITE OPERATORS";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.16 - EXTREME ELITE OPERATORS";
 diag_log "  • EXTREME SKILLS: 1.0 (PERFECT) in all categories - HEADSHOT MASTERS";
 diag_log "  • 300M SIGHT RANGE: Detect and engage at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning fast movement (setAnimSpeedCoef 1.4)";
 diag_log "  • PERFECT AIM: No shake, instant acquisition, laser accuracy";
 diag_log "  • STEALTH: 50% harder to spot, 50% quieter";
-diag_log "  • SAFE MODE IDLE: Runs standing with player (SAFE behavior, UP stance)";
-diag_log "  • COMBAT MODE: Instant switch to COMBAT when enemies detected";
-diag_log "  • SMART FOLLOWING: AI follow player in ALL states (IDLE, COMBAT, RETREAT, HEAL)";
-diag_log "  • ANTI-WANDER: Continuous enforcement prevents AI from straying >50m";
-diag_log "  • AUTO-RETURN: AI automatically return to formation after combat ends";
+diag_log "";
+diag_log "  COMBAT BEHAVIOR:";
+diag_log "  • FULL AUTONOMY: Complete freedom to engage, flank, spread out";
+diag_log "  • NO RESTRICTIONS: AI use advanced tactics, take cover independently";
+diag_log "  • TARGET SHARING: Group automatically shares enemy information";
+diag_log "";
+diag_log "  NON-COMBAT BEHAVIOR:";
+diag_log "  • TIGHT FORMATION: Stay within 30m of player at all times";
+diag_log "  • STRICT FOLLOWING: Mirror player movement in column formation";
+diag_log "  • AUTO-RETURN: Seamlessly return to formation after combat ends";
+diag_log "";
 diag_log "  • THREAT SCAN: 300m knowledge-based + 50m visual detection";
 diag_log "  • FSM STATES: IDLE (SAFE/UP) ⟷ COMBAT → RETREAT → HEAL";
 diag_log "  • INSTANT REACTION: No delay when threats appear";

@@ -1,5 +1,5 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.14 - EXTREME ELITE OPERATORS
+    ELITE AI RECRUIT SYSTEM v7.15 - EXTREME ELITE OPERATORS
     ✅ EXTREME SKILLS - 1.0 (perfect) accuracy, speed, spotting - HEADSHOT MASTERS
     ✅ 300M SIGHT RANGE - Detect and engage enemies at extreme distance
     ✅ 1.4X SPEED - Lightning fast movement and reactions
@@ -13,12 +13,14 @@
     ✅ INSTANT REACTION - Immediate response to threats
     ✅ DUAL death detection: Event handlers + backup polling
     ✅ NO VEHICLE BOARDING - AI stay on foot for maximum tactical flexibility
+    ✅ SMART FOLLOWING - AI follow player in all states, return to formation after combat
+    ✅ ANTI-WANDER - Continuous enforcement prevents AI from straying >50m
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.14 (Extreme Elite Operators)...";
+diag_log "[AI RECRUIT] Starting initialization v7.15 (Extreme Elite Operators)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -165,6 +167,9 @@ fn_FSM_ExecuteState = {
             _unit setCombatMode "RED";  // Fire at will
             _playerGroup setFormation "LINE";
 
+            // Stay with player while engaging enemies
+            _unit doFollow _player;
+
             // Let AI choose stance for combat
             _unit setUnitPos "AUTO";
         };
@@ -263,6 +268,24 @@ fn_FSM_BrainLoop = {
                     // Execute state behavior ONLY on transition
                     [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
                 };
+            };
+
+            // Continuous follow enforcement - ensure AI stay with player
+            // This prevents AI from wandering too far during combat or getting stuck
+            private _distanceToPlayer = _unit distance _player;
+
+            // If AI is too far from player (>50m), force them to follow
+            if (_distanceToPlayer > 50) then {
+                _unit doFollow _player;
+                if (_currentState == FSM_STATE_COMBAT) then {
+                    // In combat, move them toward player while maintaining combat readiness
+                    _unit doMove (getPos _player);
+                };
+            };
+
+            // Periodic follow refresh every loop to prevent AI from breaking formation
+            if (_timeInState > 4) then {
+                _unit doFollow _player;
             };
 
         };
@@ -985,7 +1008,7 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.14 - EXTREME ELITE OPERATORS";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.15 - EXTREME ELITE OPERATORS";
 diag_log "  • EXTREME SKILLS: 1.0 (PERFECT) in all categories - HEADSHOT MASTERS";
 diag_log "  • 300M SIGHT RANGE: Detect and engage at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning fast movement (setAnimSpeedCoef 1.4)";
@@ -993,6 +1016,9 @@ diag_log "  • PERFECT AIM: No shake, instant acquisition, laser accuracy";
 diag_log "  • STEALTH: 50% harder to spot, 50% quieter";
 diag_log "  • SAFE MODE IDLE: Runs standing with player (SAFE behavior, UP stance)";
 diag_log "  • COMBAT MODE: Instant switch to COMBAT when enemies detected";
+diag_log "  • SMART FOLLOWING: AI follow player in ALL states (IDLE, COMBAT, RETREAT, HEAL)";
+diag_log "  • ANTI-WANDER: Continuous enforcement prevents AI from straying >50m";
+diag_log "  • AUTO-RETURN: AI automatically return to formation after combat ends";
 diag_log "  • THREAT SCAN: 300m knowledge-based + 50m visual detection";
 diag_log "  • FSM STATES: IDLE (SAFE/UP) ⟷ COMBAT → RETREAT → HEAL";
 diag_log "  • INSTANT REACTION: No delay when threats appear";

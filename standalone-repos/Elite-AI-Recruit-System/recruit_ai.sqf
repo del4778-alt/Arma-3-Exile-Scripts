@@ -1,10 +1,8 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.13 - EXTREME ELITE OPERATORS
+    ELITE AI RECRUIT SYSTEM v7.16 - EXTREME ELITE OPERATORS
     ✅ EXTREME SKILLS - 1.0 (perfect) accuracy, speed, spotting - HEADSHOT MASTERS
     ✅ 300M SIGHT RANGE - Detect and engage enemies at extreme distance
     ✅ 1.4X SPEED - Lightning fast movement and reactions
-    ✅ SAFE MODE RUNNING - Run standing with player when no threats
-    ✅ INSTANT COMBAT - Switch to COMBAT mode when enemies detected
     ✅ PERFECT AIM - No shake, instant acquisition, headshot preference
     ✅ STEALTH BONUS - 50% harder to spot, 50% quieter
     ✅ NO FLEEING - Fearless warriors who never retreat (except when critically wounded)
@@ -12,12 +10,23 @@
     ✅ STREAMLINED FSM - 4 states: Idle (SAFE/UP), Combat, Retreat, Heal
     ✅ INSTANT REACTION - Immediate response to threats
     ✅ DUAL death detection: Event handlers + backup polling
+    ✅ NO VEHICLE BOARDING - AI stay on foot for maximum tactical flexibility
+
+    COMBAT BEHAVIOR:
+    ✅ FULL AUTONOMY - AI have complete freedom to engage, flank, take cover
+    ✅ NO RESTRICTIONS - Can spread out and use advanced tactics in combat
+    ✅ TARGET SHARING - Group shares enemy information automatically
+
+    NON-COMBAT BEHAVIOR:
+    ✅ TIGHT FORMATION - Stay within 30m, mirror player movement closely
+    ✅ STRICT FOLLOWING - Force AI to stay in column formation when safe
+    ✅ AUTO-RETURN - Seamlessly return to tight formation after combat ends
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.13 (Extreme Elite Operators)...";
+diag_log "[AI RECRUIT] Starting initialization v7.16 (Extreme Elite Operators)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -144,25 +153,35 @@ fn_FSM_ExecuteState = {
 
     switch (_state) do {
         case FSM_STATE_IDLE: {
-            // Safe and calm - run with player
+            // Safe and calm - TIGHT FORMATION, mirror player movement
             _unit setBehaviour "SAFE";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "YELLOW";
-            _playerGroup setFormation "COLUMN";
+            _playerGroup setFormation "COLUMN";  // Tight column formation
 
-            // Force standing/running (not crouched)
+            // Force standing/running (not crouched) - mirror player stance
             _unit setUnitPos "UP";
 
-            // Follow player closely
+            // STRICT following - stay close to player
             _unit doFollow _player;
+
+            // Mirror player movement more closely
+            private _distToPlayer = _unit distance _player;
+            if (_distToPlayer > 10) then {
+                _unit doMove (getPos _player);
+            };
         };
 
         case FSM_STATE_COMBAT: {
-            // Enemy detected - extreme combat mode
+            // Enemy detected - FULL COMBAT AUTONOMY
             _unit setBehaviour "COMBAT";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "RED";  // Fire at will
             _playerGroup setFormation "LINE";
+
+            // COMPLETE FREEDOM in combat - no movement restrictions
+            // AI can flank, take cover, spread out, use tactics freely
+            // Group shares target information automatically
 
             // Let AI choose stance for combat
             _unit setUnitPos "AUTO";
@@ -261,6 +280,24 @@ fn_FSM_BrainLoop = {
 
                     // Execute state behavior ONLY on transition
                     [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
+                };
+            };
+
+            // Continuous follow enforcement - ONLY when NOT in combat
+            // In combat, AI have complete freedom to engage and maneuver
+            if (_currentState != FSM_STATE_COMBAT) then {
+                private _distanceToPlayer = _unit distance _player;
+
+                // Strict formation enforcement when safe
+                // Force AI to stay close and mirror player movement
+                if (_distanceToPlayer > 30) then {
+                    _unit doFollow _player;
+                    _unit doMove (getPos _player);
+                };
+
+                // Periodic follow refresh to keep tight formation
+                if (_timeInState > 2) then {
+                    _unit doFollow _player;
                 };
             };
 
@@ -515,6 +552,11 @@ fn_spawnAI = {
 
         private _owner = [_ownerUID] call BIS_fnc_getUnitByUID;
 
+        // BIS_fnc_getUnitByUID can return a vehicle - get the actual unit
+        if (!isNull _owner && {!(_owner isKindOf "CAManBase")}) then {
+            _owner = effectiveCommander _owner;
+        };
+
         if (!isNull _owner && alive _owner) then {
             private _assigned = _owner getVariable ["AssignedAI", []];
             _assigned = _assigned - [_unit];
@@ -766,7 +808,6 @@ fn_cleanupPlayerAI = {
         _player setVariable ["AssignedAI", [], true];
         _player setVariable ["_aiSpawning", false, true];
         _player setVariable ["_aiSpawnLockTime", 0, true];
-        _player setVariable ["_prevVeh", objNull, true];
         diag_log "[AI RECRUIT] Player variables cleared";
     };
 
@@ -776,65 +817,6 @@ fn_cleanupPlayerAI = {
     diag_log "========================================";
 };
 
-// ====================================================================================
-// Function: Assign seats
-// ====================================================================================
-fn_assignSeats = {
-    params ["_player"];
-
-    private _veh = vehicle _player;
-
-    if (isNull _veh || _veh isEqualTo _player) exitWith {};
-    if (locked _veh > 1) exitWith {};
-
-    private _assigned = (_player getVariable ["AssignedAI", []]) select {
-        !isNull _x && alive _x && {vehicle _x != _veh}
-    };
-
-    if (_assigned isEqualTo []) exitWith {};
-
-    private _emptyPositions = _veh emptyPositions "cargo";
-    private _hasDriver = isNull driver _veh;
-    private _hasGunner = isNull gunner _veh;
-
-    private _playerIsDriver = (driver _veh isEqualTo _player);
-    private _playerIsGunner = (gunner _veh isEqualTo _player);
-
-    private _aiIndex = 0;
-
-    private _fnc_moveNextAI = {
-        params ["_seatType", "_veh", "_assigned", "_aiIndex"];
-        if (_aiIndex < count _assigned) then {
-            private _ai = _assigned select _aiIndex;
-            if (!isNull _ai && alive _ai) then {
-                switch (_seatType) do {
-                    case "driver": { _ai moveInDriver _veh };
-                    case "gunner": { _ai moveInGunner _veh };
-                    case "cargo": { _ai moveInCargo _veh };
-                };
-                _aiIndex = _aiIndex + 1;
-            };
-        };
-        _aiIndex
-    };
-
-    if (!_playerIsDriver && _hasDriver) then {
-        _aiIndex = ["driver", _veh, _assigned, _aiIndex] call _fnc_moveNextAI;
-    };
-
-    if (!_playerIsGunner && _hasGunner) then {
-        _aiIndex = ["gunner", _veh, _assigned, _aiIndex] call _fnc_moveNextAI;
-    };
-
-    for "_i" from _aiIndex to ((count _assigned) - 1) do {
-        if (_emptyPositions > 0) then {
-            _aiIndex = ["cargo", _veh, _assigned, _aiIndex] call _fnc_moveNextAI;
-            _emptyPositions = _emptyPositions - 1;
-        };
-    };
-
-    _player setVariable ["_prevVeh", _veh, true];
-};
 
 // ====================================================================================
 // Setup event handlers for a player
@@ -848,49 +830,15 @@ fn_setupPlayerHandlers = {
 
     // MULTIPLE DEATH DETECTION METHODS (for reliability in Exile)
 
-    // Killed event handler (works in both SP and MP)
+    // Killed event handler (cleanup AI when player dies)
     _player addEventHandler ["Killed", {
         params ["_unit", "_killer"];
         private _uid = getPlayerUID _unit;
-        diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED: %1 !!!!!", name _unit];
+        diag_log format ["[AI RECRUIT] Player death detected: %1 - cleaning up AI", name _unit];
         [_uid, name _unit] call fn_cleanupPlayerAI;
     }];
 
     diag_log format ["[AI RECRUIT] Death event handlers registered for %1", name _player];
-
-    // GetInMan
-    _player addEventHandler ["GetInMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        [_unit] spawn {
-            params ["_player"];
-            sleep 0.5;
-            if (!isNull _player && alive _player) then {
-                [_player] call fn_assignSeats;
-            };
-        };
-    }];
-
-    // GetOutMan
-    _player addEventHandler ["GetOutMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        [_unit, _vehicle] spawn {
-            params ["_player", "_vehicle"];
-            sleep 0.3;
-            if (!isNull _player && alive _player) then {
-                private _assigned = _player getVariable ["AssignedAI", []];
-                {
-                    if (!isNull _x && {vehicle _x isEqualTo _vehicle}) then {
-                        unassignVehicle _x;
-                        moveOut _x;
-                    };
-                } forEach _assigned;
-
-                _player setVariable ["_prevVeh", objNull, true];
-            };
-        };
-    }];
 
     // Respawn - spawn NEW AI after delay
     _player addEventHandler ["Respawn", {
@@ -913,7 +861,6 @@ fn_setupPlayerHandlers = {
 
         // Clear variables
         _unit setVariable ["AssignedAI", [], true];
-        _unit setVariable ["_prevVeh", objNull, true];
         _unit setVariable ["_aiSpawning", false, true];
         _unit setVariable ["_aiSpawnLockTime", 0, true];
         _unit setVariable ["_lastCheckTime", 0, true];
@@ -1074,14 +1021,23 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.13 - EXTREME ELITE OPERATORS";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.16 - EXTREME ELITE OPERATORS";
 diag_log "  • EXTREME SKILLS: 1.0 (PERFECT) in all categories - HEADSHOT MASTERS";
 diag_log "  • 300M SIGHT RANGE: Detect and engage at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning fast movement (setAnimSpeedCoef 1.4)";
 diag_log "  • PERFECT AIM: No shake, instant acquisition, laser accuracy";
 diag_log "  • STEALTH: 50% harder to spot, 50% quieter";
-diag_log "  • SAFE MODE IDLE: Runs standing with player (SAFE behavior, UP stance)";
-diag_log "  • COMBAT MODE: Instant switch to COMBAT when enemies detected";
+diag_log "";
+diag_log "  COMBAT BEHAVIOR:";
+diag_log "  • FULL AUTONOMY: Complete freedom to engage, flank, spread out";
+diag_log "  • NO RESTRICTIONS: AI use advanced tactics, take cover independently";
+diag_log "  • TARGET SHARING: Group automatically shares enemy information";
+diag_log "";
+diag_log "  NON-COMBAT BEHAVIOR:";
+diag_log "  • TIGHT FORMATION: Stay within 30m of player at all times";
+diag_log "  • STRICT FOLLOWING: Mirror player movement in column formation";
+diag_log "  • AUTO-RETURN: Seamlessly return to formation after combat ends";
+diag_log "";
 diag_log "  • THREAT SCAN: 300m knowledge-based + 50m visual detection";
 diag_log "  • FSM STATES: IDLE (SAFE/UP) ⟷ COMBAT → RETREAT → HEAL";
 diag_log "  • INSTANT REACTION: No delay when threats appear";
@@ -1092,6 +1048,7 @@ diag_log "  • EXILE RESILIENT: Brain survives session initialization";
 diag_log "  • FSM LOGGING: State transitions logged to RPT";
 diag_log "  • EVENT-BASED death detection + backup polling";
 diag_log "  • STRICT 3 AI maximum";
+diag_log "  • NO VEHICLE BOARDING: AI stay on foot";
 if (RECRUIT_VCOMAI_Active) then {
     diag_log "  • VCOMAI Integration: ENABLED";
 } else {

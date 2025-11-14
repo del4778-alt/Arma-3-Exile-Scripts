@@ -1,12 +1,19 @@
 /*
     =====================================================
-    ELITE AI DRIVING SYSTEM v5.2 - TESLA AUTOPILOT MODE
+    ELITE AI DRIVING SYSTEM v5.3 - TESLA AUTOPILOT MODE
     =====================================================
     Author: Master SQF Engineer
-    Version: 5.2 - ULTIMATE DRIVING AI + CORNER FIX
+    Version: 5.3 - PATH-PLANNING FIX + CORNER DETECTION
     =====================================================
 
-    NEW IN v5.2:
+    NEW IN v5.3:
+    ✅ Map boundary validation (prevents path-planning errors)
+    ✅ 500m safety margin from map edges
+    ✅ Water detection for land vehicles
+    ✅ Automatic forceFollowRoad disable at map edge
+    ✅ Waypoint validation before creation
+
+    v5.2 Features:
     ✅ Corner obstacle detection (90° turn fix)
     ✅ Additional corner sensors at 70° angle
     ✅ Aggressive slowdown for corner obstacles
@@ -225,10 +232,10 @@ EAID_ActiveDrivers = createHashMap;
 EAID_ProcessedUnits = [];
 
 diag_log "==========================================";
-diag_log "Elite AI Driving v5.2 - CORNER FIX UPDATE";
-diag_log format ["Map: %1", worldName];
+diag_log "Elite AI Driving v5.3 - PATH-PLANNING FIX";
+diag_log format ["Map: %1 (Size: %2m)", worldName, worldSize];
 diag_log format ["Sensor Tick Rate: %1 Hz", 1 / (EAID_CONFIG get "UPDATE_INTERVAL")];
-diag_log format ["Features: 7-Ray LIDAR + Corner Detection + Drift + Auto-Unstuck"];
+diag_log format ["Features: Map Edge Detection + 7-Ray LIDAR + Corner Detection"];
 diag_log "==========================================";
 
 // =====================================================
@@ -824,6 +831,30 @@ EAID_fnc_eliteDriving = {
 };
 
 // =====================================================
+// MAP BOUNDARY VALIDATION
+// =====================================================
+
+EAID_fnc_isValidPosition = {
+    params ["_pos"];
+
+    // Get map size
+    private _mapSize = worldSize;
+    private _margin = 500;  // 500m safety margin from map edge
+
+    // Check if position is within valid boundaries
+    private _x = _pos select 0;
+    private _y = _pos select 1;
+
+    if (_x < _margin || _x > (_mapSize - _margin)) exitWith {false};
+    if (_y < _margin || _y > (_mapSize - _margin)) exitWith {false};
+
+    // Additional check: ensure position is not in water (for land vehicles)
+    if (surfaceIsWater _pos) exitWith {false};
+
+    true
+};
+
+// =====================================================
 // ROAD FOLLOWING & WAYPOINT MANAGEMENT
 // =====================================================
 
@@ -854,43 +885,81 @@ EAID_fnc_roadFollowing = {
         };
 
         private _pos = getPosATL _vehicle;
-        private _nearRoads = _pos nearRoads 50;
 
-        if (count _nearRoads > 0) then {
-            private _road = _nearRoads select 0;
-            private _connected = roadsConnectedTo _road;
+        // NEW: Check if vehicle is near map edge
+        if (!([_pos] call EAID_fnc_isValidPosition)) then {
+            // Vehicle too close to map edge - disable road following
+            _unit forceFollowRoad false;
 
-            if (count _connected > 0) then {
-                // Find best road ahead
-                private _vehicleDir = getDir _vehicle;
-                private _bestRoad = objNull;
-                private _bestScore = -1;
+            // Delete all waypoints
+            while {(count waypoints _group) > 0} do {
+                deleteWaypoint [_group, 0];
+            };
 
-                {
-                    private _roadPos = getPosATL _x;
-                    private _roadDir = _pos getDir _roadPos;
-                    private _angleDiff = [_vehicleDir, _roadDir] call EAID_fnc_angleDiff;
-                    private _score = 1 - ((abs _angleDiff) / 180);
+            if (EAID_CONFIG get "DEBUG") then {
+                diag_log format ["EAID: %1 near map edge - disabling road following (pos: %2)",
+                    name _unit, _pos];
+            };
 
-                    if (_score > _bestScore) then {
-                        _bestScore = _score;
-                        _bestRoad = _x;
-                    };
-                } forEach _connected;
+            sleep 5;  // Wait before checking again
+        } else {
+            // Vehicle in valid area - continue normal navigation
+            private _nearRoads = _pos nearRoads 50;
 
-                if (!isNull _bestRoad) then {
-                    private _wpIndex = currentWaypoint _group;
+            if (count _nearRoads > 0) then {
+                private _road = _nearRoads select 0;
+                private _connected = roadsConnectedTo _road;
 
-                    if ((count waypoints _group) <= _wpIndex) then {
-                        private _wp = _group addWaypoint [getPosATL _bestRoad, 0];
-                        _wp setWaypointType "MOVE";
-                        _wp setWaypointSpeed "FULL";
-                        _wp setWaypointBehaviour "CARELESS";
-                    } else {
-                        [_group, _wpIndex] setWaypointPosition [getPosATL _bestRoad, 0];
+                if (count _connected > 0) then {
+                    // Find best road ahead
+                    private _vehicleDir = getDir _vehicle;
+                    private _bestRoad = objNull;
+                    private _bestScore = -1;
+
+                    {
+                        private _roadPos = getPosATL _x;
+                        private _roadDir = _pos getDir _roadPos;
+                        private _angleDiff = [_vehicleDir, _roadDir] call EAID_fnc_angleDiff;
+                        private _score = 1 - ((abs _angleDiff) / 180);
+
+                        if (_score > _bestScore) then {
+                            _bestScore = _score;
+                            _bestRoad = _x;
+                        };
+                    } forEach _connected;
+
+                    if (!isNull _bestRoad) then {
+                        private _roadPos = getPosATL _bestRoad;
+
+                        // NEW: Validate position before creating waypoint
+                        if ([_roadPos] call EAID_fnc_isValidPosition) then {
+                            private _wpIndex = currentWaypoint _group;
+
+                            if ((count waypoints _group) <= _wpIndex) then {
+                                private _wp = _group addWaypoint [_roadPos, 0];
+                                _wp setWaypointType "MOVE";
+                                _wp setWaypointSpeed "FULL";
+                                _wp setWaypointBehaviour "CARELESS";
+                            } else {
+                                [_group, _wpIndex] setWaypointPosition [_roadPos, 0];
+                            };
+                        } else {
+                            // Position invalid (map edge or water) - stop creating waypoints
+                            if (EAID_CONFIG get "DEBUG") then {
+                                diag_log format ["EAID: WARNING - Waypoint at map edge rejected for %1 (pos: %2)",
+                                    name _unit, _roadPos];
+                            };
+
+                            // Disable forceFollowRoad to prevent errors
+                            _unit forceFollowRoad false;
+
+                            // Delete all waypoints to stop navigation
+                            while {(count waypoints _group) > 0} do {
+                                deleteWaypoint [_group, 0];
+                            };
+                        };
                     };
                 };
-            };
         };
 
         sleep 2;
@@ -1110,13 +1179,15 @@ if (EAID_CONFIG get "ENABLED") then {
     private _mapPreset = call EAID_fnc_getMapPreset;
 
     diag_log "==========================================";
-    diag_log "Elite AI Driving v5.2 - CORNER FIX UPDATE";
+    diag_log "Elite AI Driving v5.3 - PATH-PLANNING FIX";
     diag_log format ["Applies To: ALL AI sides (EAST/WEST/INDEPENDENT/CIVILIAN)"];
+    diag_log format ["Map Size: %1m x %1m (500m safety margin)", worldSize];
     diag_log format ["Raycast Sensors: 7-ray LIDAR system (with corner detection)"];
     diag_log format ["Corner Sensors: 70° angle at 20m range"];
     diag_log format ["Max Speed: %1 km/h (highway mode)", EAID_CONFIG get "SPEED_MAX_HIGHWAY"];
     diag_log format ["Map Bonus: %1x straight boost", _mapPreset get "straightBonus"];
     diag_log format ["Combat Driving: Run over enemies = %1", EAID_CONFIG get "RUN_OVER_ENEMIES"];
+    diag_log format ["Map Edge Protection: Enabled (prevents path-planning errors)"];
     diag_log format ["Corner Detection: Enabled (prevents cutting 90° turns)"];
     diag_log format ["Drift Detection: Enabled (auto counter-steer)"];
     diag_log format ["Auto-Unstuck: Enabled (3s threshold)"];
@@ -1125,5 +1196,5 @@ if (EAID_CONFIG get "ENABLED") then {
     diag_log format ["Update Rate: %1 Hz", round (1 / (EAID_CONFIG get "UPDATE_INTERVAL"))];
     diag_log "==========================================";
 } else {
-    diag_log "Elite AI Driving v5.2 - DISABLED";
+    diag_log "Elite AI Driving v5.3 - DISABLED";
 };

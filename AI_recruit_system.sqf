@@ -219,9 +219,10 @@ RECRUIT_fnc_FSM_BrainLoop = {
     while {!isNull _unit && alive _unit} do {
         private _player = [_playerUID] call BIS_fnc_getUnitByUID;
 
-        if (!isNull _player && alive _player && alive _unit) then {
+        // ✅ FIXED: Get current state BEFORE if block so it's always defined
+        private _currentState = _unit getVariable ["FSM_CurrentState", FSM_STATE_IDLE];
 
-            private _currentState = _unit getVariable ["FSM_CurrentState", FSM_STATE_IDLE];
+        if (!isNull _player && alive _player && alive _unit) then {
             private _stateTimer = _unit getVariable ["FSM_StateTimer", time];
             private _lastTransition = _unit getVariable ["FSM_LastTransition", time];
             private _timeInState = time - _stateTimer;

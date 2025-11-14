@@ -1,5 +1,5 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.13 - EXTREME ELITE OPERATORS
+    ELITE AI RECRUIT SYSTEM v7.14 - EXTREME ELITE OPERATORS
     ✅ EXTREME SKILLS - 1.0 (perfect) accuracy, speed, spotting - HEADSHOT MASTERS
     ✅ 300M SIGHT RANGE - Detect and engage enemies at extreme distance
     ✅ 1.4X SPEED - Lightning fast movement and reactions
@@ -12,12 +12,13 @@
     ✅ STREAMLINED FSM - 4 states: Idle (SAFE/UP), Combat, Retreat, Heal
     ✅ INSTANT REACTION - Immediate response to threats
     ✅ DUAL death detection: Event handlers + backup polling
+    ✅ NO VEHICLE BOARDING - AI stay on foot for maximum tactical flexibility
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.13 (Extreme Elite Operators)...";
+diag_log "[AI RECRUIT] Starting initialization v7.14 (Extreme Elite Operators)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
@@ -771,7 +772,6 @@ fn_cleanupPlayerAI = {
         _player setVariable ["AssignedAI", [], true];
         _player setVariable ["_aiSpawning", false, true];
         _player setVariable ["_aiSpawnLockTime", 0, true];
-        _player setVariable ["_prevVeh", objNull, true];
         diag_log "[AI RECRUIT] Player variables cleared";
     };
 
@@ -781,65 +781,6 @@ fn_cleanupPlayerAI = {
     diag_log "========================================";
 };
 
-// ====================================================================================
-// Function: Assign seats
-// ====================================================================================
-fn_assignSeats = {
-    params ["_player"];
-
-    private _veh = vehicle _player;
-
-    if (isNull _veh || _veh isEqualTo _player) exitWith {};
-    if (locked _veh > 1) exitWith {};
-
-    private _assigned = (_player getVariable ["AssignedAI", []]) select {
-        !isNull _x && alive _x && {vehicle _x != _veh}
-    };
-
-    if (_assigned isEqualTo []) exitWith {};
-
-    private _emptyPositions = _veh emptyPositions "cargo";
-    private _hasDriver = isNull driver _veh;
-    private _hasGunner = isNull gunner _veh;
-
-    private _playerIsDriver = (driver _veh isEqualTo _player);
-    private _playerIsGunner = (gunner _veh isEqualTo _player);
-
-    private _aiIndex = 0;
-
-    private _fnc_moveNextAI = {
-        params ["_seatType", "_veh", "_assigned", "_aiIndex"];
-        if (_aiIndex < count _assigned) then {
-            private _ai = _assigned select _aiIndex;
-            if (!isNull _ai && alive _ai) then {
-                switch (_seatType) do {
-                    case "driver": { _ai moveInDriver _veh };
-                    case "gunner": { _ai moveInGunner _veh };
-                    case "cargo": { _ai moveInCargo _veh };
-                };
-                _aiIndex = _aiIndex + 1;
-            };
-        };
-        _aiIndex
-    };
-
-    if (!_playerIsDriver && _hasDriver) then {
-        _aiIndex = ["driver", _veh, _assigned, _aiIndex] call _fnc_moveNextAI;
-    };
-
-    if (!_playerIsGunner && _hasGunner) then {
-        _aiIndex = ["gunner", _veh, _assigned, _aiIndex] call _fnc_moveNextAI;
-    };
-
-    for "_i" from _aiIndex to ((count _assigned) - 1) do {
-        if (_emptyPositions > 0) then {
-            _aiIndex = ["cargo", _veh, _assigned, _aiIndex] call _fnc_moveNextAI;
-            _emptyPositions = _emptyPositions - 1;
-        };
-    };
-
-    _player setVariable ["_prevVeh", _veh, true];
-};
 
 // ====================================================================================
 // Setup event handlers for a player
@@ -863,40 +804,6 @@ fn_setupPlayerHandlers = {
 
     diag_log format ["[AI RECRUIT] Death event handlers registered for %1", name _player];
 
-    // GetInMan
-    _player addEventHandler ["GetInMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        [_unit] spawn {
-            params ["_player"];
-            sleep 0.5;
-            if (!isNull _player && alive _player) then {
-                [_player] call fn_assignSeats;
-            };
-        };
-    }];
-
-    // GetOutMan
-    _player addEventHandler ["GetOutMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        [_unit, _vehicle] spawn {
-            params ["_player", "_vehicle"];
-            sleep 0.3;
-            if (!isNull _player && alive _player) then {
-                private _assigned = _player getVariable ["AssignedAI", []];
-                {
-                    if (!isNull _x && {vehicle _x isEqualTo _vehicle}) then {
-                        unassignVehicle _x;
-                        moveOut _x;
-                    };
-                } forEach _assigned;
-
-                _player setVariable ["_prevVeh", objNull, true];
-            };
-        };
-    }];
-
     // Respawn - spawn NEW AI after delay
     _player addEventHandler ["Respawn", {
         params ["_unit", "_corpse"];
@@ -918,7 +825,6 @@ fn_setupPlayerHandlers = {
 
         // Clear variables
         _unit setVariable ["AssignedAI", [], true];
-        _unit setVariable ["_prevVeh", objNull, true];
         _unit setVariable ["_aiSpawning", false, true];
         _unit setVariable ["_aiSpawnLockTime", 0, true];
         _unit setVariable ["_lastCheckTime", 0, true];
@@ -1079,7 +985,7 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.13 - EXTREME ELITE OPERATORS";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.14 - EXTREME ELITE OPERATORS";
 diag_log "  • EXTREME SKILLS: 1.0 (PERFECT) in all categories - HEADSHOT MASTERS";
 diag_log "  • 300M SIGHT RANGE: Detect and engage at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning fast movement (setAnimSpeedCoef 1.4)";
@@ -1097,6 +1003,7 @@ diag_log "  • EXILE RESILIENT: Brain survives session initialization";
 diag_log "  • FSM LOGGING: State transitions logged to RPT";
 diag_log "  • EVENT-BASED death detection + backup polling";
 diag_log "  • STRICT 3 AI maximum";
+diag_log "  • NO VEHICLE BOARDING: AI stay on foot";
 if (RECRUIT_VCOMAI_Active) then {
     diag_log "  • VCOMAI Integration: ENABLED";
 } else {

@@ -1,36 +1,37 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.18 - COMPLETE BUGFIX
-    ✅ All function scoping fixed
-    ✅ Group ownership retry logic
-    ✅ Enhanced player initialization
-    ✅ Fresh server start spawn fix
-    ✅ Variable shadowing fixed
-    ✅ Elite Driving integration
-    ✅ Zombie resurrection protection
+    ELITE AI RECRUIT SYSTEM v7.16 - EXTREME ELITE OPERATORS
+    ✅ EXTREME SKILLS - 1.0 (perfect) accuracy, speed, spotting - HEADSHOT MASTERS
+    ✅ 300M SIGHT RANGE - Detect and engage enemies at extreme distance
+    ✅ 1.4X SPEED - Lightning fast movement and reactions
+    ✅ PERFECT AIM - No shake, instant acquisition, headshot preference
+    ✅ STEALTH BONUS - 50% harder to spot, 50% quieter
+    ✅ NO FLEEING - Fearless warriors who never retreat (except when critically wounded)
+    ✅ EXILE RESILIENT - Brain survives Exile session initialization
+    ✅ STREAMLINED FSM - 4 states: Idle (SAFE/UP), Combat, Retreat, Heal
+    ✅ INSTANT REACTION - Immediate response to threats
+    ✅ DUAL death detection: Event handlers + backup polling
+    ✅ NO VEHICLE BOARDING - AI stay on foot for maximum tactical flexibility
 
-    VEHICLE BEHAVIOR:
-    ✅ Driver = Elite Driving (autopilot)
-    ✅ Gunner = Full combat AI (if armed vehicle)
-    ✅ Passengers = Locked (won't exit until player exits)
-    ✅ On foot = FSM brain system (IDLE/COMBAT/RETREAT/HEAL)
+    COMBAT BEHAVIOR:
+    ✅ FULL AUTONOMY - AI have complete freedom to engage, flank, take cover
+    ✅ NO RESTRICTIONS - Can spread out and use advanced tactics in combat
+    ✅ TARGET SHARING - Group shares enemy information automatically
 
-    CHANGES IN v7.18:
-    - Fixed undefined function errors (proper scoping)
-    - Fixed group ownership transfer timeout
-    - Fixed fresh server start spawn issues
-    - Fixed player ready detection
-    - All previous fixes maintained
+    NON-COMBAT BEHAVIOR:
+    ✅ TIGHT FORMATION - Stay within 30m, mirror player movement closely
+    ✅ STRICT FOLLOWING - Force AI to stay in column formation when safe
+    ✅ AUTO-RETURN - Seamlessly return to tight formation after combat ends
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.18 (Complete Bugfix)...";
+diag_log "[AI RECRUIT] Starting initialization v7.16 (Extreme Elite Operators)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // Make Independent hostile to West (zombies)
-//independent setFriend [west, 0];
-//west setFriend [independent, 0];
+independent setFriend [west, 0];
+west setFriend [independent, 0];
 
 // ============================================
 // VCOMAI COMPATIBILITY CHECK
@@ -67,14 +68,14 @@ diag_log "[AI RECRUIT] Validating AI types...";
 } forEach RECRUIT_AI_TYPES;
 
 // ====================================================================================
-// ADVANCED FSM BRAIN SYSTEM
+// ADVANCED FSM BRAIN SYSTEM - Based on LAMBS Danger.fsm
 // ====================================================================================
 
 // FSM States
-FSM_STATE_IDLE = "IDLE";
-FSM_STATE_COMBAT = "COMBAT";
-FSM_STATE_RETREAT = "RETREAT";
-FSM_STATE_HEAL = "HEAL";
+FSM_STATE_IDLE = "IDLE";           // Following player, no threats
+FSM_STATE_COMBAT = "COMBAT";       // Engaged with enemy
+FSM_STATE_RETREAT = "RETREAT";     // Falling back when critically wounded
+FSM_STATE_HEAL = "HEAL";           // Healing self when safe
 
 diag_log "[AI RECRUIT] FSM Brain: 4-state simplified system initialized";
 diag_log "[AI RECRUIT] States: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
@@ -82,16 +83,15 @@ diag_log "[AI RECRUIT] States: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
 // ====================================================================================
 // FSM: Analyze threat situation
 // ====================================================================================
-RECRUIT_fnc_FSM_AnalyzeThreat = {
+fn_FSM_AnalyzeThreat = {
     params ["_unit"];
 
-    // Scan for enemies at 300m range - OPTIMIZED with distanceSqr
-    private _maxDistSqr = 300 * 300; // 90000
+    // Scan for enemies at 300m range - extreme sight distance
     private _threats = _unit nearEntities [["CAManBase"], 300] select {
         side _x != side _unit && alive _x && _unit knowsAbout _x > 0.05
     };
 
-    // Also check for very close enemies regardless of knowledge
+    // Also check for very close enemies regardless of knowledge (visual detection)
     private _veryClose = _unit nearEntities [["CAManBase"], 50] select {
         side _x != side _unit && alive _x
     };
@@ -100,32 +100,32 @@ RECRUIT_fnc_FSM_AnalyzeThreat = {
     {
         if (!(_x in _threats)) then {
             _threats pushBack _x;
-            _unit reveal [_x, 2.0];
+            // Reveal very close enemies immediately
+            _unit reveal [_x, 2.0];  // High reveal level
         };
     } forEach _veryClose;
 
     if (count _threats == 0) exitWith {
-        [0, objNull, 0, 0]
+        [0, objNull, 0, 0] // [count, closest, distance, avgKnowledge]
     };
 
-    // OPTIMIZED: Use distanceSqr instead of distance
-    _threats = _threats apply {[_x, _unit distanceSqr _x, _unit knowsAbout _x]};
-    _threats sort true;
+    _threats = _threats apply {[_x, _unit distance _x, _unit knowsAbout _x]};
+    _threats sort true; // Sort by distance
 
     private _closest = (_threats select 0) select 0;
-    private _closestDistSqr = (_threats select 0) select 1;
+    private _closestDist = (_threats select 0) select 1;
     private _avgKnowledge = ((_threats apply {_x select 2}) call BIS_fnc_arithmeticMean);
 
-    [count _threats, _closest, sqrt _closestDistSqr, _avgKnowledge]
+    [count _threats, _closest, _closestDist, _avgKnowledge]
 };
 
 // ====================================================================================
-// FSM: Evaluate next state
+// FSM: Evaluate next state based on current situation
 // ====================================================================================
-RECRUIT_fnc_FSM_EvaluateNextState = {
+fn_FSM_EvaluateNextState = {
     params ["_unit", "_currentState", "_player"];
 
-    private _threatInfo = [_unit] call RECRUIT_fnc_FSM_AnalyzeThreat;
+    private _threatInfo = [_unit] call fn_FSM_AnalyzeThreat;
     _threatInfo params ["_threatCount", "_closestThreat", "_threatDist", "_avgKnowledge"];
 
     private _damage = damage _unit;
@@ -147,48 +147,58 @@ RECRUIT_fnc_FSM_EvaluateNextState = {
 // ====================================================================================
 // FSM: Execute state-specific behavior
 // ====================================================================================
-RECRUIT_fnc_FSM_ExecuteState = {
+fn_FSM_ExecuteState = {
     params ["_unit", "_state", "_player", "_playerGroup", "_threatInfo"];
     _threatInfo params ["_threatCount", "_closestThreat", "_threatDist", "_avgKnowledge"];
 
-    // Check if this AI is currently driving a vehicle
-    private _veh = vehicle _unit;
-    private _isDriver = (_veh != _unit && driver _veh == _unit);
-
-    // If AI is driving, let Elite Driving System handle it - don't interfere
-    if (_isDriver) exitWith {};
-
     switch (_state) do {
         case FSM_STATE_IDLE: {
+            // Safe and calm - TIGHT FORMATION, mirror player movement
             _unit setBehaviour "SAFE";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "YELLOW";
-            _playerGroup setFormation "COLUMN";
+            _playerGroup setFormation "COLUMN";  // Tight column formation
+
+            // Force standing/running (not crouched) - mirror player stance
             _unit setUnitPos "UP";
+
+            // STRICT following - stay close to player
             _unit doFollow _player;
 
-            private _distToPlayer = _unit distanceSqr _player;
-            if (_distToPlayer > (10 * 10)) then {
+            // Mirror player movement more closely
+            private _distToPlayer = _unit distance _player;
+            if (_distToPlayer > 10) then {
                 _unit doMove (getPos _player);
             };
         };
 
         case FSM_STATE_COMBAT: {
+            // Enemy detected - FULL COMBAT AUTONOMY
             _unit setBehaviour "COMBAT";
             _unit setSpeedMode "FULL";
-            _unit setCombatMode "RED";
+            _unit setCombatMode "RED";  // Fire at will
             _playerGroup setFormation "LINE";
+
+            // COMPLETE FREEDOM in combat - no movement restrictions
+            // AI can flank, take cover, spread out, use tactics freely
+            // Group shares target information automatically
+
+            // Let AI choose stance for combat
             _unit setUnitPos "AUTO";
         };
 
         case FSM_STATE_RETREAT: {
+            // Badly wounded - fall back fast
             _unit setBehaviour "AWARE";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "YELLOW";
             _playerGroup setFormation "COLUMN";
-            _unit doFollow _player;
-            _unit setUnitPos "UP";
 
+            // Move toward player
+            _unit doFollow _player;
+            _unit setUnitPos "UP";  // Run fast
+
+            // Use smoke if available
             if ("SmokeShell" in magazines _unit && random 1 > 0.7) then {
                 _unit fire ["SmokeShellMuzzle", "SmokeShellMuzzle", "SmokeShell"];
             };
@@ -199,13 +209,17 @@ RECRUIT_fnc_FSM_ExecuteState = {
         };
 
         case FSM_STATE_HEAL: {
+            // Safe and wounded - heal while running with player
             _unit setBehaviour "SAFE";
             _unit setSpeedMode "FULL";
             _unit setCombatMode "YELLOW";
             _playerGroup setFormation "COLUMN";
-            _unit doFollow _player;
-            _unit setUnitPos "UP";
 
+            // Stay with player while healing
+            _unit doFollow _player;
+            _unit setUnitPos "UP";  // Stand/run
+
+            // Use FAK if available
             if ("FirstAidKit" in items _unit) then {
                 _unit action ["HealSoldierSelf", _unit];
             };
@@ -214,23 +228,20 @@ RECRUIT_fnc_FSM_ExecuteState = {
 };
 
 // ====================================================================================
-// FSM: Main brain loop (OPTIMIZED with staggering)
+// FSM: Main brain loop for each AI unit
 // ====================================================================================
-RECRUIT_fnc_FSM_BrainLoop = {
+fn_FSM_BrainLoop = {
     params ["_unit", "_playerUID", "_playerGroup"];
 
-    // ✅ FIXED: Use random instead of hashValue
-    private _stagger = random [0, 1, 2]; // 0-2 second stagger
-    sleep _stagger;
-
+    // Initialize FSM state
     _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
     _unit setVariable ["FSM_StateTimer", time, false];
     _unit setVariable ["FSM_LastTransition", time, false];
 
-    diag_log format ["[AI RECRUIT FSM] Brain activated for %1 (UID: %2, stagger: %3s)", 
-        typeOf _unit, _playerUID, _stagger];
+    diag_log format ["[AI RECRUIT FSM] Brain activated for %1 (UID: %2)", typeOf _unit, _playerUID];
 
     while {!isNull _unit && alive _unit} do {
+        // Look up player by UID each loop (resilient to Exile session changes)
         private _player = [_playerUID] call BIS_fnc_getUnitByUID;
 
         if (!isNull _player && alive _player && alive _unit) then {
@@ -240,18 +251,21 @@ RECRUIT_fnc_FSM_BrainLoop = {
             private _lastTransition = _unit getVariable ["FSM_LastTransition", time];
             private _timeInState = time - _stateTimer;
 
-            private _threatInfo = [_unit] call RECRUIT_fnc_FSM_AnalyzeThreat;
+            // Analyze threat situation
+            private _threatInfo = [_unit] call fn_FSM_AnalyzeThreat;
             private _threatCount = _threatInfo select 0;
 
+            // Evaluate next state - instant reaction to threats, 2s delay for non-combat
             private _canSwitch = if (_threatCount > 0) then {
-                true
+                true  // Instant reaction to threats
             } else {
-                _timeInState > 2
+                _timeInState > 2  // 2s minimum for non-combat states
             };
 
             if (_canSwitch) then {
-                private _nextState = [_unit, _currentState, _player] call RECRUIT_fnc_FSM_EvaluateNextState;
+                private _nextState = [_unit, _currentState, _player] call fn_FSM_EvaluateNextState;
 
+                // State transition - only execute state actions on transition
                 if (_nextState != _currentState) then {
                     diag_log format ["[AI RECRUIT FSM] %1: %2 → %3 (Threat: %4 @ %5m)",
                         name _unit, _currentState, _nextState,
@@ -264,19 +278,24 @@ RECRUIT_fnc_FSM_BrainLoop = {
 
                     _currentState = _nextState;
 
-                    [_unit, _currentState, _player, _playerGroup, _threatInfo] call RECRUIT_fnc_FSM_ExecuteState;
+                    // Execute state behavior ONLY on transition
+                    [_unit, _currentState, _player, _playerGroup, _threatInfo] call fn_FSM_ExecuteState;
                 };
             };
 
-            // Follow enforcement when NOT in combat
+            // Continuous follow enforcement - ONLY when NOT in combat
+            // In combat, AI have complete freedom to engage and maneuver
             if (_currentState != FSM_STATE_COMBAT) then {
-                private _distanceToPlayerSqr = _unit distanceSqr _player;
+                private _distanceToPlayer = _unit distance _player;
 
-                if (_distanceToPlayerSqr > (30 * 30)) then {
+                // Strict formation enforcement when safe
+                // Force AI to stay close and mirror player movement
+                if (_distanceToPlayer > 30) then {
                     _unit doFollow _player;
                     _unit doMove (getPos _player);
                 };
 
+                // Periodic follow refresh to keep tight formation
                 if (_timeInState > 2) then {
                     _unit doFollow _player;
                 };
@@ -284,22 +303,14 @@ RECRUIT_fnc_FSM_BrainLoop = {
 
         };
 
-        // ✅ OPTIMIZED: Variable sleep based on state
-        private _sleepTime = switch (_currentState) do {
-            case FSM_STATE_COMBAT: { 1.0 };
-            case FSM_STATE_RETREAT: { 1.0 };
-            case FSM_STATE_HEAL: { 2.5 };
-            default { 3.0 };
-        };
-        
-        sleep _sleepTime;
+        sleep 2; // FSM evaluation every 2 seconds
     };
 
     diag_log format ["[AI RECRUIT FSM] Brain terminated for %1", typeOf _unit];
 };
 
 // ====================================================================================
-// Function: Check if player is fully initialized (ENHANCED)
+// Function: Check if player is fully initialized and ready
 // ====================================================================================
 fn_isPlayerReady = {
     params ["_player"];
@@ -313,18 +324,16 @@ fn_isPlayerReady = {
     if (isNull group _player) exitWith { false };
     if ((getPosATL _player) isEqualTo [0,0,0]) exitWith { false };
 
-    // ✅ Check if Exile session is initialized
-    private _sessionID = _player getVariable ["ExileSessionID", ""];
-    if (_sessionID isEqualTo "") exitWith {
-        diag_log format ["[AI RECRUIT] Player %1 waiting for Exile session...", name _player];
+    // Check if player is on the ground (not parachuting/in air)
+    if ((getPosATL _player select 2) > 3) exitWith {
+        diag_log format ["[AI RECRUIT] Player %1 is in air (altitude: %2m) - waiting for landing", name _player, round ((getPosATL _player select 2))];
         false
     };
 
-    // ✅ Minimum time since connection (prevent instant spawn)
-    private _connectTime = _player getVariable ["RECRUIT_ConnectTime", time];
-    if ((time - _connectTime) < 5) exitWith {
-        diag_log format ["[AI RECRUIT] Player %1 connected %2s ago - waiting", 
-            name _player, round (time - _connectTime)];
+    // Check if player is in a parachute
+    private _veh = vehicle _player;
+    if (_veh != _player && {_veh isKindOf "ParachuteBase"}) exitWith {
+        diag_log format ["[AI RECRUIT] Player %1 is parachuting - waiting for landing", name _player];
         false
     };
 
@@ -332,7 +341,7 @@ fn_isPlayerReady = {
 };
 
 // ====================================================================================
-// Function: Check spawn cooldown (OPTIMIZED with combat check)
+// Function: Check spawn cooldown
 // ====================================================================================
 fn_checkSpawnCooldown = {
     params ["_uid"];
@@ -340,19 +349,8 @@ fn_checkSpawnCooldown = {
     private _lastSpawnTime = spawn_cooldowns getOrDefault [_uid, 0];
     private _cooldownRemaining = (_lastSpawnTime + 5) - time;
 
-    // ✅ Also check if player is in active combat
-    private _player = [_uid] call BIS_fnc_getUnitByUID;
-    if (!isNull _player) then {
-        private _inCombat = (_player getVariable ["FSM_CurrentState", ""]) == FSM_STATE_COMBAT;
-        if (_inCombat) exitWith {
-            diag_log format ["[AI RECRUIT] Spawn blocked - player %1 in combat", name _player];
-            false
-        };
-    };
-
     if (_cooldownRemaining > 0) then {
-        diag_log format ["[AI RECRUIT] Spawn cooldown active for UID %1 - %2s remaining", 
-            _uid, _cooldownRemaining];
+        diag_log format ["[AI RECRUIT] Spawn cooldown active for UID %1 - %2 seconds remaining", _uid, _cooldownRemaining];
         false
     } else {
         true
@@ -369,11 +367,12 @@ fn_setSpawnCooldown = {
 };
 
 // ====================================================================================
-// Function: Spawn AI teammate (FIXED - Better group ownership)
+// Function: Spawn missing AI teammate
 // ====================================================================================
 fn_spawnAI = {
     params ["_player", "_type", "_spawnIndex"];
 
+    // Validate AI type
     if (!isClass (configFile >> "CfgVehicles" >> _type)) exitWith {
         diag_log format ["[AI RECRUIT] ERROR: Cannot spawn invalid AI type '%1'", _type];
         objNull
@@ -385,35 +384,21 @@ fn_spawnAI = {
         objNull
     };
 
-    // ✅ IMPROVED: Better group ownership transfer with retry logic
+    // Transfer group ownership to server BEFORE creating units
     if (groupOwner _playerGroup != 2) then {
-        diag_log format ["[AI RECRUIT] Transferring group ownership for %1 (current owner: %2)...", 
-            name _player, groupOwner _playerGroup];
-        
+        diag_log format ["[AI RECRUIT] Transferring group ownership for %1...", name _player];
         _playerGroup setGroupOwner 2;
-        
-        // ✅ Wait longer and check multiple times
-        private _transferred = false;
-        private _attempts = 0;
-        private _maxAttempts = 10;
-        
-        while {!_transferred && _attempts < _maxAttempts} do {
-            sleep 0.2;
-            _attempts = _attempts + 1;
-            
-            if (groupOwner _playerGroup == 2) then {
-                _transferred = true;
-                diag_log format ["[AI RECRUIT] ✓ Group ownership transferred after %1 attempts", _attempts];
-            };
+
+        // Wait for ownership transfer to complete
+        private _timeout = time + 2;
+        waitUntil {sleep 0.1; groupOwner _playerGroup == 2 || time > _timeout};
+
+        if (groupOwner _playerGroup != 2) then {
+            diag_log format ["[AI RECRUIT] WARNING: Failed to transfer group ownership for %1 - continuing anyway", name _player];
+            diag_log format ["[AI RECRUIT] Units will be created in client-owned group (this is usually fine)"];
+        } else {
+            diag_log format ["[AI RECRUIT] Group ownership transferred successfully for %1", name _player];
         };
-        
-        if (!_transferred) then {
-            diag_log format ["[AI RECRUIT] ⚠ WARNING: Group ownership transfer timeout for %1 (still owner: %2)", 
-                name _player, groupOwner _playerGroup];
-            diag_log "[AI RECRUIT] Attempting to continue anyway...";
-        };
-    } else {
-        diag_log format ["[AI RECRUIT] ✓ Group already owned by server for %1", name _player];
     };
 
     private _offset = 3 + (_spawnIndex * 0.5);
@@ -439,20 +424,13 @@ fn_spawnAI = {
     _unit setVariable ["OwnerName", name _player, true];
     _unit setVariable ["AIType", _type, true];
 
-    // ✅ ZOMBIE RESURRECTION PROTECTION
-    _unit setVariable ["NoRessurect", true, true];
-    _unit setVariable ["RVG_ZedIgnore", true, true];
-    //_unit setVariable ["RVG_CivZombieIgnore", true, true];
-
-    // ✅ ELITE DRIVING INTEGRATION:
-    // DO NOT set EAID_Ignore - we WANT drivers to use Elite Driving!
-
-    private _globalList = all_recruited_ai_map getOrDefault [getPlayerUID _player, []];
+    // Add to global map IMMEDIATELY
+    private _uid = getPlayerUID _player;
+    private _globalList = all_recruited_ai_map getOrDefault [_uid, []];
     _globalList pushBack _unit;
-    all_recruited_ai_map set [getPlayerUID _player, _globalList];
+    all_recruited_ai_map set [_uid, _globalList];
 
-    diag_log format ["[AI RECRUIT] Spawned %1 for %2 - %3 AI total", 
-        typeOf _unit, name _player, count _globalList];
+    diag_log format ["[AI RECRUIT] Spawned %1 for %2 - Global map now has %3 AI", typeOf _unit, name _player, count _globalList];
 
     // Blacklist from A3XAI
     if (!isNil "A3XAI_NOAI") then {
@@ -462,99 +440,73 @@ fn_spawnAI = {
     _unit setVariable ["A3XAI_Ignore", true, true];
     _playerGroup setVariable ["A3XAI_Ignore", true, true];
 
-    // AI Skills
+    // ============================================
+    // ENHANCED AI BEHAVIORS (Best from top mods)
+    // ============================================
+
+    // EXTREME ELITE AI Skills - Maximum lethality
     {
         _unit setSkill [_x select 0, _x select 1];
     } forEach [
-        ["aimingAccuracy", 1.0],
-        ["aimingShake", 1.0],
-        ["aimingSpeed", 1.0],
-        ["spotDistance", 1.0],
-        ["spotTime", 1.0],
-        ["courage", 1.0],
-        ["reloadSpeed", 1.0],
-        ["commanding", 1.0],
-        ["general", 1.0]
+        ["aimingAccuracy", 1.0],    // Perfect accuracy (headshots)
+        ["aimingShake", 1.0],       // No shake (laser aim)
+        ["aimingSpeed", 1.0],       // Instant target acquisition
+        ["spotDistance", 1.0],      // 300m sight range
+        ["spotTime", 1.0],          // Instant recognition
+        ["courage", 1.0],           // Fearless
+        ["reloadSpeed", 1.0],       // Lightning reload
+        ["commanding", 1.0],        // Perfect coordination
+        ["general", 1.0]            // Maximum competence
     ];
 
-    _unit setAnimSpeedCoef 1.4;
-    _unit allowFleeing 0;
-    _unit setUnitTrait ["camouflageCoef", 0.5];
-    _unit setUnitTrait ["audibleCoef", 0.5];
+    // Extreme Movement Speed
+    _unit setAnimSpeedCoef 1.4;     // 1.4x speed
+    _unit allowFleeing 0;           // Never flee
 
-    _unit setBehaviour "SAFE";
-    _unit setCombatMode "YELLOW";
-    _unit setSpeedMode "FULL";
-    _unit setUnitPos "UP";
-    _unit doFollow _player;
+    // Damage Multiplier - elite survivability
+    _unit setUnitTrait ["camouflageCoef", 0.5];  // Harder to spot
+    _unit setUnitTrait ["audibleCoef", 0.5];     // Quieter
 
-    _unit enableAI "SUPPRESSION";
-    _unit enableAI "COVER";
-    _unit enableAI "AUTOCOMBAT";
+    // Initial Behavior - Safe and fast when no combat
+    _unit setBehaviour "SAFE";      // Run normally with player
+    _unit setCombatMode "YELLOW";   // Return fire if attacked
+    _unit setSpeedMode "FULL";      // Full speed
+    _unit setUnitPos "UP";          // Standing/running (not crouched)
+    _unit doFollow _player;         // Follow player immediately
+
+    // Advanced AI Features
+    _unit enableAI "SUPPRESSION";   // Use suppressive fire
+    _unit enableAI "COVER";         // Seek cover intelligently
+    _unit enableAI "AUTOCOMBAT";    // Auto-engage threats
 
     {
         _unit enableAI _x;
     } forEach [
-        "TARGET",
-        "AUTOTARGET",
-        "MOVE",
-        "ANIM",
-        "FSM",
-        "AIMINGERROR",
-        "TEAMSWITCH"
+        "TARGET",                   // Target selection
+        "AUTOTARGET",              // Auto target acquisition
+        "MOVE",                    // Movement AI
+        "ANIM",                    // Animation control
+        "FSM",                     // Finite state machine
+        "AIMINGERROR",             // Realistic aiming
+        "TEAMSWITCH"               // Team coordination
     ];
-
-    // Prevent AI from auto-dismounting vehicles
-    _unit addEventHandler ["GetOutMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        // Check if AI is dismounting on their own (not ordered by player)
-        private _owner = [_unit getVariable ["OwnerUID", ""]] call BIS_fnc_getUnitByUID;
-
-        if (!isNull _owner && alive _owner) then {
-            private _ownerVeh = vehicle _owner;
-
-            // If owner is in the same vehicle, the AI shouldn't get out unless ordered
-            if (_ownerVeh == _vehicle && _role != "driver") then {
-                // Re-board the AI after a short delay
-                [_unit, _vehicle, _role] spawn {
-                    params ["_unit", "_vehicle", "_role"];
-                    sleep 0.3;
-
-                    // Check if AI is still outside and owner is still in vehicle
-                    if (!isNull _unit && alive _unit && vehicle _unit == _unit) then {
-                        private _owner = [_unit getVariable ["OwnerUID", ""]] call BIS_fnc_getUnitByUID;
-
-                        if (!isNull _owner && alive _owner && vehicle _owner == _vehicle) then {
-                            // Get back in
-                            switch (_role) do {
-                                case "cargo": { _unit moveInCargo _vehicle };
-                                case "gunner": { _unit moveInGunner _vehicle };
-                                case "commander": { _unit moveInCommander _vehicle };
-                                case "turret": { _unit moveInTurret [_vehicle, _turret] };
-                            };
-
-                            diag_log format ["[AI RECRUIT] %1 re-boarded %2 (prevented auto-dismount)", name _unit, typeOf _vehicle];
-                        };
-                    };
-                };
-            };
-        };
-    }];
 
     // Combat enhancements
     _unit setSkill ["courage", 1.0];
-    _unit enableGunLights "AUTO";
-    _unit setUnitTrait ["UAVHacker", true];
+    _unit enableGunLights "AUTO";   // Tactical lights in CQB
 
+    // Headshot preference (aim high)
+    _unit setUnitTrait ["UAVHacker", true];  // Tech bonus
+
+    // Group behavior
     _playerGroup setCombatMode "RED";
     _playerGroup setBehaviour "COMBAT";
     _playerGroup enableAttack true;
-    _playerGroup setFormation "COLUMN";
+    _playerGroup setFormation "COLUMN";  // Tight formation for close following
 
-    // VCOMAI Integration
+    // VCOMAI Integration (if available)
     if (RECRUIT_VCOMAI_Active) then {
-        if (!isNil "VCM_NOAI" && {!isNil {VCM_NOAI}}) then {
+        if (!isNil "VCM_NOAI") then {
             VCM_NOAI pushBackUnique _unit;
             publicVariable "VCM_NOAI";
         };
@@ -562,28 +514,36 @@ fn_spawnAI = {
         _unit setVariable ["VCM_CUSTOMAI", true, true];
         _unit setVariable ["VCM_RECRUIT", true, true];
 
-        if (!isNil "VCM_fnc_INITAI" && {!isNil {VCM_fnc_INITAI}}) then {
+        if (!isNil "VCM_fnc_INITAI") then {
             [_unit] call VCM_fnc_INITAI;
         };
 
-        if (!isNil "VCM_SERVERAI" && {!isNil {VCM_SERVERAI}}) then {
+        if (!isNil "VCM_SERVERAI") then {
             VCM_SERVERAI pushBackUnique _playerGroup;
             publicVariable "VCM_SERVERAI";
             _playerGroup setVariable ["VCM_RECRUITGROUP", true, true];
         };
     };
 
-    // LAMBS Integration
+    // ============================================
+    // LAMBS-INSPIRED BEHAVIORS (LAMBS Danger.fsm + Suppression)
+    // ============================================
+
+    // LAMBS Danger Detection - Enhanced threat awareness
     _unit setVariable ["LAMBS_RECRUIT", true, true];
-    _unit setVariable ["LAMBS_dangerRadius", 100, true];
-    _unit setVariable ["LAMBS_dangerCausesCreep", true, true];
-    _unit setVariable ["LAMBS_suppressionRadius", 50, true];
-    _unit setVariable ["LAMBS_suppressionDuration", 15, true];
+    _unit setVariable ["LAMBS_dangerRadius", 100, true];  // Aware of threats 100m out
+    _unit setVariable ["LAMBS_dangerCausesCreep", true, true];  // Cautious movement near danger
 
-    // Activate FSM Brain
-    [_unit, getPlayerUID _player, _playerGroup] spawn RECRUIT_fnc_FSM_BrainLoop;
+    // LAMBS Suppression Behavior
+    _unit setVariable ["LAMBS_suppressionRadius", 50, true];  // React to suppression 50m
+    _unit setVariable ["LAMBS_suppressionDuration", 15, true];  // Remember suppression 15s
 
-    // AI death handler
+    // ============================================
+    // ACTIVATE FSM BRAIN (replaces old tactical loops)
+    // ============================================
+    [_unit, getPlayerUID _player, _playerGroup] spawn fn_FSM_BrainLoop;
+
+    // AI death handler - triggers respawn check with cooldown
     _unit addEventHandler ["Killed", {
         params ["_unit", "_killer"];
         private _ownerUID = _unit getVariable ["OwnerUID", ""];
@@ -592,6 +552,7 @@ fn_spawnAI = {
 
         private _owner = [_ownerUID] call BIS_fnc_getUnitByUID;
 
+        // BIS_fnc_getUnitByUID can return a vehicle - get the actual unit
         if (!isNull _owner && {!(_owner isKindOf "CAManBase")}) then {
             _owner = effectiveCommander _owner;
         };
@@ -601,21 +562,25 @@ fn_spawnAI = {
             _assigned = _assigned - [_unit];
             _owner setVariable ["AssignedAI", _assigned, true];
 
+            // Remove from global tracking
             private _globalList = all_recruited_ai_map getOrDefault [_ownerUID, []];
             _globalList = _globalList - [_unit];
             all_recruited_ai_map set [_ownerUID, _globalList];
 
-            diag_log format ["[AI RECRUIT] AI killed: %1 (owner: %2) - %3 AI remaining", 
-                typeOf _unit, name _owner, count _globalList];
+            diag_log format ["[AI RECRUIT] AI killed: %1 (owner: %2) - %3 AI remaining", typeOf _unit, name _owner, count _globalList];
 
+            // Trigger respawn check after delay with cooldown check
             [_owner, _ownerUID] spawn {
                 params ["_owner", "_ownerUID"];
                 sleep 3;
 
                 if (!isNull _owner && alive _owner) then {
+                    // Check cooldown before spawning
                     if ([_ownerUID] call fn_checkSpawnCooldown) then {
                         [_ownerUID] call fn_setSpawnCooldown;
                         [_owner] call fn_ensureTeam;
+                    } else {
+                        diag_log format ["[AI RECRUIT] AI death respawn skipped due to cooldown for %1", name _owner];
                     };
                 };
             };
@@ -636,34 +601,39 @@ fn_ensureTeam = {
     private _uid = getPlayerUID _player;
     if (_uid isEqualTo "") exitWith {};
 
+    // Enhanced spawn lock with timeout (30 seconds max)
     private _isSpawning = _player getVariable ["_aiSpawning", false];
     private _spawnLockTime = _player getVariable ["_aiSpawnLockTime", 0];
 
+    // Reset lock if it's been more than 30 seconds (stuck lock protection)
     if (_isSpawning && (time - _spawnLockTime > 30)) then {
-        diag_log format ["[AI RECRUIT] WARNING: Spawn lock timeout for %1 - resetting", name _player];
+        diag_log format ["[AI RECRUIT] WARNING: Spawn lock timeout for %1 - resetting lock", name _player];
         _isSpawning = false;
         _player setVariable ["_aiSpawning", false];
     };
 
     if (_isSpawning) exitWith {
-        diag_log format ["[AI RECRUIT] Spawn in progress for %1 - skipping", name _player];
+        diag_log format ["[AI RECRUIT] Spawn already in progress for %1 - skipping", name _player];
     };
 
     _player setVariable ["_aiSpawning", true];
     _player setVariable ["_aiSpawnLockTime", time];
 
+    // Get AI from global map
     private _globalAI = all_recruited_ai_map getOrDefault [_uid, []];
     private _globalValid = _globalAI select { !isNull _x && alive _x };
 
+    // Get AI from player variable
     private _assigned = _player getVariable ["AssignedAI", []];
     private _assignedValid = _assigned select { !isNull _x && alive _x };
 
+    // Combine both sources (remove duplicates) - OPTIMIZED
     private _combined = _globalValid + _assignedValid;
     private _validAI = _combined arrayIntersect _combined;
 
+    // STRICT LIMIT: If we somehow have more than 3, delete the extras
     if (count _validAI > 3) then {
-        diag_log format ["[AI RECRUIT] WARNING: Player %1 has %2 AI! Removing extras...", 
-            name _player, count _validAI];
+        diag_log format ["[AI RECRUIT] WARNING: Player %1 has %2 AI! Removing extras...", name _player, count _validAI];
 
         private _toKeep = _validAI select [0, 3];
         private _toDelete = _validAI - _toKeep;
@@ -695,9 +665,9 @@ fn_ensureTeam = {
         _player setVariable ["_aiSpawning", false];
     };
 
-    diag_log format ["[AI RECRUIT] Player %1 needs %2 AI (has %3)", 
-        name _player, count _missing, _currentCount];
+    diag_log format ["[AI RECRUIT] Player %1 needs %2 AI (has %3)", name _player, count _missing, _currentCount];
 
+    // Spawn missing AI (up to 3 total)
     private _spawnIndex = count _validAI;
     {
         if (count _validAI < 3) then {
@@ -716,12 +686,11 @@ fn_ensureTeam = {
     all_recruited_ai_map set [_uid, _validAI];
     _player setVariable ["_aiSpawning", false];
 
-    diag_log format ["[AI RECRUIT] Team spawn complete for %1 - now has %2 AI", 
-        name _player, count _validAI];
+    diag_log format ["[AI RECRUIT] Team spawn complete for %1 - now has %2 AI", name _player, count _validAI];
 };
 
 // ====================================================================================
-// Function: CLEANUP (FIXED - safe group deletion)
+// Function: CLEANUP (Same as disconnect - PROVEN TO WORK)
 // ====================================================================================
 fn_cleanupPlayerAI = {
     params ["_uid", "_name"];
@@ -734,88 +703,89 @@ fn_cleanupPlayerAI = {
         diag_log "[AI RECRUIT] ERROR: Empty UID - cannot cleanup";
     };
 
+    // Get player object if available
     private _player = [_uid] call BIS_fnc_getUnitByUID;
-    diag_log format ["[AI RECRUIT] Player object lookup: %1", 
-        if (isNull _player) then {"NULL"} else {"FOUND"}];
+    diag_log format ["[AI RECRUIT] Player object lookup: %1", if (isNull _player) then {"NULL"} else {"FOUND"}];
 
     // SOURCE 1: Global map
     private _ai_from_map = all_recruited_ai_map getOrDefault [_uid, []];
     diag_log format ["[AI RECRUIT] Source 1 (Global Map): %1 AI found", count _ai_from_map];
 
-    // SOURCE 2: Player variable
+    // SOURCE 2: Player variable (if player object exists)
     private _ai_from_var = [];
     if (!isNull _player) then {
         _ai_from_var = _player getVariable ["AssignedAI", []];
         diag_log format ["[AI RECRUIT] Source 2 (Player Variable): %1 AI found", count _ai_from_var];
     } else {
-        diag_log "[AI RECRUIT] Source 2 (Player Variable): Skipped (player null)";
+        diag_log "[AI RECRUIT] Source 2 (Player Variable): Skipped (player object null)";
     };
 
-    // SOURCE 3: Player's group
+    // SOURCE 3: Player's group (if player object exists and has group)
     private _ai_from_group = [];
     if (!isNull _player && !isNull group _player) then {
         _ai_from_group = (units group _player) select {
-            !isPlayer _x && {_x getVariable ["ExileRecruited", false]}
+            !isPlayer _x &&
+            {_x getVariable ["ExileRecruited", false]}
         };
         diag_log format ["[AI RECRUIT] Source 3 (Player Group): %1 AI found", count _ai_from_group];
     } else {
-        diag_log "[AI RECRUIT] Source 3 (Player Group): Skipped (player/group null)";
+        diag_log "[AI RECRUIT] Source 3 (Player Group): Skipped (player or group null)";
     };
 
+    // Combine ALL sources
     private _ai_to_delete = _ai_from_map + _ai_from_var + _ai_from_group;
     _ai_to_delete = _ai_to_delete arrayIntersect _ai_to_delete;
 
     diag_log format ["[AI RECRUIT] Total unique AI to delete: %1", count _ai_to_delete];
+    diag_log format ["[AI RECRUIT]   From map: %1 | From var: %2 | From group: %3", count _ai_from_map, count _ai_from_var, count _ai_from_group];
 
     if (_ai_to_delete isEqualTo []) exitWith {
         diag_log format ["[AI RECRUIT] *** NO AI TO CLEANUP for %1 ***", _name];
         diag_log "========================================";
     };
 
+    // Collect groups for cleanup AFTER units are deleted
     private _groupsToClean = [];
 
-    // ✅ OPTIMIZED: Batch deletion
-    // Phase 1: Disable and collect groups
+    // DELETE THEM ALL
     {
         if (!isNull _x) then {
+            // Collect group for later cleanup
             private _aiGroup = group _x;
             if (!isNull _aiGroup && {!(_aiGroup in _groupsToClean)}) then {
                 _groupsToClean pushBack _aiGroup;
             };
 
+            // Remove from VCOMAI
             if (RECRUIT_VCOMAI_Active && !isNil "VCM_NOAI") then {
                 VCM_NOAI = VCM_NOAI - [_x];
             };
 
+            // Remove from A3XAI
             if (!isNil "A3XAI_NOAI") then {
                 A3XAI_NOAI = A3XAI_NOAI - [_x];
             };
 
+            // Kill if alive
+            if (alive _x) then {
+                _x setDamage 1;
+            };
+
+            // Remove event handlers
             _x removeAllEventHandlers "Killed";
-            if (alive _x) then { _x setDamage 1 };
+
+            // Delete
+            deleteVehicle _x;
 
             diag_log format ["[AI RECRUIT]   Deleted: %1", typeOf _x];
         };
     } forEach _ai_to_delete;
 
-    // Phase 2: Batch delete all units
-    {deleteVehicle _x} forEach _ai_to_delete;
-
-    // ✅ FIXED: Safe group deletion (never delete player's group)
+    // Now clean up empty groups AFTER all units deleted
     {
         if (!isNull _x && {count units _x == 0}) then {
-            private _isPlayerGroup = if (!isNull _player) then {
-                _x == group _player
-            } else {
-                false
-            };
-            
-            if (!_isPlayerGroup) then {
-                deleteGroup _x;
-                diag_log format ["[AI RECRUIT]   Deleted empty group: %1", _x];
-            } else {
-                diag_log "[AI RECRUIT]   Skipped player's group (safety check)";
-            };
+            deleteGroup _x;
+            diag_log format ["[AI RECRUIT]   Deleted empty group: %1", _x];
         };
     } forEach _groupsToClean;
 
@@ -827,9 +797,13 @@ fn_cleanupPlayerAI = {
         publicVariable "A3XAI_NOAI";
     };
 
+    // Clear from global map
     all_recruited_ai_map deleteAt _uid;
+
+    // Clear spawn cooldown
     spawn_cooldowns deleteAt _uid;
 
+    // Clear player variables if player object exists
     if (!isNull _player) then {
         _player setVariable ["AssignedAI", [], true];
         _player setVariable ["_aiSpawning", false, true];
@@ -839,10 +813,10 @@ fn_cleanupPlayerAI = {
 
     diag_log "========================================";
     diag_log format ["[AI RECRUIT] *** CLEANUP COMPLETE for %1 ***", _name];
-    diag_log format ["[AI RECRUIT] Results: %1 AI deleted, %2 groups cleaned", 
-        count _ai_to_delete, count _groupsToClean];
+    diag_log format ["[AI RECRUIT] Results: %1 AI deleted, %2 groups cleaned", count _ai_to_delete, count _groupsToClean];
     diag_log "========================================";
 };
+
 
 // ====================================================================================
 // Setup event handlers for a player
@@ -854,6 +828,9 @@ fn_setupPlayerHandlers = {
 
     diag_log format ["[AI RECRUIT] Setting up handlers for %1 (UID: %2)", name _player, _uid];
 
+    // MULTIPLE DEATH DETECTION METHODS (for reliability in Exile)
+
+    // Killed event handler (cleanup AI when player dies)
     _player addEventHandler ["Killed", {
         params ["_unit", "_killer"];
         private _uid = getPlayerUID _unit;
@@ -862,44 +839,6 @@ fn_setupPlayerHandlers = {
     }];
 
     diag_log format ["[AI RECRUIT] Death event handlers registered for %1", name _player];
-
-    // GetInMan
-    _player addEventHandler ["GetInMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        [_unit] spawn {
-            params ["_player"];
-            sleep 0.5;
-            if (!isNull _player && alive _player) then {
-                [_player] call fn_assignSeats;
-            };
-        };
-    }];
-
-    // GetOutMan - Only dismount AI if player fully exits (not switching seats)
-    _player addEventHandler ["GetOutMan", {
-        params ["_unit", "_role", "_vehicle", "_turret"];
-
-        [_unit, _vehicle] spawn {
-            params ["_player", "_vehicle"];
-            sleep 0.5;  // Increased delay to check if player re-enters
-
-            // Only dismount AI if player is truly out of the vehicle
-            if (!isNull _player && alive _player && vehicle _player == _player) then {
-                private _assigned = _player getVariable ["AssignedAI", []];
-                {
-                    if (!isNull _x && {vehicle _x isEqualTo _vehicle}) then {
-                        unassignVehicle _x;
-                        moveOut _x;
-                        // Re-assign to follow player on foot
-                        _x doFollow _player;
-                    };
-                } forEach _assigned;
-
-                _player setVariable ["_prevVeh", objNull, true];
-            };
-        };
-    }];
 
     // Respawn - spawn NEW AI after delay
     _player addEventHandler ["Respawn", {
@@ -911,24 +850,26 @@ fn_setupPlayerHandlers = {
         diag_log format ["[AI RECRUIT] *** PLAYER RESPAWNED: %1 (UID: %2) ***", name _unit, _uid];
         diag_log "========================================";
 
+        // Clean up any existing AI for this UID (should already be clean from death event)
         private _existingAI = all_recruited_ai_map getOrDefault [_uid, []];
         if (count _existingAI > 0) then {
-            diag_log format ["[AI RECRUIT] WARNING: Found %1 orphaned AI on respawn - cleaning", 
-                count _existingAI];
+            diag_log format ["[AI RECRUIT] WARNING: Found %1 orphaned AI on respawn - cleaning up", count _existingAI];
             [_uid, name _unit] call fn_cleanupPlayerAI;
         } else {
-            diag_log "[AI RECRUIT] Good: No orphaned AI found";
+            diag_log "[AI RECRUIT] Good: No orphaned AI found (cleanup worked correctly)";
         };
 
+        // Clear variables
         _unit setVariable ["AssignedAI", [], true];
         _unit setVariable ["_aiSpawning", false, true];
         _unit setVariable ["_aiSpawnLockTime", 0, true];
         _unit setVariable ["_lastCheckTime", 0, true];
-        _unit setVariable ["RECRUIT_ConnectTime", time];
 
+        // Spawn new AI after delay with cooldown
         [_unit, _uid] spawn {
             params ["_player", "_uid"];
 
+            // Wait for player to land if parachuting
             private _waitTime = 0;
             while {!isNull _player && alive _player && !([_player] call fn_isPlayerReady) && _waitTime < 60} do {
                 sleep 1;
@@ -936,8 +877,7 @@ fn_setupPlayerHandlers = {
             };
 
             if (_waitTime >= 60) exitWith {
-                diag_log format ["[AI RECRUIT] ERROR: Player %1 not ready after 60s - aborting", 
-                    name _player];
+                diag_log format ["[AI RECRUIT] ERROR: Player %1 not ready after 60 seconds - aborting AI spawn", name _player];
             };
 
             if (!isNull _player && alive _player) then {
@@ -946,8 +886,7 @@ fn_setupPlayerHandlers = {
                     diag_log format ["[AI RECRUIT] Player %1 landed - spawning fresh AI", name _player];
                     [_player] call fn_ensureTeam;
                 } else {
-                    diag_log format ["[AI RECRUIT] Respawn spawn skipped (cooldown) for %1", 
-                        name _player];
+                    diag_log format ["[AI RECRUIT] Respawn AI spawn skipped due to cooldown for %1", name _player];
                 };
             };
         };
@@ -957,7 +896,7 @@ fn_setupPlayerHandlers = {
 };
 
 // ====================================================================================
-// Player disconnect cleanup
+// Player disconnect cleanup (USES EXACT SAME FUNCTION)
 // ====================================================================================
 addMissionEventHandler ["PlayerDisconnected", {
     params ["_id", "_uid", "_name", "_jip"];
@@ -966,125 +905,64 @@ addMissionEventHandler ["PlayerDisconnected", {
     diag_log format ["[AI RECRUIT] *** PLAYER DISCONNECTED: %1 ***", _name];
     diag_log "========================================";
 
+    // Use the SAME cleanup function that works for disconnect
     [_uid, _name] call fn_cleanupPlayerAI;
 }];
 
 // ====================================================================================
-// Player Connected (ENHANCED - Better timing)
+// Player Connected
 // ====================================================================================
 addMissionEventHandler ["PlayerConnected", {
     params ["_id", "_uid", "_name", "_jip", "_owner"];
 
-    diag_log format ["[AI RECRUIT] Player connecting: %1 (UID: %2)", _name, _uid];
+    diag_log format ["[AI RECRUIT] Player connecting: %1", _name];
 
     [_uid, _name] spawn {
         params ["_uid", "_name"];
-        
-        // ✅ Wait for player object to exist
-        private _player = objNull;
-        private _timeout = time + 30;
-        
-        while {isNull _player && time < _timeout} do {
-            sleep 1;
-            _player = [_uid] call BIS_fnc_getUnitByUID;
-        };
-        
-        if (isNull _player) exitWith {
-            diag_log format ["[AI RECRUIT] ERROR: Could not find player object for %1 after 30s", _name];
-        };
+        sleep 10;
 
-        // ✅ Store connection time for validation
-        _player setVariable ["RECRUIT_ConnectTime", time];
-        
-        diag_log format ["[AI RECRUIT] Player object found for %1, waiting for full initialization...", _name];
+        private _player = [_uid] call BIS_fnc_getUnitByUID;
 
-        // ✅ Wait for player to be FULLY ready (up to 60 seconds)
-        private _ready = false;
-        private _readyTimeout = time + 60;
-        private _checkCount = 0;
-        
-        while {!_ready && time < _readyTimeout} do {
-            sleep 2;
-            _checkCount = _checkCount + 1;
-            _ready = [_player] call fn_isPlayerReady;
-            
-            if (_checkCount % 5 == 0) then {
-                diag_log format ["[AI RECRUIT] Still waiting for %1 to be ready... (%2s elapsed)", 
-                    _name, round (time - (_player getVariable ["RECRUIT_ConnectTime", time]))];
-            };
-        };
+        if (!isNull _player && [_player] call fn_isPlayerReady) then {
+            [_player] call fn_setupPlayerHandlers;
 
-        if (!_ready) exitWith {
-            diag_log format ["[AI RECRUIT] ERROR: Player %1 not ready after 60s - aborting spawn", _name];
-        };
-
-        diag_log format ["[AI RECRUIT] ✓ Player %1 fully initialized after %2s", 
-            _name, round (time - (_player getVariable ["RECRUIT_ConnectTime", time]))];
-
-        // ✅ Setup handlers
-        [_player] call fn_setupPlayerHandlers;
-
-        // ✅ Additional delay before first spawn
-        sleep 3;
-
-        // ✅ Spawn AI team
-        if ([_player] call fn_isPlayerReady) then {
-            if ([_uid] call fn_checkSpawnCooldown) then {
-                [_uid] call fn_setSpawnCooldown;
-                diag_log format ["[AI RECRUIT] Starting AI spawn for %1...", _name];
-                [_player] call fn_ensureTeam;
+            [_player, _uid] spawn {
+                params ["_player", "_uid"];
+                sleep 3;
+                if ([_player] call fn_isPlayerReady) then {
+                    if ([_uid] call fn_checkSpawnCooldown) then {
+                        [_uid] call fn_setSpawnCooldown;
+                        [_player] call fn_ensureTeam;
+                    };
+                };
             };
         };
     };
 }];
 
 // ====================================================================================
-// Main server loop (ENHANCED - Better startup handling)
+// Main server loop - REDUCED TO MAINTENANCE ONLY (death is now event-based)
 // ====================================================================================
 [] spawn {
     diag_log "[AI RECRUIT] Waiting for mission start...";
 
     waitUntil {time > 0};
-    
-    // ✅ Wait longer on fresh server start
-    sleep 10;
+    sleep 5;
 
-    diag_log "[AI RECRUIT] Checking for existing players...";
-
-    // ✅ Process existing players (server restart with players already connected)
+    // Setup initial players
     {
-        private _player = _x;
-        private _uid = getPlayerUID _player;
-        
-        if (_uid != "") then {
-            _player setVariable ["RECRUIT_ConnectTime", time - 10]; // Pretend they connected 10s ago
-            
-            diag_log format ["[AI RECRUIT] Found existing player: %1", name _player];
-            
-            [_player, _uid] spawn {
+        if ([_x] call fn_isPlayerReady) then {
+            [_x] call fn_setupPlayerHandlers;
+
+            private _uid = getPlayerUID _x;
+            [_x, _uid] spawn {
                 params ["_player", "_uid"];
-                
-                // ✅ Wait for player to be fully ready
-                private _waitStart = time;
-                waitUntil {
-                    sleep 2;
-                    [_player] call fn_isPlayerReady || (time - _waitStart) > 60
-                };
-                
+                sleep 5;
                 if ([_player] call fn_isPlayerReady) then {
-                    diag_log format ["[AI RECRUIT] ✓ Existing player %1 ready after %2s", 
-                        name _player, round (time - _waitStart)];
-                    
-                    [_player] call fn_setupPlayerHandlers;
-                    
-                    sleep 3;
-                    
                     if ([_uid] call fn_checkSpawnCooldown) then {
                         [_uid] call fn_setSpawnCooldown;
                         [_player] call fn_ensureTeam;
                     };
-                } else {
-                    diag_log format ["[AI RECRUIT] ERROR: Existing player %1 not ready after 60s", name _player];
                 };
             };
         };
@@ -1093,8 +971,10 @@ addMissionEventHandler ["PlayerConnected", {
     diag_log "[AI RECRUIT] System initialized";
     diag_log "[AI RECRUIT] Death detection: EVENT-BASED + BACKUP POLLING";
 
+    // Track player alive states
     private _playerAliveStates = createHashMap;
 
+    // Maintenance loop - checks for missing AI + backup death detection
     while {true} do {
         {
             private _player = _x;
@@ -1104,21 +984,24 @@ addMissionEventHandler ["PlayerConnected", {
                 private _isAlive = alive _player;
                 private _wasAlive = _playerAliveStates getOrDefault [_uid, true];
 
+                // BACKUP DEATH DETECTION (in case event handlers fail)
                 if (_wasAlive && !_isAlive) then {
-                    diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (BACKUP): %1 !!!!!", 
-                        name _player];
+                    diag_log format ["[AI RECRUIT] !!!!! DEATH DETECTED (BACKUP POLLING): %1 !!!!!", name _player];
                     [_uid, name _player] call fn_cleanupPlayerAI;
                     _playerAliveStates set [_uid, false];
                 };
 
+                // Update alive state
                 if (_isAlive && !_wasAlive) then {
-                    diag_log format ["[AI RECRUIT] Player %1 alive again (respawned)", name _player];
+                    diag_log format ["[AI RECRUIT] Player %1 is alive again (respawned)", name _player];
                     _playerAliveStates set [_uid, true];
                 };
 
+                // Regular AI check (only if alive and ready)
                 if (_isAlive && [_player] call fn_isPlayerReady) then {
                     private _lastCheck = _player getVariable ["_lastCheckTime", 0];
 
+                    // Check every 30 seconds for missing AI
                     if (time - _lastCheck > 30) then {
                         if ([_uid] call fn_checkSpawnCooldown) then {
                             [_uid] call fn_setSpawnCooldown;
@@ -1130,7 +1013,7 @@ addMissionEventHandler ["PlayerConnected", {
             };
         } forEach allPlayers;
 
-        sleep 5;
+        sleep 5; // Check every 5 seconds for death + AI maintenance
     };
 };
 
@@ -1138,14 +1021,23 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.14 - EXTREME ELITE OPERATORS";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.16 - EXTREME ELITE OPERATORS";
 diag_log "  • EXTREME SKILLS: 1.0 (PERFECT) in all categories - HEADSHOT MASTERS";
 diag_log "  • 300M SIGHT RANGE: Detect and engage at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning fast movement (setAnimSpeedCoef 1.4)";
 diag_log "  • PERFECT AIM: No shake, instant acquisition, laser accuracy";
 diag_log "  • STEALTH: 50% harder to spot, 50% quieter";
-diag_log "  • SAFE MODE IDLE: Runs standing with player (SAFE behavior, UP stance)";
-diag_log "  • COMBAT MODE: Instant switch to COMBAT when enemies detected";
+diag_log "";
+diag_log "  COMBAT BEHAVIOR:";
+diag_log "  • FULL AUTONOMY: Complete freedom to engage, flank, spread out";
+diag_log "  • NO RESTRICTIONS: AI use advanced tactics, take cover independently";
+diag_log "  • TARGET SHARING: Group automatically shares enemy information";
+diag_log "";
+diag_log "  NON-COMBAT BEHAVIOR:";
+diag_log "  • TIGHT FORMATION: Stay within 30m of player at all times";
+diag_log "  • STRICT FOLLOWING: Mirror player movement in column formation";
+diag_log "  • AUTO-RETURN: Seamlessly return to formation after combat ends";
+diag_log "";
 diag_log "  • THREAT SCAN: 300m knowledge-based + 50m visual detection";
 diag_log "  • FSM STATES: IDLE (SAFE/UP) ⟷ COMBAT → RETREAT → HEAL";
 diag_log "  • INSTANT REACTION: No delay when threats appear";
@@ -1156,8 +1048,7 @@ diag_log "  • EXILE RESILIENT: Brain survives session initialization";
 diag_log "  • FSM LOGGING: State transitions logged to RPT";
 diag_log "  • EVENT-BASED death detection + backup polling";
 diag_log "  • STRICT 3 AI maximum";
-diag_log "  • VEHICLE COMPAT: AI drivers work with Elite Driving System";
-diag_log "  • PASSENGER RETENTION: AI stay in vehicles unless player exits";
+diag_log "  • NO VEHICLE BOARDING: AI stay on foot";
 if (RECRUIT_VCOMAI_Active) then {
     diag_log "  • VCOMAI Integration: ENABLED";
 } else {

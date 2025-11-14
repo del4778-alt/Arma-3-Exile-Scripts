@@ -11,6 +11,7 @@ Click on any system to view details and download individually:
 | System | Version | Description | Download |
 |--------|---------|-------------|----------|
 | **[AI Recruit System](AI-Recruit-System/)** | v7.14 | 3 AI teammates per player with full lifecycle management | [📥 Download](AI-Recruit-System/recruit_ai.sqf) |
+| **[AI Recruit System](AI-Recruit-System/)** | v7.7.1 | 3 AI teammates per player with full lifecycle management | [📥 Download](AI-Recruit-System/recruit_ai.sqf) |
 | **[AI Elite Driving](AI-Elite-Driving/)** | v5.3 | Enhanced AI vehicle handling and combat driving | [📥 Download](AI-Elite-Driving/AI_EliteDriving.sqf) |
 | **[AI Patrol System](AI-Patrol-System/)** | v1.0 | Dynamic patrol routes with squad leader coordination | [📥 Download](AI-Patrol-System/fn_aiPatrolSystem.sqf) |
 | **[Server Installers](Server-Installers/)** | v1.0 | Automated Exile server setup scripts (Windows/Linux) | [📁 View](Server-Installers/) |

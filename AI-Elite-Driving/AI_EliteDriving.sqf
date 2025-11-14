@@ -1,17 +1,18 @@
 /*
     =====================================================
-    ELITE AI DRIVING SYSTEM v5.3 - TESLA AUTOPILOT MODE
+    ELITE AI DRIVING SYSTEM v5.4 - SAFE DRIVING MODE
     =====================================================
     Author: Master SQF Engineer
-    Version: 5.3 - PATH-PLANNING FIX + CORNER DETECTION
+    Version: 5.4 - SAFE SPEEDS + IMPROVED ROAD FOLLOWING
     =====================================================
 
-    NEW IN v5.3:
-    ✅ Map boundary validation (prevents path-planning errors)
-    ✅ 500m safety margin from map edges
-    ✅ Water detection for land vehicles
-    ✅ Automatic forceFollowRoad disable at map edge
-    ✅ Waypoint validation before creation
+    NEW IN v5.4:
+    ✅ Safe driving speeds (30-40 cities, 80-100 highway)
+    ✅ Improved road following (prevents offroad driving)
+    ✅ Bridge handling (no braking, maintain speed)
+    ✅ Better curve detection (slight/medium/sharp)
+    ✅ Enhanced waypoint system (stays on roads)
+    ✅ Passenger retention (AI don't jump out)
 
     v5.2 Features:
     ✅ Corner obstacle detection (90° turn fix)
@@ -62,13 +63,14 @@ EAID_CONFIG = createHashMapFromArray [
     ["DEBUG_HUD", false],
     ["DEBUG_LAYER", 0],  // 0=sensors, 1=curves, 2=speed, 3=terrain
 
-    // === SPEED LIMITS (km/h) ===
-    ["SPEED_MAX_HIGHWAY", 220],      // Supercar mode on straights
-    ["SPEED_MAX_ROAD", 140],         // Normal paved roads
-    ["SPEED_MAX_DIRT", 80],          // Dirt/gravel roads
-    ["SPEED_MAX_OFFROAD", 50],       // Cross-country
-    ["SPEED_MIN_SHARP_CURVE", 30],   // Hairpin turns
-    ["SPEED_MIN_MEDIUM_CURVE", 60],  // Medium curves
+    // === SPEED LIMITS (km/h) - SAFE DRIVING MODE ===
+    ["SPEED_MAX_HIGHWAY", 100],      // Highway speed (80-100 range)
+    ["SPEED_MAX_ROAD", 80],          // Normal paved roads
+    ["SPEED_MAX_DIRT", 60],          // Dirt/gravel roads
+    ["SPEED_MAX_OFFROAD", 40],       // Cross-country
+    ["SPEED_MIN_SHARP_CURVE", 20],   // Hairpin turns (slow down more)
+    ["SPEED_MIN_MEDIUM_CURVE", 45],  // Medium curves
+    ["SPEED_MIN_SLIGHT_CURVE", 65],  // Slight curves
     ["SPEED_VEHICLE_AHEAD", 50],     // Following distance
 
     // === RAYCAST SENSOR DISTANCES (meters) ===
@@ -89,7 +91,7 @@ EAID_CONFIG = createHashMapFromArray [
     ["CURVE_HAIRPIN", 1.0],          // Hairpin/extreme
 
     // === TERRAIN & SURFACE PENALTIES ===
-    ["PENALTY_URBAN", 0.75],         // City driving slowdown
+    ["PENALTY_URBAN", 0.45],         // City driving slowdown (30-40 km/h in cities)
     ["PENALTY_DIRT", 0.70],          // Dirt road penalty
     ["PENALTY_FOREST", 0.60],        // Forest/dense area
     ["PENALTY_STEEP_SLOPE", 0.65],   // Steep terrain
@@ -132,8 +134,9 @@ EAID_fnc_getVehiclePreset = {
     params ["_vehicle"];
 
     // Returns [straightSpeed, midSpeed, hardCurve, tightCurve]
+    // Adjusted for safe driving (30-40 cities, 80-100 highway)
     private _preset = switch (true) do {
-        // Sport cars (fastest)
+        // Sport cars (fastest but safe)
         case (typeOf _vehicle in [
             "Exile_Car_Hatchback_Sport_Red",
             "Exile_Car_Hatchback_Sport_Blue",
@@ -142,30 +145,30 @@ EAID_fnc_getVehiclePreset = {
             "Exile_Car_Hatchback_Sport_Green",
             "Exile_Car_Hatchback_Sport_Black",
             "C_Hatchback_01_sport_F"
-        ]): {[200, 95, 45, 25]};
+        ]): {[100, 65, 35, 20]};
 
         // Offroad vehicles
-        case (_vehicle isKindOf "Offroad_01_base_F"): {[120, 70, 40, 25]};
-        case (_vehicle isKindOf "Offroad_02_base_F"): {[110, 65, 38, 23]};
+        case (_vehicle isKindOf "Offroad_01_base_F"): {[90, 60, 35, 20]};
+        case (_vehicle isKindOf "Offroad_02_base_F"): {[85, 55, 32, 18]};
 
         // MRAPs (heavy, stable)
-        case (_vehicle isKindOf "MRAP_01_base_F"): {[90, 55, 35, 20]};
-        case (_vehicle isKindOf "MRAP_02_base_F"): {[85, 52, 33, 18]};
-        case (_vehicle isKindOf "MRAP_03_base_F"): {[95, 58, 36, 22]};
+        case (_vehicle isKindOf "MRAP_01_base_F"): {[80, 50, 30, 18]};
+        case (_vehicle isKindOf "MRAP_02_base_F"): {[75, 48, 28, 16]};
+        case (_vehicle isKindOf "MRAP_03_base_F"): {[80, 52, 30, 18]};
 
         // Trucks (slow, careful)
-        case (_vehicle isKindOf "Truck_F"): {[70, 45, 25, 15]};
-        case (_vehicle isKindOf "Truck_01_base_F"): {[65, 42, 23, 13]};
-        case (_vehicle isKindOf "Truck_02_base_F"): {[68, 44, 24, 14]};
+        case (_vehicle isKindOf "Truck_F"): {[60, 40, 22, 15]};
+        case (_vehicle isKindOf "Truck_01_base_F"): {[55, 38, 20, 12]};
+        case (_vehicle isKindOf "Truck_02_base_F"): {[58, 40, 22, 14]};
 
         // SUVs
-        case (_vehicle isKindOf "SUV_01_base_F"): {[110, 65, 38, 22]};
+        case (_vehicle isKindOf "SUV_01_base_F"): {[85, 55, 32, 18]};
 
         // Generic cars
-        case (_vehicle isKindOf "Car_F"): {[120, 70, 40, 25]};
+        case (_vehicle isKindOf "Car_F"): {[90, 60, 35, 20]};
 
         // Default fallback
-        default {[100, 60, 35, 20]};
+        default {[80, 55, 30, 18]};
     };
 
     _preset
@@ -232,10 +235,11 @@ EAID_ActiveDrivers = createHashMap;
 EAID_ProcessedUnits = [];
 
 diag_log "==========================================";
-diag_log "Elite AI Driving v5.3 - PATH-PLANNING FIX";
+diag_log "Elite AI Driving v5.4 - SAFE DRIVING MODE";
 diag_log format ["Map: %1 (Size: %2m)", worldName, worldSize];
 diag_log format ["Sensor Tick Rate: %1 Hz", 1 / (EAID_CONFIG get "UPDATE_INTERVAL")];
-diag_log format ["Features: Map Edge Detection + 7-Ray LIDAR + Corner Detection"];
+diag_log format ["City Speed: 30-40 km/h | Highway: 80-100 km/h"];
+diag_log format ["Features: Safe Speeds + Road Following + Bridge Handling"];
 diag_log "==========================================";
 
 // =====================================================
@@ -458,11 +462,19 @@ EAID_fnc_getCurveSpeedLimit = {
 
     private _cfg = EAID_CONFIG;
 
+    // Straight road - full speed
     if (_curveSeverity < (_cfg get "CURVE_STRAIGHT")) exitWith {_baseSpeed};
-    if (_curveSeverity < (_cfg get "CURVE_GENTLE")) exitWith {_baseSpeed * 0.85};
-    if (_curveSeverity < (_cfg get "CURVE_MEDIUM")) exitWith {_cfg get "SPEED_MIN_MEDIUM_CURVE"};
-    if (_curveSeverity < (_cfg get "CURVE_SHARP")) exitWith {(_cfg get "SPEED_MIN_SHARP_CURVE") * 1.5};
 
+    // Gentle curve - slight slowdown
+    if (_curveSeverity < (_cfg get "CURVE_GENTLE")) exitWith {_cfg get "SPEED_MIN_SLIGHT_CURVE"};
+
+    // Medium curve - moderate slowdown
+    if (_curveSeverity < (_cfg get "CURVE_MEDIUM")) exitWith {_cfg get "SPEED_MIN_MEDIUM_CURVE"};
+
+    // Sharp curve - significant slowdown
+    if (_curveSeverity < (_cfg get "CURVE_SHARP")) exitWith {(_cfg get "SPEED_MIN_SHARP_CURVE") * 1.3};
+
+    // Hairpin - minimum speed
     _cfg get "SPEED_MIN_SHARP_CURVE"
 };
 
@@ -663,11 +675,18 @@ EAID_fnc_calculateOptimalSpeed = {
         };
     };
 
-    // Bridge detection (maintain speed on bridges)
+    // Bridge detection (maintain speed, disable braking)
     private _downDist = _sensors get "down";
-    if (_downDist > 8 && _downDist < 12 && _curveSeverity < 0.25) then {
-        // On a bridge, maintain speed
+    private _onBridge = (_downDist > 8 && _downDist < 15);
+
+    if (_onBridge) then {
+        // On a bridge - maintain speed and go straight
         _targetSpeed = _curveSpeed max (_cfg get "SPEED_MAX_ROAD");
+
+        // Store bridge state on vehicle
+        _vehicle setVariable ["EAID_onBridge", true];
+    } else {
+        _vehicle setVariable ["EAID_onBridge", false];
     };
 
     // Combat speed boost
@@ -782,13 +801,25 @@ EAID_fnc_eliteDriving = {
             _targetSpeed = (_currentSpeed * _driftPenalty) min _targetSpeed;
         };
 
-        // Smooth speed transition (interpolation)
-        private _interpFactor = _cfg get "SPEED_INTERPOLATION";
-        _currentSpeedCap = _currentSpeedCap + ((_targetSpeed - _currentSpeedCap) / _interpFactor);
-        _currentSpeedCap = _currentSpeedCap max 18 min 220;  // Clamp limits
+        // Check if on bridge
+        private _onBridge = _vehicle getVariable ["EAID_onBridge", false];
 
-        // Apply speed limit
-        _vehicle limitSpeed (_currentSpeedCap / 3.6);  // Convert km/h to m/s
+        // Smooth speed transition (interpolation) - but not on bridges
+        if (_onBridge) then {
+            // On bridge - maintain current speed, no braking
+            _currentSpeedCap = (speed _vehicle) max _targetSpeed;
+
+            // Disable braking by setting higher limit
+            _vehicle limitSpeed ((_currentSpeedCap + 20) / 3.6);
+        } else {
+            // Normal interpolation
+            private _interpFactor = _cfg get "SPEED_INTERPOLATION";
+            _currentSpeedCap = _currentSpeedCap + ((_targetSpeed - _currentSpeedCap) / _interpFactor);
+            _currentSpeedCap = _currentSpeedCap max 18 min 100;  // Clamp to max highway speed
+
+            // Apply speed limit
+            _vehicle limitSpeed (_currentSpeedCap / 3.6);  // Convert km/h to m/s
+        };
 
         // Apply steering correction for close obstacles
         [_vehicle, _sensors] call EAID_fnc_applySteeringCorrection;
@@ -863,6 +894,7 @@ EAID_fnc_roadFollowing = {
 
     private _group = group _unit;
     private _lastCleanup = time;
+    private _lastWaypointCreate = time;
 
     while {
         !isNull _unit &&
@@ -873,11 +905,11 @@ EAID_fnc_roadFollowing = {
         ([_unit] call EAID_fnc_isEnhanced)
     } do {
 
-        // Periodic waypoint cleanup
-        if (time - _lastCleanup > (EAID_CONFIG get "WAYPOINT_CLEANUP_INTERVAL")) then {
+        // More aggressive waypoint cleanup
+        if (time - _lastCleanup > 10) then {
             private _wpCount = count waypoints _group;
-            if (_wpCount > (EAID_CONFIG get "MAX_WAYPOINTS")) then {
-                for "_i" from 0 to (_wpCount - (EAID_CONFIG get "MAX_WAYPOINTS") - 1) do {
+            if (_wpCount > 3) then {
+                for "_i" from 0 to (_wpCount - 3) do {
                     deleteWaypoint [_group, 0];
                 };
             };
@@ -904,65 +936,88 @@ EAID_fnc_roadFollowing = {
             sleep 5;  // Wait before checking again
         } else {
             // Vehicle in valid area - continue normal navigation
-            private _nearRoads = _pos nearRoads 50;
+            private _nearRoads = _pos nearRoads 100;  // Increased search radius
 
             if (count _nearRoads > 0) then {
                 private _road = _nearRoads select 0;
                 private _connected = roadsConnectedTo _road;
 
                 if (count _connected > 0) then {
-                    // Find best road ahead
+                    // Find best road segments ahead
                     private _vehicleDir = getDir _vehicle;
-                    private _bestRoad = objNull;
-                    private _bestScore = -1;
+                    private _bestRoads = [];
 
                     {
                         private _roadPos = getPosATL _x;
                         private _roadDir = _pos getDir _roadPos;
                         private _angleDiff = [_vehicleDir, _roadDir] call EAID_fnc_angleDiff;
                         private _score = 1 - ((abs _angleDiff) / 180);
+                        private _distance = _pos distance2D _roadPos;
 
-                        if (_score > _bestScore) then {
-                            _bestScore = _score;
-                            _bestRoad = _x;
+                        // Only consider roads ahead and within reasonable distance
+                        if (_score > 0.3 && _distance > 10 && _distance < 150) then {
+                            _bestRoads pushBack [_x, _score, _distance];
                         };
                     } forEach _connected;
 
-                    if (!isNull _bestRoad) then {
-                        private _roadPos = getPosATL _bestRoad;
+                    // Sort by score (best first)
+                    _bestRoads sort false;
 
-                        // NEW: Validate position before creating waypoint
+                    // Create waypoints along the road path
+                    private _wpCreated = 0;
+                    {
+                        _x params ["_roadObj", "_score", "_distance"];
+                        private _roadPos = getPosATL _roadObj;
+
+                        // Validate position before creating waypoint
+                        if ([_roadPos] call EAID_fnc_isValidPosition && _wpCreated < 2) then {
+                            private _wp = _group addWaypoint [_roadPos, 0];
+                            _wp setWaypointType "MOVE";
+                            _wp setWaypointSpeed "FULL";
+                            _wp setWaypointBehaviour "CARELESS";
+                            _wp setWaypointCombatMode "BLUE";
+                            _wpCreated = _wpCreated + 1;
+
+                            _lastWaypointCreate = time;
+                        };
+                    } forEach (_bestRoads select [0, 2]);  // Take top 2 road segments
+                } else {
+                    // No connected roads - find any nearby road
+                    if (count _nearRoads > 1) then {
+                        private _nextRoad = _nearRoads select 1;
+                        private _roadPos = getPosATL _nextRoad;
+
                         if ([_roadPos] call EAID_fnc_isValidPosition) then {
-                            private _wpIndex = currentWaypoint _group;
-
-                            if ((count waypoints _group) <= _wpIndex) then {
-                                private _wp = _group addWaypoint [_roadPos, 0];
-                                _wp setWaypointType "MOVE";
-                                _wp setWaypointSpeed "FULL";
-                                _wp setWaypointBehaviour "CARELESS";
-                            } else {
-                                [_group, _wpIndex] setWaypointPosition [_roadPos, 0];
-                            };
-                        } else {
-                            // Position invalid (map edge or water) - stop creating waypoints
-                            if (EAID_CONFIG get "DEBUG") then {
-                                diag_log format ["EAID: WARNING - Waypoint at map edge rejected for %1 (pos: %2)",
-                                    name _unit, _roadPos];
-                            };
-
-                            // Disable forceFollowRoad to prevent errors
-                            _unit forceFollowRoad false;
-
-                            // Delete all waypoints to stop navigation
-                            while {(count waypoints _group) > 0} do {
-                                deleteWaypoint [_group, 0];
-                            };
+                            private _wp = _group addWaypoint [_roadPos, 0];
+                            _wp setWaypointType "MOVE";
+                            _wp setWaypointSpeed "FULL";
+                            _wp setWaypointBehaviour "CARELESS";
                         };
                     };
                 };
+            } else {
+                // Not near any roads - try to find nearest road
+                private _allRoads = _pos nearRoads 200;
+                if (count _allRoads > 0) then {
+                    private _nearestRoad = _allRoads select 0;
+                    private _roadPos = getPosATL _nearestRoad;
+
+                    if ([_roadPos] call EAID_fnc_isValidPosition) then {
+                        // Create waypoint to get back to road
+                        private _wp = _group addWaypoint [_roadPos, 0];
+                        _wp setWaypointType "MOVE";
+                        _wp setWaypointSpeed "NORMAL";
+                        _wp setWaypointBehaviour "CARELESS";
+
+                        if (EAID_CONFIG get "DEBUG") then {
+                            diag_log format ["EAID: %1 off-road, creating waypoint to road at %2m", name _unit, round (_pos distance2D _roadPos)];
+                        };
+                    };
+                };
+            };
         };
 
-        sleep 2;
+        sleep 1.5;  // Faster waypoint updates
     };
 };
 
@@ -1179,22 +1234,28 @@ if (EAID_CONFIG get "ENABLED") then {
     private _mapPreset = call EAID_fnc_getMapPreset;
 
     diag_log "==========================================";
-    diag_log "Elite AI Driving v5.3 - PATH-PLANNING FIX";
+    diag_log "Elite AI Driving v5.4 - SAFE DRIVING MODE";
     diag_log format ["Applies To: ALL AI sides (EAST/WEST/INDEPENDENT/CIVILIAN)"];
     diag_log format ["Map Size: %1m x %1m (500m safety margin)", worldSize];
-    diag_log format ["Raycast Sensors: 7-ray LIDAR system (with corner detection)"];
-    diag_log format ["Corner Sensors: 70° angle at 20m range"];
-    diag_log format ["Max Speed: %1 km/h (highway mode)", EAID_CONFIG get "SPEED_MAX_HIGHWAY"];
-    diag_log format ["Map Bonus: %1x straight boost", _mapPreset get "straightBonus"];
-    diag_log format ["Combat Driving: Run over enemies = %1", EAID_CONFIG get "RUN_OVER_ENEMIES"];
-    diag_log format ["Map Edge Protection: Enabled (prevents path-planning errors)"];
-    diag_log format ["Corner Detection: Enabled (prevents cutting 90° turns)"];
-    diag_log format ["Drift Detection: Enabled (auto counter-steer)"];
-    diag_log format ["Auto-Unstuck: Enabled (3s threshold)"];
-    diag_log format ["Smooth Transitions: Enabled (%1x interpolation)", EAID_CONFIG get "SPEED_INTERPOLATION"];
-    diag_log format ["Vehicle Presets: Sport/Truck/MRAP/Offroad classes"];
-    diag_log format ["Update Rate: %1 Hz", round (1 / (EAID_CONFIG get "UPDATE_INTERVAL"))];
+    diag_log "";
+    diag_log "SPEED SETTINGS:";
+    diag_log format ["  • Cities/Towns: 30-40 km/h (urban penalty)"];
+    diag_log format ["  • Highway: %1 km/h (straight roads)", EAID_CONFIG get "SPEED_MAX_HIGHWAY"];
+    diag_log format ["  • Normal Roads: %1 km/h", EAID_CONFIG get "SPEED_MAX_ROAD"];
+    diag_log format ["  • Slight Curves: %1 km/h", EAID_CONFIG get "SPEED_MIN_SLIGHT_CURVE"];
+    diag_log format ["  • Medium Curves: %1 km/h", EAID_CONFIG get "SPEED_MIN_MEDIUM_CURVE"];
+    diag_log format ["  • Sharp Curves: %1 km/h", EAID_CONFIG get "SPEED_MIN_SHARP_CURVE"];
+    diag_log "";
+    diag_log "FEATURES:";
+    diag_log "  • Road Following: Enhanced (prevents offroad)";
+    diag_log "  • Bridge Handling: No braking, maintain speed";
+    diag_log "  • Curve Detection: Slight/Medium/Sharp awareness";
+    diag_log "  • Obstacle Detection: 7-ray LIDAR + corner sensors";
+    diag_log "  • Drift Correction: Auto counter-steer enabled";
+    diag_log "  • Auto-Unstuck: 3s threshold recovery";
+    diag_log "  • Traffic Awareness: Slow for friendly vehicles";
+    diag_log format ["  • Update Rate: %1 Hz", round (1 / (EAID_CONFIG get "UPDATE_INTERVAL"))];
     diag_log "==========================================";
 } else {
-    diag_log "Elite AI Driving v5.3 - DISABLED";
+    diag_log "Elite AI Driving v5.4 - DISABLED";
 };

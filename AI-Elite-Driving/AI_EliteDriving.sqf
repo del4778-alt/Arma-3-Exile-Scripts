@@ -1,12 +1,19 @@
 /*
     =====================================================
-    ELITE AI DRIVING SYSTEM v5.1 - TESLA AUTOPILOT MODE
+    ELITE AI DRIVING SYSTEM v5.2 - TESLA AUTOPILOT MODE
     =====================================================
     Author: Master SQF Engineer
-    Version: 5.1 - ULTIMATE DRIVING AI
+    Version: 5.2 - ULTIMATE DRIVING AI + CORNER FIX
     =====================================================
 
-    NEW IN v5.1:
+    NEW IN v5.2:
+    ✅ Corner obstacle detection (90° turn fix)
+    ✅ Additional corner sensors at 70° angle
+    ✅ Aggressive slowdown for corner obstacles
+    ✅ Enhanced steering to avoid cutting corners
+    ✅ Prevents hitting houses/sandbags at 90° turns
+
+    v5.1 Features:
     ✅ Drift/skid detection and counter-steering
     ✅ Auto-unstuck system (gentle reverse recovery)
     ✅ Smooth speed transitions (interpolation)
@@ -15,7 +22,8 @@
     ✅ forceFollowRoad integration
 
     CORE FEATURES:
-    ✅ Multi-ray LIDAR sensor system (forward/left/right/down)
+    ✅ 7-ray LIDAR sensor system (forward/left/right/corners/down)
+    ✅ Corner obstacle detection (prevents cutting 90° turns)
     ✅ Tesla-style autopilot curve prediction
     ✅ Bat sonar obstacle detection (no object spawning!)
     ✅ Dynamic speed optimization based on road geometry
@@ -60,7 +68,9 @@ EAID_CONFIG = createHashMapFromArray [
     ["SENSOR_FORWARD_LONG", 60],     // Long-range forward radar
     ["SENSOR_FORWARD_SHORT", 25],    // Close-range collision detect
     ["SENSOR_SIDE_ANGLE", 45],       // Left/right curve detection
+    ["SENSOR_CORNER_ANGLE", 70],     // Corner obstacle detection (NEW)
     ["SENSOR_SIDE_DISTANCE", 30],    // Side ray length
+    ["SENSOR_CORNER_DISTANCE", 20],  // Corner ray length (NEW)
     ["SENSOR_DOWN_DISTANCE", 15],    // Ground/bridge detection
     ["SENSOR_VEHICLE_DETECT", 80],   // Vehicle awareness range
 
@@ -215,10 +225,10 @@ EAID_ActiveDrivers = createHashMap;
 EAID_ProcessedUnits = [];
 
 diag_log "==========================================";
-diag_log "Elite AI Driving v5.1 - ULTIMATE AUTOPILOT";
+diag_log "Elite AI Driving v5.2 - CORNER FIX UPDATE";
 diag_log format ["Map: %1", worldName];
 diag_log format ["Sensor Tick Rate: %1 Hz", 1 / (EAID_CONFIG get "UPDATE_INTERVAL")];
-diag_log format ["Features: LIDAR + Drift + Auto-Unstuck + Class Presets"];
+diag_log format ["Features: 7-Ray LIDAR + Corner Detection + Drift + Auto-Unstuck"];
 diag_log "==========================================";
 
 // =====================================================
@@ -375,20 +385,28 @@ EAID_fnc_scanSensors = {
     private _dir = vectorDir _vehicle;
     private _dirAngle = getDir _vehicle;
 
-    // Calculate sensor directions
+    // Calculate sensor directions - Standard sensors
     private _leftAngle = _dirAngle + (EAID_CONFIG get "SENSOR_SIDE_ANGLE");
     private _rightAngle = _dirAngle - (EAID_CONFIG get "SENSOR_SIDE_ANGLE");
 
+    // Corner sensors - Steeper angle to catch 90° turn obstacles
+    private _leftCornerAngle = _dirAngle + (EAID_CONFIG get "SENSOR_CORNER_ANGLE");
+    private _rightCornerAngle = _dirAngle - (EAID_CONFIG get "SENSOR_CORNER_ANGLE");
+
     private _leftDir = [sin _leftAngle, cos _leftAngle, 0];
     private _rightDir = [sin _rightAngle, cos _rightAngle, 0];
+    private _leftCornerDir = [sin _leftCornerAngle, cos _leftCornerAngle, 0];
+    private _rightCornerDir = [sin _rightCornerAngle, cos _rightCornerAngle, 0];
     private _downDir = [0, 0, -1];
 
-    // Fire all sensor rays
+    // Fire all sensor rays (now with corner detection)
     private _sensors = createHashMapFromArray [
         ["forwardLong", [_vehicle, _dir, EAID_CONFIG get "SENSOR_FORWARD_LONG"] call EAID_fnc_rayCast],
         ["forwardShort", [_vehicle, _dir, EAID_CONFIG get "SENSOR_FORWARD_SHORT"] call EAID_fnc_rayCast],
         ["left", [_vehicle, _leftDir, EAID_CONFIG get "SENSOR_SIDE_DISTANCE"] call EAID_fnc_rayCast],
         ["right", [_vehicle, _rightDir, EAID_CONFIG get "SENSOR_SIDE_DISTANCE"] call EAID_fnc_rayCast],
+        ["leftCorner", [_vehicle, _leftCornerDir, EAID_CONFIG get "SENSOR_CORNER_DISTANCE"] call EAID_fnc_rayCast],
+        ["rightCorner", [_vehicle, _rightCornerDir, EAID_CONFIG get "SENSOR_CORNER_DISTANCE"] call EAID_fnc_rayCast],
         ["down", [_vehicle, _downDir, EAID_CONFIG get "SENSOR_DOWN_DISTANCE"] call EAID_fnc_rayCast]
     ];
 
@@ -404,7 +422,10 @@ EAID_fnc_calculateCurveSeverity = {
 
     private _leftDist = _sensors get "left";
     private _rightDist = _sensors get "right";
+    private _leftCornerDist = _sensors get "leftCorner";
+    private _rightCornerDist = _sensors get "rightCorner";
     private _maxDist = EAID_CONFIG get "SENSOR_SIDE_DISTANCE";
+    private _maxCornerDist = EAID_CONFIG get "SENSOR_CORNER_DISTANCE";
 
     // Calculate asymmetry (0 = straight, 1+ = curve)
     private _asymmetry = abs (_leftDist - _rightDist) / (_maxDist max 1);
@@ -412,8 +433,15 @@ EAID_fnc_calculateCurveSeverity = {
     // Factor in how close the walls are
     private _narrowness = 1 - ((_leftDist + _rightDist) / (2 * _maxDist));
 
-    // Combined curve severity
-    private _severity = (_asymmetry * 0.6) + (_narrowness * 0.4);
+    // NEW: Corner obstacle detection - if corner sensor hits something close, increase severity
+    private _cornerObstacle = 0;
+    if (_leftCornerDist < 15 || _rightCornerDist < 15) then {
+        _cornerObstacle = 1 - ((_leftCornerDist min _rightCornerDist) / _maxCornerDist);
+        _cornerObstacle = _cornerObstacle max 0 min 1;
+    };
+
+    // Combined curve severity (now with corner obstacle factor)
+    private _severity = (_asymmetry * 0.5) + (_narrowness * 0.3) + (_cornerObstacle * 0.2);
 
     _severity
 };
@@ -429,6 +457,48 @@ EAID_fnc_getCurveSpeedLimit = {
     if (_curveSeverity < (_cfg get "CURVE_SHARP")) exitWith {(_cfg get "SPEED_MIN_SHARP_CURVE") * 1.5};
 
     _cfg get "SPEED_MIN_SHARP_CURVE"
+};
+
+// =====================================================
+// CORNER OBSTACLE DETECTION (90° turns)
+// =====================================================
+
+EAID_fnc_detectCornerObstacle = {
+    params ["_sensors", "_currentSpeed"];
+
+    private _leftCorner = _sensors get "leftCorner";
+    private _rightCorner = _sensors get "rightCorner";
+    private _forwardShort = _sensors get "forwardShort";
+
+    private _cornerDetected = false;
+    private _slowdownFactor = 1.0;
+
+    // Detect left corner obstacle (house/sandbag at left 90° turn)
+    if (_leftCorner < 12 && _forwardShort < 20) then {
+        _cornerDetected = true;
+        // Aggressive slowdown based on how close the obstacle is
+        _slowdownFactor = (_leftCorner / 12) max 0.3 min 0.7;
+
+        if (EAID_CONFIG get "DEBUG") then {
+            diag_log format ["EAID: LEFT CORNER OBSTACLE detected! Distance: %1m - Slowing to %2%%",
+                round _leftCorner, round (_slowdownFactor * 100)];
+        };
+    };
+
+    // Detect right corner obstacle (house/sandbag at right 90° turn)
+    if (_rightCorner < 12 && _forwardShort < 20) then {
+        _cornerDetected = true;
+        // Aggressive slowdown based on how close the obstacle is
+        _slowdownFactor = (_rightCorner / 12) max 0.3 min 0.7;
+
+        if (EAID_CONFIG get "DEBUG") then {
+            diag_log format ["EAID: RIGHT CORNER OBSTACLE detected! Distance: %1m - Slowing to %2%%",
+                round _rightCorner, round (_slowdownFactor * 100)];
+        };
+    };
+
+    // Return detection status and slowdown factor
+    [_cornerDetected, _slowdownFactor]
 };
 
 // =====================================================
@@ -603,6 +673,19 @@ EAID_fnc_calculateOptimalSpeed = {
         };
     };
 
+    // NEW: Corner obstacle detection (90° turns with objects)
+    private _currentSpeed = speed _vehicle;
+    private _cornerInfo = [_sensors, _currentSpeed] call EAID_fnc_detectCornerObstacle;
+    _cornerInfo params ["_cornerDetected", "_cornerSlowdown"];
+
+    if (_cornerDetected) then {
+        // Apply aggressive slowdown for corner obstacles
+        _targetSpeed = _targetSpeed * _cornerSlowdown;
+
+        // Extra caution - minimum speed for tight corners with obstacles
+        _targetSpeed = _targetSpeed max 25 min 40;
+    };
+
     _targetSpeed max 20  // Minimum 20 km/h
 };
 
@@ -615,16 +698,31 @@ EAID_fnc_applySteeringCorrection = {
 
     private _leftDist = _sensors get "left";
     private _rightDist = _sensors get "right";
+    private _leftCornerDist = _sensors get "leftCorner";
+    private _rightCornerDist = _sensors get "rightCorner";
     private _forwardShort = _sensors get "forwardShort";
 
     // Only apply micro-corrections if obstacle very close
     if (_forwardShort > 20) exitWith {};
 
-    // Calculate steering bias
+    // Calculate steering bias from standard sensors
     private _bias = (_rightDist - _leftDist) / 30;  // Normalize
-    _bias = _bias max -0.08 min 0.08;  // Limit to prevent wobble
 
-    // Apply gentle steering nudge
+    // NEW: Add corner obstacle avoidance
+    // If corner sensor detects obstacle, steer away more aggressively
+    if (_leftCornerDist < 10 && _forwardShort < 18) then {
+        // Left corner obstacle - steer right (positive bias)
+        _bias = _bias + 0.12;
+    };
+
+    if (_rightCornerDist < 10 && _forwardShort < 18) then {
+        // Right corner obstacle - steer left (negative bias)
+        _bias = _bias - 0.12;
+    };
+
+    _bias = _bias max -0.15 min 0.15;  // Increased limit for corner avoidance
+
+    // Apply steering nudge
     private _currentDir = vectorDir _vehicle;
     private _currentUp = vectorUp _vehicle;
     private _newDir = _currentDir vectorAdd [_bias, 0, 0];
@@ -704,7 +802,7 @@ EAID_fnc_eliteDriving = {
             private _currentSpeed = speed _vehicle;
             private _curveSeverity = [_sensors] call EAID_fnc_calculateCurveSeverity;
 
-            diag_log format ["EAID: %1 | Speed: %2/%3 km/h | Cap: %4 | Curve: %5%6 | Sensors: F:%7 L:%8 R:%9",
+            diag_log format ["EAID: %1 | Speed: %2/%3 km/h | Cap: %4 | Curve: %5%6 | Sensors: F:%7 L:%8 R:%9 LC:%10 RC:%11",
                 name _unit,
                 round _currentSpeed,
                 round _targetSpeed,
@@ -713,7 +811,9 @@ EAID_fnc_eliteDriving = {
                 if (_isDrifting) then {" DRIFT!"} else {""},
                 round (_sensors get "forwardLong"),
                 round (_sensors get "left"),
-                round (_sensors get "right")
+                round (_sensors get "right"),
+                round (_sensors get "leftCorner"),
+                round (_sensors get "rightCorner")
             ];
 
             _lastDebugTime = diag_tickTime;
@@ -1010,12 +1110,14 @@ if (EAID_CONFIG get "ENABLED") then {
     private _mapPreset = call EAID_fnc_getMapPreset;
 
     diag_log "==========================================";
-    diag_log "Elite AI Driving v5.1 - ULTIMATE AUTOPILOT";
+    diag_log "Elite AI Driving v5.2 - CORNER FIX UPDATE";
     diag_log format ["Applies To: ALL AI sides (EAST/WEST/INDEPENDENT/CIVILIAN)"];
-    diag_log format ["Raycast Sensors: 5-ray LIDAR system"];
+    diag_log format ["Raycast Sensors: 7-ray LIDAR system (with corner detection)"];
+    diag_log format ["Corner Sensors: 70° angle at 20m range"];
     diag_log format ["Max Speed: %1 km/h (highway mode)", EAID_CONFIG get "SPEED_MAX_HIGHWAY"];
     diag_log format ["Map Bonus: %1x straight boost", _mapPreset get "straightBonus"];
     diag_log format ["Combat Driving: Run over enemies = %1", EAID_CONFIG get "RUN_OVER_ENEMIES"];
+    diag_log format ["Corner Detection: Enabled (prevents cutting 90° turns)"];
     diag_log format ["Drift Detection: Enabled (auto counter-steer)"];
     diag_log format ["Auto-Unstuck: Enabled (3s threshold)"];
     diag_log format ["Smooth Transitions: Enabled (%1x interpolation)", EAID_CONFIG get "SPEED_INTERPOLATION"];
@@ -1023,5 +1125,5 @@ if (EAID_CONFIG get "ENABLED") then {
     diag_log format ["Update Rate: %1 Hz", round (1 / (EAID_CONFIG get "UPDATE_INTERVAL"))];
     diag_log "==========================================";
 } else {
-    diag_log "Elite AI Driving v5.1 - DISABLED";
+    diag_log "Elite AI Driving v5.2 - DISABLED";
 };

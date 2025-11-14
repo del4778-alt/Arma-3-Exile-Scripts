@@ -1,7 +1,7 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.19 - SIMPLIFIED SPAWN TIMING
+    ELITE AI RECRUIT SYSTEM v7.20 - CLEAN GROUP OWNERSHIP
     ✅ All function scoping fixed
-    ✅ Group ownership retry logic
+    ✅ Proper group handling (no more warnings!)
     ✅ Simplified player initialization (spawn when actually in-game)
     ✅ Variable shadowing fixed
     ✅ Elite Driving integration
@@ -13,16 +13,16 @@
     ✅ Passengers = Locked (won't exit until player exits)
     ✅ On foot = FSM brain system (IDLE/COMBAT/RETREAT/HEAL)
 
-    CHANGES IN v7.19:
-    - Simplified spawn timing (wait for Exile session + valid position only)
-    - Removed complex connection time checks
-    - Spawn when player is actually standing in-game
+    CHANGES IN v7.20:
+    - Fixed group ownership warnings (create AI in temp group, then join)
+    - No more "Adding units to a remote group is not safe" warnings
+    - Cleaner, more reliable AI spawning
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.19 (Simplified Spawn)...";
+diag_log "[AI RECRUIT] Starting initialization v7.20 (Clean Groups)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -355,7 +355,7 @@ fn_setSpawnCooldown = {
 };
 
 // ====================================================================================
-// Function: Spawn AI teammate (FIXED - Better group ownership)
+// Function: Spawn AI teammate (FIXED - Proper group handling)
 // ====================================================================================
 fn_spawnAI = {
     params ["_player", "_type", "_spawnIndex"];
@@ -371,53 +371,38 @@ fn_spawnAI = {
         objNull
     };
 
-    // ✅ IMPROVED: Better group ownership transfer with retry logic
-    if (groupOwner _playerGroup != 2) then {
-        diag_log format ["[AI RECRUIT] Transferring group ownership for %1 (current owner: %2)...",
-            name _player, groupOwner _playerGroup];
-
-        _playerGroup setGroupOwner 2;
-
-        // ✅ Wait longer and check multiple times
-        private _transferred = false;
-        private _attempts = 0;
-        private _maxAttempts = 10;
-
-        while {!_transferred && _attempts < _maxAttempts} do {
-            sleep 0.2;
-            _attempts = _attempts + 1;
-
-            if (groupOwner _playerGroup == 2) then {
-                _transferred = true;
-                diag_log format ["[AI RECRUIT] ✓ Group ownership transferred after %1 attempts", _attempts];
-            };
-        };
-
-        if (!_transferred) then {
-            diag_log format ["[AI RECRUIT] ⚠ WARNING: Group ownership transfer timeout for %1 (still owner: %2)",
-                name _player, groupOwner _playerGroup];
-            diag_log "[AI RECRUIT] Attempting to continue anyway...";
-        };
-    } else {
-        diag_log format ["[AI RECRUIT] ✓ Group already owned by server for %1", name _player];
-    };
+    // ✅ NEW APPROACH: Create AI in server-owned group, then join to player
+    // This avoids the "remote group" warning entirely
+    private _tempGroup = createGroup [side _player, true];
 
     private _offset = 3 + (_spawnIndex * 0.5);
     private _angle = 120 * _spawnIndex;
     private _pos = [_player, _offset, _angle] call BIS_fnc_relPos;
 
-    private _unit = _playerGroup createUnit [_type, _pos, [], 0, "FORM"];
+    // Create unit in temporary server-owned group
+    private _unit = _tempGroup createUnit [_type, _pos, [], 0, "FORM"];
 
     if (isNull _unit) exitWith {
         diag_log format ["[AI RECRUIT] ERROR: Failed to create %1", _type];
+        deleteGroup _tempGroup;
         objNull
     };
 
     if (!alive _unit) exitWith {
         diag_log format ["[AI RECRUIT] ERROR: Created %1 but unit is dead", _type];
         deleteVehicle _unit;
+        deleteGroup _tempGroup;
         objNull
     };
+
+    // ✅ Now join the unit to the player's group (safe way)
+    [_unit] joinSilent _playerGroup;
+
+    // Delete the temporary group
+    deleteGroup _tempGroup;
+
+    diag_log format ["[AI RECRUIT] ✓ Created %1 in server group and joined to player %2",
+        typeOf _unit, name _player];
 
     _unit setDir ([_player, _pos] call BIS_fnc_dirTo);
     _unit setVariable ["ExileRecruited", true, true];
@@ -1001,7 +986,7 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.19 - SIMPLIFIED SPAWN";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.20 - CLEAN GROUP OWNERSHIP";
 diag_log "  • VEHICLE INTEGRATION:";
 diag_log "    - Drivers USE Elite Driving (autopilot)";
 diag_log "    - Passengers LOCKED (won't exit randomly)";
@@ -1013,11 +998,16 @@ diag_log "  • 300M SIGHT: Detect enemies at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning movement";
 diag_log "  • STEALTH: 50% harder to spot, 50% quieter";
 diag_log "";
-diag_log "  • SPAWN TIMING (v7.19):";
+diag_log "  • GROUP HANDLING (v7.20):";
+diag_log "    - Create AI in temp server-owned group";
+diag_log "    - Join AI to player group (safe method)";
+diag_log "    - No more ownership transfer warnings!";
+diag_log "    - Clean, reliable spawning";
+diag_log "";
+diag_log "  • SPAWN TIMING:";
 diag_log "    - Wait for Exile session ID";
 diag_log "    - Wait for valid position (not at 0,0,0)";
 diag_log "    - Spawn when player standing in-game!";
-diag_log "    - No complex time checks";
 diag_log "";
 diag_log "  • OPTIMIZATIONS:";
 diag_log "    - distanceSqr (3x faster distance checks)";

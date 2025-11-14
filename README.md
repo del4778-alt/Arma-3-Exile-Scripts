@@ -10,25 +10,25 @@ Click on any system to view details and download individually:
 
 | System | Version | Description | Download |
 |--------|---------|-------------|----------|
-| **[AI Recruit System](AI-Recruit-System/)** | v7.7.1 | 3 AI teammates per player with full lifecycle management | [📥 Download](AI-Recruit-System/recruit_ai.sqf) |
+| **[AI Recruit System](AI-Recruit-System/)** | v7.14 | 3 AI teammates per player with full lifecycle management | [📥 Download](AI-Recruit-System/recruit_ai.sqf) |
 | **[AI Elite Driving](AI-Elite-Driving/)** | v1.0 | Enhanced AI vehicle handling and combat driving | [📥 Download](AI-Elite-Driving/AI_EliteDriving.sqf) |
 | **[AI Patrol System](AI-Patrol-System/)** | v1.0 | Dynamic patrol routes with squad leader coordination | [📥 Download](AI-Patrol-System/fn_aiPatrolSystem.sqf) |
 | **[Server Installers](Server-Installers/)** | v1.0 | Automated Exile server setup scripts (Windows/Linux) | [📁 View](Server-Installers/) |
 
 ---
 
-## 🎯 **Featured: AI Recruit System v7.7.1**
+## 🎯 **Featured: AI Recruit System v7.14**
 
-### Latest Updates - Critical Bug Fixes
+### Latest Updates - Vehicle Compatibility Fixes
 
 **[View Full Documentation →](AI-Recruit-System/)**
 
+✅ **VEHICLE COMPATIBILITY** - Works with Elite Driving System
+✅ **PASSENGER RETENTION** - AI stay in vehicles unless ordered out
+✅ **DRIVER ISOLATION** - FSM doesn't interfere with AI drivers
 ✅ **DUAL death detection** - Event handlers + backup polling
 ✅ **Parachute checks** - AI won't spawn mid-air and die
 ✅ **EXTENSIVE logging** - See exactly what's happening
-✅ **Enhanced respawn** - Waits for player to land
-✅ **Fixed group cleanup** - No memory leaks
-✅ **Spawn cooldown** - Prevents cascading respawns
 
 **Quick Install:**
 ```sqf
@@ -294,12 +294,13 @@ Include:
 ## 🔄 **Version History**
 
 ### **AI Recruit System**
-- **v7.7.1** (Current) - Critical bug fixes, parachute checks, dual death detection
+- **v7.14** (Current) - Vehicle compatibility fixes, driver isolation, passenger retention
+- **v7.7.1** - Critical bug fixes, parachute checks, dual death detection
 - **v7.7** - Event-based death detection, group cleanup fixes
 - **v7.6** - Server-side monitoring
 - **v7.0-7.5** - Initial releases
 
-**[See Full Changelog →](AI-Recruit-System/CHANGELOG_v7.7.md)**
+**[See Latest Changelog →](AI-Recruit-System/CHANGELOG_v7.14.md)**
 
 ### **AI Elite Driving**
 - **v1.0** - Side-specific configuration, dynamic speed adjustment

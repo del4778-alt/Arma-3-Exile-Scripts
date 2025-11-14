@@ -1,8 +1,8 @@
-# Elite AI Recruit System v7.7.1
+# Elite AI Recruit System v7.14
 
-**Comprehensive AI recruit system that gives each player 3 AI teammates with full lifecycle management, death cleanup, and respawn handling.**
+**Comprehensive AI recruit system that gives each player 3 AI teammates with full lifecycle management, death cleanup, respawn handling, and vehicle compatibility.**
 
-![Version](https://img.shields.io/badge/version-7.7.1-blue.svg)
+![Version](https://img.shields.io/badge/version-7.14-blue.svg)
 ![Arma 3](https://img.shields.io/badge/Arma%203-v2.18+-green.svg)
 ![Exile](https://img.shields.io/badge/Exile-1.0.4+-orange.svg)
 
@@ -22,6 +22,9 @@
 ### Advanced Features
 - ✅ **Respawn handling** - Fresh AI spawn after player respawn
 - ✅ **Vehicle seat assignment** - AI automatically board vehicles
+- ✅ **Vehicle compatibility** - Works perfectly with Elite Driving System
+- ✅ **Passenger retention** - AI stay in vehicles unless player exits
+- ✅ **Driver AI isolation** - FSM doesn't interfere with AI drivers
 - ✅ **Strict 3 AI maximum** - Prevents duplicates
 - ✅ **VCOMAI integration** - Auto-detects and configures
 - ✅ **A3XAI blacklist** - Prevents AI mission conflicts

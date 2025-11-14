@@ -1,28 +1,31 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.20 - CLEAN GROUP OWNERSHIP
+    ELITE AI RECRUIT SYSTEM v7.21 - VEHICLE BEHAVIOR FIX
     ✅ All function scoping fixed
     ✅ Proper group handling (no more warnings!)
     ✅ Simplified player initialization (spawn when actually in-game)
     ✅ Variable shadowing fixed
-    ✅ Elite Driving integration
+    ✅ Elite Driving integration (v5.4 Safe Driving Mode)
     ✅ Zombie resurrection protection
 
     VEHICLE BEHAVIOR:
-    ✅ Driver = Elite Driving (autopilot)
+    ✅ Driver = Elite Driving (safe autopilot 30-40 city, 80-100 highway)
     ✅ Gunner = Full combat AI (if armed vehicle)
     ✅ Passengers = Locked (won't exit until player exits)
+    ✅ Auto-seating when player enters vehicle
+    ✅ Auto-dismount only when player fully exits
     ✅ On foot = FSM brain system (IDLE/COMBAT/RETREAT/HEAL)
 
-    CHANGES IN v7.20:
-    - Fixed group ownership warnings (create AI in temp group, then join)
-    - No more "Adding units to a remote group is not safe" warnings
-    - Cleaner, more reliable AI spawning
+    CHANGES IN v7.21:
+    - Fixed AI jumping out of vehicles (passenger retention system restored)
+    - Added player GetInMan/GetOutMan handlers for auto-seating
+    - AI stay in vehicles until player fully exits
+    - Integrated Elite Driving v5.4 (safe speeds, better road following)
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting initialization v7.20 (Clean Groups)...";
+diag_log "[AI RECRUIT] Starting initialization v7.21 (Vehicle Behavior Fix)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -483,6 +486,44 @@ fn_spawnAI = {
     _playerGroup enableAttack true;
     _playerGroup setFormation "COLUMN";
 
+    // ✅ VEHICLE RETENTION: Prevent AI from auto-dismounting vehicles
+    _unit addEventHandler ["GetOutMan", {
+        params ["_unit", "_role", "_vehicle", "_turret"];
+
+        // Check if AI is dismounting on their own (not ordered by player)
+        private _owner = [_unit getVariable ["OwnerUID", ""]] call BIS_fnc_getUnitByUID;
+
+        if (!isNull _owner && alive _owner) then {
+            private _ownerVeh = vehicle _owner;
+
+            // If owner is in the same vehicle, the AI shouldn't get out unless ordered
+            if (_ownerVeh == _vehicle && _role != "driver") then {
+                // Re-board the AI after a short delay
+                [_unit, _vehicle, _role, _turret] spawn {
+                    params ["_unit", "_vehicle", "_role", "_turret"];
+                    sleep 0.3;
+
+                    // Check if AI is still outside and owner is still in vehicle
+                    if (!isNull _unit && alive _unit && vehicle _unit == _unit) then {
+                        private _owner = [_unit getVariable ["OwnerUID", ""]] call BIS_fnc_getUnitByUID;
+
+                        if (!isNull _owner && alive _owner && vehicle _owner == _vehicle) then {
+                            // Get back in
+                            switch (_role) do {
+                                case "cargo": { _unit moveInCargo _vehicle };
+                                case "gunner": { _unit moveInGunner _vehicle };
+                                case "commander": { _unit moveInCommander _vehicle };
+                                case "turret": { _unit moveInTurret [_vehicle, _turret] };
+                            };
+
+                            diag_log format ["[AI RECRUIT] %1 re-boarded %2 (prevented auto-dismount)", name _unit, typeOf _vehicle];
+                        };
+                    };
+                };
+            };
+        };
+    }];
+
     // VCOMAI Integration
     if (RECRUIT_VCOMAI_Active) then {
         if (!isNil "VCM_NOAI" && {!isNil {VCM_NOAI}}) then {
@@ -794,6 +835,66 @@ fn_setupPlayerHandlers = {
 
     diag_log format ["[AI RECRUIT] Death event handlers registered for %1", name _player];
 
+    // GetInMan - Assign AI to seats when player enters vehicle
+    _player addEventHandler ["GetInMan", {
+        params ["_unit", "_role", "_vehicle", "_turret"];
+
+        [_unit, _vehicle] spawn {
+            params ["_player", "_vehicle"];
+            sleep 0.5;
+
+            if (!isNull _player && alive _player && vehicle _player == _vehicle) then {
+                private _assigned = _player getVariable ["AssignedAI", []];
+                private _seatsAssigned = 0;
+
+                // Assign AI to available seats
+                {
+                    if (!isNull _x && alive _x && vehicle _x != _vehicle) then {
+                        // Try different roles in priority order
+                        if (driver _vehicle isEqualTo objNull && _seatsAssigned == 0) then {
+                            _x assignAsDriver _vehicle;
+                            _x moveInDriver _vehicle;
+                            _seatsAssigned = _seatsAssigned + 1;
+                            diag_log format ["[AI RECRUIT] %1 assigned as driver", name _x];
+                        } else {
+                            _x assignAsCargo _vehicle;
+                            _x moveInCargo _vehicle;
+                            _seatsAssigned = _seatsAssigned + 1;
+                            diag_log format ["[AI RECRUIT] %1 assigned as cargo", name _x];
+                        };
+                    };
+                } forEach _assigned;
+
+                if (_seatsAssigned > 0) then {
+                    diag_log format ["[AI RECRUIT] %1 AI assigned to %2", _seatsAssigned, typeOf _vehicle];
+                };
+            };
+        };
+    }];
+
+    // GetOutMan - Only dismount AI if player fully exits (not switching seats)
+    _player addEventHandler ["GetOutMan", {
+        params ["_unit", "_role", "_vehicle", "_turret"];
+
+        [_unit, _vehicle] spawn {
+            params ["_player", "_vehicle"];
+            sleep 0.5;  // Delay to check if player re-enters
+
+            // Only dismount AI if player is truly out of the vehicle
+            if (!isNull _player && alive _player && vehicle _player == _player) then {
+                private _assigned = _player getVariable ["AssignedAI", []];
+                {
+                    if (!isNull _x && {vehicle _x isEqualTo _vehicle}) then {
+                        unassignVehicle _x;
+                        moveOut _x;
+                        _x doFollow _player;
+                        diag_log format ["[AI RECRUIT] %1 dismounted from %2", name _x, typeOf _vehicle];
+                    };
+                } forEach _assigned;
+            };
+        };
+    }];
+
     _player addEventHandler ["Respawn", {
         params ["_unit", "_corpse"];
 
@@ -986,10 +1087,17 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.20 - CLEAN GROUP OWNERSHIP";
-diag_log "  • VEHICLE INTEGRATION:";
-diag_log "    - Drivers USE Elite Driving (autopilot)";
-diag_log "    - Passengers LOCKED (won't exit randomly)";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.21 - VEHICLE BEHAVIOR FIX";
+diag_log "  • VEHICLE INTEGRATION (FIXED):";
+diag_log "    - Drivers USE Elite Driving v5.4 (safe autopilot)";
+diag_log "      * Cities/Towns: 30-40 km/h";
+diag_log "      * Highway: 80-100 km/h";
+diag_log "      * Curves: Auto-slowdown (slight/medium/sharp)";
+diag_log "      * Bridges: No braking, maintain speed";
+diag_log "      * Road Following: Enhanced (stays on roads)";
+diag_log "    - Passengers LOCKED (won't exit until player exits)";
+diag_log "    - Auto-seating when player enters vehicle";
+diag_log "    - Auto-dismount only when player fully exits";
 diag_log "    - Gunners ACTIVE (armed vehicles)";
 diag_log "    - On foot = FSM brain (IDLE/COMBAT/RETREAT/HEAL)";
 diag_log "";
@@ -998,7 +1106,7 @@ diag_log "  • 300M SIGHT: Detect enemies at extreme distance";
 diag_log "  • 1.4X SPEED: Lightning movement";
 diag_log "  • STEALTH: 50% harder to spot, 50% quieter";
 diag_log "";
-diag_log "  • GROUP HANDLING (v7.20):";
+diag_log "  • GROUP HANDLING:";
 diag_log "    - Create AI in temp server-owned group";
 diag_log "    - Join AI to player group (safe method)";
 diag_log "    - No more ownership transfer warnings!";
@@ -1019,6 +1127,7 @@ diag_log "";
 diag_log "  • PROTECTIONS:";
 diag_log "    - Ravage zombie immunity";
 diag_log "    - Safe group deletion (never deletes player group)";
+diag_log "    - Passenger retention (re-board if dismount)";
 diag_log "    - Variable shadowing fixed";
 diag_log "";
 if (RECRUIT_VCOMAI_Active) then {

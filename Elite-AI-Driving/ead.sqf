@@ -1,8 +1,15 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.4
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.5
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v8.5 A3XAI FIX:
+        ✅ Fixed A3XAI vehicles spinning in place
+        ✅ Disables AI PATH/AUTOTARGET to prevent conflict with EAD control
+        ✅ Re-enables AI when EAD releases control
+        ✅ EAD now steers toward AI waypoints while maintaining smooth control
+        ✅ Vehicles reach A3XAI objectives without pathfinding conflicts
 
     v8.4 OPTIMIZATION:
         ✅ Batch raycast processing (Arma 3 v2.20+)
@@ -532,8 +539,48 @@ EAD_fnc_stuck = {
 };
 
 /* =====================================================================================
-    SECTION 7 — VECTOR DRIVE + STEERING + DEBUG
+    SECTION 7 — WAYPOINT NAVIGATION + VECTOR DRIVE + STEERING + DEBUG
 ===================================================================================== */
+
+// ✅ NEW: Get steering bias toward AI waypoint
+EAD_fnc_waypointBias = {
+    params ["_veh"];
+
+    private _drv = driver _veh;
+    if (isNull _drv) exitWith {0};
+
+    private _grp = group _drv;
+    private _wpIdx = currentWaypoint _grp;
+
+    // If no valid waypoint, just drive forward
+    if (_wpIdx < 0) exitWith {0};
+
+    private _wpPos = waypointPosition [_grp, _wpIdx];
+
+    // Check if waypoint is valid
+    if (_wpPos isEqualTo [0,0,0]) exitWith {0};
+
+    private _vehPos = getPosATL _veh;
+    private _dist = _vehPos distance2D _wpPos;
+
+    // If very close to waypoint (within 30m), reduce steering influence
+    if (_dist < 30) exitWith {0};
+
+    // Calculate angle to waypoint
+    private _dirToWP = _vehPos getDir _wpPos;
+    private _vehDir = getDir _veh;
+
+    // Calculate angle difference (-180 to 180)
+    private _angleDiff = _dirToWP - _vehDir;
+    while {_angleDiff > 180} do {_angleDiff = _angleDiff - 360};
+    while {_angleDiff < -180} do {_angleDiff = _angleDiff + 360};
+
+    // Convert to steering bias (stronger at longer distances)
+    private _strength = ((_dist min 200) / 200) * 0.15; // Max 0.15 bias
+    private _bias = (_angleDiff / 180) * _strength;
+
+    _bias
+};
 
 EAD_fnc_vectorDrive = {
     params ["_veh","_s","_tSpd","_profile"];
@@ -552,7 +599,10 @@ EAD_fnc_vectorDrive = {
     if ((_s get "NL") < 8) then {_near = _near + 0.03};
     if ((_s get "NR") < 8) then {_near = _near - 0.03};
 
-    private _bias = _center + _pathAdj + _drift + _near;
+    // ✅ NEW: Add waypoint steering to guide vehicle toward A3XAI objectives
+    private _wpSteer = [_veh] call EAD_fnc_waypointBias;
+
+    private _bias = _center + _pathAdj + _drift + _near + _wpSteer;
     _bias = _bias max -0.25 min 0.25;
 
     private _newDir = _dir + (_bias * 55);
@@ -709,13 +759,21 @@ EAD_fnc_runDriver = {
     _veh removeEventHandler ["Local",_localEH];
     _veh removeEventHandler ["Killed",_killedEH];
 
+    // ✅ FIX: Re-enable AI pathfinding when EAD releases control
+    if (_veh getVariable ["EAD_aiDisabled", false]) then {
+        if (alive _unit) then {
+            _unit enableAI "PATH";
+            _unit enableAI "AUTOTARGET";
+        };
+    };
+
     {
         _veh setVariable [_x,nil];
     } forEach [
         "EAD_active","EAD_stuckTime","EAD_reverseUntil","EAD_profile",
         "EAD_onBridge","EAD_altT","EAD_altPos","EAD_altLastSpeed",
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
-        "EAD_treeCheckTime","EAD_lastReverseEnd"
+        "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;
@@ -743,6 +801,12 @@ EAD_fnc_registerDriver = {
     if (_veh getVariable ["EAD_active",false]) exitWith {};
 
     _veh setVariable ["EAD_active",true];
+
+    // ✅ FIX: Disable AI pathfinding to prevent conflict with EAD's direct control
+    // This stops the AI from fighting against EAD's setDir/setVelocity commands
+    _unit disableAI "PATH";
+    _unit disableAI "AUTOTARGET";
+    _veh setVariable ["EAD_aiDisabled", true];
 
     EAD_TrackedVehicles pushBackUnique _veh;
     EAD_Stats set ["totalVehicles", count EAD_TrackedVehicles];
@@ -801,7 +865,7 @@ EAD_fnc_registerDriver = {
         private _max = (EAD_Stats get "maxTickTime") * 1000;
 
         diag_log format [
-            "[EAD 8.4]  Total:%1 | Avg:%2 ms | Max:%3 ms (last 10 min) [BATCH OPTIMIZED]",
+            "[EAD 8.5]  Total:%1 | Avg:%2 ms | Max:%3 ms (last 10 min) [A3XAI FIX]",
             _tot,
             _avg toFixed 2,
             _max toFixed 2

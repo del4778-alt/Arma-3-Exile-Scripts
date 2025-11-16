@@ -267,9 +267,9 @@ MISSION_fnc_createCrashSite = {
 
     // Spawn AI guards
     private _aiCount = switch (_difficulty) do {
-        case "easy": { (MISSION_CONFIG get "aiCountEasy") select 0 + floor(random ((MISSION_CONFIG get "aiCountEasy") select 1 - (MISSION_CONFIG get "aiCountEasy") select 0)) };
-        case "medium": { (MISSION_CONFIG get "aiCountMedium") select 0 + floor(random ((MISSION_CONFIG get "aiCountMedium") select 1 - (MISSION_CONFIG get "aiCountMedium") select 0)) };
-        case "hard": { (MISSION_CONFIG get "aiCountHard") select 0 + floor(random ((MISSION_CONFIG get "aiCountHard") select 1 - (MISSION_CONFIG get "aiCountHard") select 0)) };
+        case "easy": { ((MISSION_CONFIG get "aiCountEasy") select 0) + floor(random (((MISSION_CONFIG get "aiCountEasy") select 1) - ((MISSION_CONFIG get "aiCountEasy") select 0))) };
+        case "medium": { ((MISSION_CONFIG get "aiCountMedium") select 0) + floor(random (((MISSION_CONFIG get "aiCountMedium") select 1) - ((MISSION_CONFIG get "aiCountMedium") select 0))) };
+        case "hard": { ((MISSION_CONFIG get "aiCountHard") select 0) + floor(random (((MISSION_CONFIG get "aiCountHard") select 1) - ((MISSION_CONFIG get "aiCountHard") select 0))) };
         default { 4 };
     };
 
@@ -319,9 +319,9 @@ MISSION_fnc_createSupplyCache = {
 
     // Spawn initial AI wave
     private _aiCount = switch (_difficulty) do {
-        case "easy": { (MISSION_CONFIG get "aiCountEasy") select 0 + floor(random ((MISSION_CONFIG get "aiCountEasy") select 1 - (MISSION_CONFIG get "aiCountEasy") select 0)) };
-        case "medium": { (MISSION_CONFIG get "aiCountMedium") select 0 + floor(random ((MISSION_CONFIG get "aiCountMedium") select 1 - (MISSION_CONFIG get "aiCountMedium") select 0)) };
-        case "hard": { (MISSION_CONFIG get "aiCountHard") select 0 + floor(random ((MISSION_CONFIG get "aiCountHard") select 1 - (MISSION_CONFIG get "aiCountHard") select 0)) };
+        case "easy": { ((MISSION_CONFIG get "aiCountEasy") select 0) + floor(random (((MISSION_CONFIG get "aiCountEasy") select 1) - ((MISSION_CONFIG get "aiCountEasy") select 0))) };
+        case "medium": { ((MISSION_CONFIG get "aiCountMedium") select 0) + floor(random (((MISSION_CONFIG get "aiCountMedium") select 1) - ((MISSION_CONFIG get "aiCountMedium") select 0))) };
+        case "hard": { ((MISSION_CONFIG get "aiCountHard") select 0) + floor(random (((MISSION_CONFIG get "aiCountHard") select 1) - ((MISSION_CONFIG get "aiCountHard") select 0))) };
         default { 5 };
     };
 
@@ -542,9 +542,9 @@ MISSION_fnc_createRescue = {
 
     // Spawn AI guards
     private _aiCount = switch (_difficulty) do {
-        case "easy": { (MISSION_CONFIG get "aiCountEasy") select 0 + floor(random ((MISSION_CONFIG get "aiCountEasy") select 1 - (MISSION_CONFIG get "aiCountEasy") select 0)) };
-        case "medium": { (MISSION_CONFIG get "aiCountMedium") select 0 + floor(random ((MISSION_CONFIG get "aiCountMedium") select 1 - (MISSION_CONFIG get "aiCountMedium") select 0)) };
-        case "hard": { (MISSION_CONFIG get "aiCountHard") select 0 + floor(random ((MISSION_CONFIG get "aiCountHard") select 1 - (MISSION_CONFIG get "aiCountHard") select 0)) };
+        case "easy": { ((MISSION_CONFIG get "aiCountEasy") select 0) + floor(random (((MISSION_CONFIG get "aiCountEasy") select 1) - ((MISSION_CONFIG get "aiCountEasy") select 0))) };
+        case "medium": { ((MISSION_CONFIG get "aiCountMedium") select 0) + floor(random (((MISSION_CONFIG get "aiCountMedium") select 1) - ((MISSION_CONFIG get "aiCountMedium") select 0))) };
+        case "hard": { ((MISSION_CONFIG get "aiCountHard") select 0) + floor(random (((MISSION_CONFIG get "aiCountHard") select 1) - ((MISSION_CONFIG get "aiCountHard") select 0))) };
         default { 4 };
     };
 
@@ -630,9 +630,9 @@ MISSION_fnc_createCamp = {
 
     // Spawn AI defenders (more than other missions)
     private _aiCount = if (_difficulty == "hard") then {
-        (MISSION_CONFIG get "aiCountHard") select 1 + 2  // Extra AI for camps
+        ((MISSION_CONFIG get "aiCountHard") select 1) + 2  // Extra AI for camps
     } else {
-        (MISSION_CONFIG get "aiCountMedium") select 1
+        ((MISSION_CONFIG get "aiCountMedium") select 1)
     };
 
     private _aiData = [_pos, _aiCount, EAST] call MISSION_fnc_spawnAI;
@@ -750,8 +750,8 @@ MISSION_fnc_completeMission = {
     [format ["Mission %1 completed!", _mission get "type"]] call MISSION_fnc_log;
 
     // Calculate rewards
-    private _poptabs = (MISSION_CONFIG get "rewardPoptabs") select 0 + floor(random ((MISSION_CONFIG get "rewardPoptabs") select 1 - (MISSION_CONFIG get "rewardPoptabs") select 0));
-    private _respect = (MISSION_CONFIG get "rewardRespect") select 0 + floor(random ((MISSION_CONFIG get "rewardRespect") select 1 - (MISSION_CONFIG get "rewardRespect") select 0));
+    private _poptabs = ((MISSION_CONFIG get "rewardPoptabs") select 0) + floor(random (((MISSION_CONFIG get "rewardPoptabs") select 1) - ((MISSION_CONFIG get "rewardPoptabs") select 0)));
+    private _respect = ((MISSION_CONFIG get "rewardRespect") select 0) + floor(random (((MISSION_CONFIG get "rewardRespect") select 1) - ((MISSION_CONFIG get "rewardRespect") select 0)));
 
     // Apply difficulty multiplier
     private _multiplier = switch (_mission get "difficulty") do {

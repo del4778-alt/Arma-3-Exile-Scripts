@@ -778,9 +778,10 @@ MISSION_fnc_checkMissionComplete = {
         // Check if hostages are rescued (near a player)
         private _rescued = false;
         {
-            if (alive _x) then {
+            private _hostage = _x;
+            if (alive _hostage) then {
                 {
-                    if (_x distance _y < 10 && side _y == WEST) exitWith { _rescued = true };
+                    if (_hostage distance _x < 10 && side _x == WEST) exitWith { _rescued = true };
                 } forEach allPlayers;
             };
         } forEach (_mission getOrDefault ["hostages", []]);

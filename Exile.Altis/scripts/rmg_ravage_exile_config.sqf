@@ -20,11 +20,12 @@ private _CFG = [
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_bolter","zombie_walker","zombie_runner"]],
-    ["hordeSizeRange", [6, 12]],
+    ["hordeSizeRange", [2, 4]],  // Reduced from [6, 12] to limit zombie spam
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
     ["chanceHorde", 0.10],
-    // ✅ ALL AI sides spawn zombies (EAST, WEST, RESISTANCE)
+    // ✅ Only HUMAN AI spawn zombies (EAST, WEST, RESISTANCE)
+    // CIVILIAN (zombies) not included to prevent zombie resurrection
     // RECRUIT AI is still EXCLUDED via ExileRecruited check below
     ["spawnFromSides", [east, west, resistance]],
     ["minPlayerDist", 10],

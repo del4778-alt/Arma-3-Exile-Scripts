@@ -1,11 +1,15 @@
 /*
-    rmg_ravage_exile_config.sqf - SAFE ZOMBIE RESURRECTION
+    rmg_ravage_exile_config.sqf - BALANCED ZOMBIE SPAWNING
+
+    v2.8 - REDUCED SPAWN RATES & NO ZOMBIE RESURRECTION:
+        ✅ Horde size reduced to 2-4 zombies (was 6-12)
+        ✅ Zombie resurrection disabled (CIVILIAN removed from spawn sides)
+        ✅ Only human AI (EAST/WEST/RESISTANCE) spawn zombies
+        ✅ maxZombieResurrections set to 0 for safety
 
     v2.7 - ZOMBIE RESURRECTION WITH LIMITS:
-        ✅ Zombies can now resurrect (CIVILIAN added to spawn sides)
-        ✅ Resurrection limit prevents infinite loops (default: 1 resurrection)
-        ✅ Tracks resurrection count per zombie
-        ✅ Configurable via maxZombieResurrections
+        Zombies could resurrect with limits
+        Resurrection limit prevented infinite loops
 
     v2.6 - DEBUG MODE:
         Added comprehensive debug logging to diagnose zombie spawning
@@ -25,17 +29,18 @@ private _CFG = [
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_bolter","zombie_walker","zombie_runner"]],
-    ["hordeSizeRange", [6, 12]],
+    ["hordeSizeRange", [2, 4]],  // Reduced from [6, 12] to limit zombie spam
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
     ["chanceHorde", 0.10],
-    // ✅ ALL AI sides spawn zombies (EAST, WEST, RESISTANCE, CIVILIAN)
+    // ✅ Only HUMAN AI spawn zombies (EAST, WEST, RESISTANCE)
+    // CIVILIAN removed to prevent zombies spawning from zombie corpses
     // RECRUIT AI is still EXCLUDED via ExileRecruited check below
-    ["spawnFromSides", [east, west, resistance, civilian]],
+    ["spawnFromSides", [east, west, resistance]],
     ["minPlayerDist", 10],
     // ✅ v2.7: Zombie resurrection limit (prevents infinite loops)
     // 0 = zombies never resurrect, 1 = resurrect once, 2 = twice, etc.
-    ["maxZombieResurrections", 1],
+    ["maxZombieResurrections", 0],  // Set to 0 to disable zombie resurrection
 
     // --- Ambient bandits/scavengers
     ["ambientEnabled", true],
@@ -517,12 +522,13 @@ if (["ambientEnabled"] call _get) then {
 };
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Exile integration complete - v2.7";
-diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE WITH LIMITS";
+diag_log "[RMG:Ravage] Exile integration complete - v2.8";
+diag_log "[RMG:Ravage] - Zombie resurrection: DISABLED (maxResurrections=0)";
 diag_log format ["[RMG:Ravage] - Max resurrections per zombie: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
 diag_log "[RMG:Ravage] - Zombies: CIVILIAN side (zombie_bolter, zombie_walker, zombie_runner)";
+diag_log "[RMG:Ravage] - Horde size: 2-4 zombies (reduced from 6-12)";
 diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no resurrection)";
-diag_log "[RMG:Ravage] - Spawn sides: EAST, WEST, RESISTANCE, CIVILIAN";
+diag_log "[RMG:Ravage] - Spawn sides: EAST, WEST, RESISTANCE (CIVILIAN excluded)";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
 diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE";
 diag_log "[RMG:Ravage] - Faction hostility: ALL vs CIVILIAN zombies";

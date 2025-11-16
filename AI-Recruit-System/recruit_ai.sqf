@@ -174,9 +174,7 @@ RECRUIT_fnc_FSM_ExecuteState = {
                 _unit fire ["SmokeShellMuzzle", "SmokeShellMuzzle", "SmokeShell"];
             };
 
-            if (random 1 > 0.8) then {
-                [_unit, "I'm hit bad!"] remoteExec ["sideChat", 0];
-            };
+            // Note: AI chat messages disabled (remoteExec security restriction)
         };
 
         case FSM_STATE_HEAL: {

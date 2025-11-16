@@ -1,0 +1,140 @@
+/*
+    DESCRIPTION.EXT PATCH - RemoteExec Whitelist for Mission System
+
+    PROBLEM: Your mission system uses remoteExec for:
+    - systemChat (mission announcements)
+    - Marker commands (if future updates add them)
+
+    But your description.ext doesn't whitelist these commands,
+    causing "not allowed to be remotely executed" errors.
+
+    SOLUTION: Add these commands to your CfgRemoteExec
+
+    INSTALLATION:
+    1. Open Exile.Altis/description.ext
+    2. Find the "class CfgRemoteExec" section
+    3. Replace it with the version below
+    4. Save and restart server
+*/
+
+// ========================================
+// REPLACE YOUR CfgRemoteExec WITH THIS:
+// ========================================
+
+class CfgRemoteExec
+{
+    class Functions
+    {
+        mode = 1;
+        jip = 0;
+
+        class ExileServer_system_network_dispatchIncomingMessage
+        {
+            allowedTargets = 2;
+        };
+
+        // Ravage Mod Support
+        class setIdentity { allowedTargets = 0; jip = 0; };
+        class say3d { allowedTargets = 0; jip = 0; };
+        // Add any other custom functions here...
+    };
+
+    class Commands
+    {
+        mode = 1;  // Whitelist mode (1 = only listed commands allowed)
+        jip = 0;
+
+        // ======================================
+        // MISSION SYSTEM COMMANDS
+        // ======================================
+        // Used by fn_dynamicMissions.sqf
+
+        // Announcements (systemChat used for mission start/complete)
+        class systemChat { allowedTargets = 0; };
+
+        // Marker commands (in case future updates need them)
+        class createMarker { allowedTargets = 0; };
+        class deleteMarker { allowedTargets = 0; };
+        class setMarkerPos { allowedTargets = 0; };
+        class setMarkerText { allowedTargets = 0; };
+        class setMarkerColor { allowedTargets = 0; };
+        class setMarkerType { allowedTargets = 0; };
+        class setMarkerShape { allowedTargets = 0; };
+        class setMarkerAlpha { allowedTargets = 0; };
+
+        // ======================================
+        // RAVAGE MOD SUPPORT
+        // ======================================
+        class setIdentity { allowedTargets = 0; };
+        class say3D { allowedTargets = 0; };
+
+        // ======================================
+        // OPTIONAL: Additional useful commands
+        // ======================================
+        // Uncomment these if you need them:
+
+        // class hint { allowedTargets = 0; };
+        // class hintSilent { allowedTargets = 0; };
+        // class titleText { allowedTargets = 0; };
+        // class sideChat { allowedTargets = 0; };
+        // class globalChat { allowedTargets = 0; };
+    };
+};
+
+// ========================================
+// EXPLANATION:
+// ========================================
+
+/*
+    allowedTargets values:
+    0 = Everyone (clients + server)
+    1 = Clients only
+    2 = Server only
+
+    jip (Join In Progress):
+    0 = Don't execute for players joining after command sent
+    1 = Execute for JIP players too
+
+    mode:
+    0 = Blacklist (allow all except listed)
+    1 = Whitelist (block all except listed)  ← We use this for security
+    2 = Disable remoteExec entirely
+
+    Your current setup uses mode=1 (whitelist), which is good for security.
+    We're adding the minimum commands needed for your mission system to work.
+*/
+
+// ========================================
+// WHAT THIS FIXES:
+// ========================================
+
+/*
+    BEFORE:
+    - Mission spawn: "NEW MISSION..." → ERROR (systemChat blocked)
+    - Mission complete: "MISSION COMPLETE..." → ERROR (systemChat blocked)
+    - No player notifications
+
+    AFTER:
+    - Mission spawn: "NEW MISSION..." → ✓ Works
+    - Mission complete: "MISSION COMPLETE..." → ✓ Works
+    - Players see all mission notifications
+*/
+
+// ========================================
+// SECURITY NOTES:
+// ========================================
+
+/*
+    This whitelist is SAFE because:
+    1. systemChat cannot harm the server (just chat messages)
+    2. Marker commands are cosmetic only
+    3. Mode=1 (whitelist) blocks all other potentially dangerous commands
+    4. Only specific, vetted commands are allowed
+
+    Commands NOT allowed (still blocked for security):
+    - deleteVehicle (could grief players)
+    - setDamage (could kill players)
+    - setPos (could teleport players)
+    - addWeapon (could give unfair advantage)
+    - etc.
+*/

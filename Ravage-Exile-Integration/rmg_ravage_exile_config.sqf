@@ -1,11 +1,15 @@
 /*
     rmg_ravage_exile_config.sqf - BALANCED ZOMBIE SPAWNING
 
-    v2.8 - REDUCED SPAWN RATES & NO ZOMBIE RESURRECTION:
-        ✅ Horde size reduced to 2-4 zombies (was 6-12)
+    v2.9 - SINGLE ZOMBIE ONLY:
+        ✅ Hordes completely disabled (chanceHorde set to 0)
+        ✅ Always spawns exactly 1 zombie per AI kill
         ✅ Zombie resurrection disabled (CIVILIAN removed from spawn sides)
         ✅ Only human AI (EAST/WEST/RESISTANCE) spawn zombies
         ✅ maxZombieResurrections set to 0 for safety
+
+    v2.8 - REDUCED SPAWN RATES & NO ZOMBIE RESURRECTION:
+        Horde size reduced to 2-4 zombies (was 6-12)
 
     v2.7 - ZOMBIE RESURRECTION WITH LIMITS:
         Zombies could resurrect with limits
@@ -29,10 +33,10 @@ private _CFG = [
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_bolter","zombie_walker","zombie_runner"]],
-    ["hordeSizeRange", [2, 4]],  // Reduced from [6, 12] to limit zombie spam
+    ["hordeSizeRange", [2, 4]],  // Not used when chanceHorde is 0
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
-    ["chanceHorde", 0.10],
+    ["chanceHorde", 0],  // Set to 0 to disable hordes - always spawn 1 zombie per AI kill
     // ✅ Only HUMAN AI spawn zombies (EAST, WEST, RESISTANCE)
     // CIVILIAN removed to prevent zombies spawning from zombie corpses
     // RECRUIT AI is still EXCLUDED via ExileRecruited check below
@@ -522,11 +526,11 @@ if (["ambientEnabled"] call _get) then {
 };
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Exile integration complete - v2.8";
+diag_log "[RMG:Ravage] Exile integration complete - v2.9";
+diag_log "[RMG:Ravage] - Spawn rate: EXACTLY 1 ZOMBIE per AI kill";
+diag_log "[RMG:Ravage] - Hordes: DISABLED (chanceHorde=0)";
 diag_log "[RMG:Ravage] - Zombie resurrection: DISABLED (maxResurrections=0)";
-diag_log format ["[RMG:Ravage] - Max resurrections per zombie: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
 diag_log "[RMG:Ravage] - Zombies: CIVILIAN side (zombie_bolter, zombie_walker, zombie_runner)";
-diag_log "[RMG:Ravage] - Horde size: 2-4 zombies (reduced from 6-12)";
 diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no resurrection)";
 diag_log "[RMG:Ravage] - Spawn sides: EAST, WEST, RESISTANCE (CIVILIAN excluded)";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";

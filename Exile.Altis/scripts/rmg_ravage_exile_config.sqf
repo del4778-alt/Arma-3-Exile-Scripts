@@ -20,10 +20,10 @@ private _CFG = [
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_bolter","zombie_walker","zombie_runner"]],
-    ["hordeSizeRange", [2, 4]],  // Reduced from [6, 12] to limit zombie spam
+    ["hordeSizeRange", [2, 4]],  // Not used when chanceHorde is 0
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
-    ["chanceHorde", 0.10],
+    ["chanceHorde", 0],  // Set to 0 to disable hordes - always spawn 1 zombie per AI kill
     // ✅ Only HUMAN AI spawn zombies (EAST, WEST, RESISTANCE)
     // CIVILIAN (zombies) not included to prevent zombie resurrection
     // RECRUIT AI is still EXCLUDED via ExileRecruited check below

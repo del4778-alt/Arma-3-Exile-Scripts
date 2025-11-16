@@ -11,6 +11,22 @@ When dynamic missions (especially convoys) spawn, you find:
 - Vehicles destroyed or heavily damaged
 - Mission fails before players can reach it
 
+## ⚠️ #1 CAUSE: RemoteExec Blocking
+
+**Before anything else**, check if remoteExec is blocking mission spawn commands!
+
+**Symptoms:**
+- ALL missions fail (not random)
+- No mission markers appear
+- RPT shows: `"not allowed to be remotely executed"`
+
+**Quick Fix:**
+Create `@ExileServer\addons\exile_server_config\remoteExec.txt` with mission system commands whitelisted.
+
+**📖 See**: `MISSION_REMOTEEXEC_FIX.md` for complete remoteExec configuration.
+
+**This alone fixes 80%+ of convoy spawn failures!**
+
 ## Files
 
 ### `convoy_spawn_fix.sqf`
@@ -28,9 +44,17 @@ Universal patch script that fixes convoy spawn issues across multiple mission sy
 - Auto-spacing for convoy vehicles
 - Delayed damage enabling for safety
 
+### `MISSION_REMOTEEXEC_FIX.md` ⭐ **START HERE**
+Complete guide to fixing remoteExec blocking in mission systems:
+- Why missions fail due to remoteExec
+- Complete remoteExec.txt configuration for A3XAI/DMS/VEMF
+- RPT error signatures
+- Quick diagnosis scripts
+- Testing procedures
+
 ### `CONVOY_TROUBLESHOOTING.md`
 Comprehensive troubleshooting guide covering:
-- All common causes of convoy spawn failures
+- All common causes of convoy spawn failures (remoteExec + physical issues)
 - Quick diagnosis scripts
 - Mission system-specific fixes
 - Testing procedures

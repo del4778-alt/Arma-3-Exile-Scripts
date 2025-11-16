@@ -65,9 +65,40 @@ if (isServer) then {
 **Removed from `recruit_ai.sqf`:**
 - Line 178: Removed `[_unit, "I'm hit bad!"] remoteExec ["sideChat", 0];` (non-critical flavor text)
 
+## ⚠️ CRITICAL: Mission Systems (A3XAI, DMS, VEMF)
+
+**If your convoy missions have AI/vehicles dying on spawn**, remoteExec blocking is likely the cause!
+
+Mission systems use remoteExec heavily for:
+- Creating mission markers
+- Spawning vehicles/AI
+- Adding reward crate actions
+- Sending notifications
+
+**When blocked → spawn fails → everything dies instantly**
+
+### Quick Fix for Mission Systems
+
+Add these to your `remoteExec.txt`:
+
+```
+// Mission system essentials
+createMarker 0
+setMarkerPos 0
+setMarkerColor 0
+setMarkerText 0
+createVehicle 0
+addAction 0
+titleText 0
+hint 0
+```
+
+**📖 See**: `Mission-Systems/MISSION_REMOTEEXEC_FIX.md` for complete mission system remoteExec configuration.
+
 ## External Mod Issues
 
 If the error persists after these changes, it's likely coming from:
+- **A3XAI / DMS / VEMF** - Mission systems (see above)
 - **Exile Mod** - Player interaction scripts
 - **RMG Ravage** - Zombie/ambient systems
 - **Ivory Mod** - Vehicle scripts

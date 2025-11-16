@@ -5,7 +5,37 @@ Dynamic missions (especially convoys) spawn with all AI dead and vehicles destro
 
 ## Common Causes
 
-### 1. **Vehicle Collision on Spawn** ⚠️ MOST COMMON
+### 1. **RemoteExec Blocking** ⚠️ **MOST LIKELY FOR MISSION SYSTEMS**
+**Symptoms:**
+- All AI dead, all vehicles destroyed
+- Happens to ALL missions (not random)
+- No mission marker appears
+- RPT logs show "not allowed to be remotely executed"
+
+**Cause:** Arma 3 blocks remoteExec calls that mission systems use for spawning
+
+**Fix:**
+Create `@ExileServer\addons\exile_server_config\remoteExec.txt`:
+```
+// Mission system essentials
+createMarker 0
+setMarkerPos 0
+setMarkerColor 0
+setMarkerText 0
+createVehicle 0
+addAction 0
+titleText 0
+hint 0
+setVariable 0
+```
+
+**📖 CRITICAL**: See `MISSION_REMOTEEXEC_FIX.md` for complete configuration!
+
+**This is the #1 cause of convoy deaths in A3XAI/DMS/VEMF systems.**
+
+---
+
+### 2. **Vehicle Collision on Spawn** ⚠️ PHYSICAL ISSUE
 **Symptoms:**
 - All vehicles destroyed
 - AI dead around vehicles
@@ -30,7 +60,7 @@ for "_i" from 0 to 3 do {
 
 ---
 
-### 2. **Fall Damage**
+### 3. **Fall Damage**
 **Symptoms:**
 - Vehicles appear damaged
 - AI dead in vehicles
@@ -49,7 +79,7 @@ _veh setVectorUp [0,0,1]; // Level vehicle
 
 ---
 
-### 3. **Simulation Race Condition**
+### 4. **Simulation Race Condition**
 **Symptoms:**
 - Random deaths
 - Sometimes works, sometimes doesn't
@@ -79,7 +109,7 @@ _unit moveInDriver _veh;
 
 ---
 
-### 4. **AI Getting Run Over**
+### 5. **AI Getting Run Over**
 **Symptoms:**
 - AI dead on road
 - Tire marks over bodies
@@ -102,7 +132,7 @@ _veh setSpeedMode "LIMITED";
 
 ---
 
-### 5. **Hostile AI/Zombies Nearby**
+### 6. **Hostile AI/Zombies Nearby**
 **Symptoms:**
 - AI dead with bullet wounds
 - Empty casings on ground
@@ -125,7 +155,7 @@ if (count _hostiles > 0) then {
 
 ---
 
-### 6. **Exile/Mod Compatibility**
+### 7. **Exile/Mod Compatibility**
 **Symptoms:**
 - Works on vanilla server
 - Fails on modded server

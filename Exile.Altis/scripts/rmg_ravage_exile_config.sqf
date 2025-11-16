@@ -24,9 +24,9 @@ private _CFG = [
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
     ["chanceHorde", 0.10],
-    // ✅ Only EAST (A3XAI patrol AI) spawns zombies
-    // RESISTANCE (recruit AI) is EXCLUDED
-    ["spawnFromSides", [east]],
+    // ✅ ALL AI sides spawn zombies (EAST, WEST, RESISTANCE)
+    // RECRUIT AI is still EXCLUDED via ExileRecruited check below
+    ["spawnFromSides", [east, west, resistance]],
     ["minPlayerDist", 10],
 
     // --- Ambient bandits/scavengers

@@ -99,14 +99,35 @@ EAD_fnc_getProfile = {
 EAD_fnc_ray = {
     params ["_veh","_dirVec","_dist"];
 
-    private _start = (getPosASL _veh) vectorAdd [0, 0, 0.8];
-    private _end = _start vectorAdd (_dirVec vectorMultiply _dist);
+    // ✅ FIX: LOWERED from 0.8m to 0.3m for low-clearance vehicles (sports cars)
+    // This detects rocks, bushes, and low obstacles that protrude above ground
+    private _startLow = (getPosASL _veh) vectorAdd [0, 0, 0.3];
+    private _endLow = _startLow vectorAdd (_dirVec vectorMultiply _dist);
 
-    private _hit = lineIntersectsSurfaces [_start,_end,_veh,objNull,true,1];
+    // ✅ FIX: Add mid-height check at 1.2m for general obstacles and trees
+    private _startMid = (getPosASL _veh) vectorAdd [0, 0, 1.2];
+    private _endMid = _startMid vectorAdd (_dirVec vectorMultiply _dist);
 
-    if (count _hit == 0) exitWith {_dist};
+    // ✅ FIX: Use GEOM LOD for better physical obstacle detection (rocks, bushes, trees)
+    // GEOM detects the actual physical geometry of objects
+    // Check both low and mid heights, return the closest hit
+    private _hitLow = lineIntersectsSurfaces [_startLow, _endLow, _veh, objNull, true, 1, "GEOM"];
+    private _hitMid = lineIntersectsSurfaces [_startMid, _endMid, _veh, objNull, true, 1, "GEOM"];
 
-    _start vectorDistance (_hit#0#0)
+    private _distLow = if (count _hitLow > 0) then {
+        _startLow vectorDistance (_hitLow#0#0)
+    } else {
+        _dist
+    };
+
+    private _distMid = if (count _hitMid > 0) then {
+        _startMid vectorDistance (_hitMid#0#0)
+    } else {
+        _dist
+    };
+
+    // Return the minimum distance (closest obstacle)
+    _distLow min _distMid
 };
 
 EAD_fnc_terrainInfo = {

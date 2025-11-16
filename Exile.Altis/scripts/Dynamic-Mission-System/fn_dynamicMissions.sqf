@@ -155,7 +155,12 @@ MISSION_fnc_createMarker = {
 MISSION_fnc_spawnAI = {
     params ["_pos", "_count", "_side"];
 
-    private _group = createGroup _side;
+    private _group = createGroup [_side, true];  // ✅ FIX: Use deleteWhenEmpty flag
+    if (isNull _group) exitWith {
+        [format ["ERROR: Failed to create AI group at %1", _pos]] call MISSION_fnc_log;
+        [grpNull, []]
+    };
+
     private _units = [];
 
     for "_i" from 1 to _count do {
@@ -165,22 +170,59 @@ MISSION_fnc_spawnAI = {
             0
         ];
 
-        private _unit = _group createUnit ["O_Soldier_F", _unitPos, [], 0, "FORM"];
-        _unit setSkill (MISSION_CONFIG get "aiSkill");
-        _unit setVariable ["EAID_Ignore", true, true];  // Elite Driving ignore
+        // ✅ FIX: Changed from "FORM" to "NONE" for reliable spawning
+        private _unit = _group createUnit ["O_Soldier_F", _unitPos, [], 0, "NONE"];
 
-        // Enhanced AI skills
-        _unit setSkill ["aimingAccuracy", 0.7 + random 0.2];
-        _unit setSkill ["aimingShake", 0.6 + random 0.3];
-        _unit setSkill ["aimingSpeed", 0.7 + random 0.2];
-        _unit setSkill ["spotDistance", 0.8 + random 0.2];
-        _unit setSkill ["spotTime", 0.7 + random 0.2];
-        _unit setSkill ["courage", 0.8 + random 0.2];
-        _unit setSkill ["reloadSpeed", 0.7 + random 0.3];
-        _unit setSkill ["commanding", 0.8 + random 0.2];
-        _unit setSkill ["general", 0.8 + random 0.2];
+        if (isNull _unit) then {
+            [format ["WARNING: Failed to spawn unit #%1 at %2", _i, _unitPos]] call MISSION_fnc_log;
+        } else {
+            _unit setSkill (MISSION_CONFIG get "aiSkill");
+            _unit setVariable ["EAID_Ignore", true, true];  // Elite Driving ignore
+            _unit setVariable ["MissionAI", true, true];    // ✅ FIX: Mark as mission AI
 
-        _units pushBack _unit;
+            // Enhanced AI skills
+            _unit setSkill ["aimingAccuracy", 0.7 + random 0.2];
+            _unit setSkill ["aimingShake", 0.6 + random 0.3];
+            _unit setSkill ["aimingSpeed", 0.7 + random 0.2];
+            _unit setSkill ["spotDistance", 0.8 + random 0.2];
+            _unit setSkill ["spotTime", 0.7 + random 0.2];
+            _unit setSkill ["courage", 0.8 + random 0.2];
+            _unit setSkill ["reloadSpeed", 0.7 + random 0.3];
+            _unit setSkill ["commanding", 0.8 + random 0.2];
+            _unit setSkill ["general", 0.8 + random 0.2];
+
+            // ✅ FIX: Add default loadout to ensure AI have weapons
+            removeAllWeapons _unit;
+            removeAllItems _unit;
+            removeAllAssignedItems _unit;
+            removeUniform _unit;
+            removeVest _unit;
+            removeBackpack _unit;
+            removeHeadgear _unit;
+            removeGoggles _unit;
+
+            _unit addUniform "U_O_CombatUniform_ocamo";
+            _unit addVest "V_HarnessO_brn";
+            _unit addWeapon "arifle_Katiba_F";
+            _unit addPrimaryWeaponItem "acc_flashlight";
+            _unit addPrimaryWeaponItem "optic_ACO_grn";
+            for "_m" from 1 to 6 do {
+                _unit addMagazine "30Rnd_65x39_caseless_green";
+            };
+            _unit addWeapon "hgun_Rook40_F";
+            for "_p" from 1 to 3 do {
+                _unit addMagazine "16Rnd_9x21_Mag";
+            };
+            _unit addHeadgear "H_HelmetO_ocamo";
+
+            _units pushBack _unit;
+        };
+    };
+
+    if (count _units == 0) exitWith {
+        [format ["ERROR: No AI units spawned at %1", _pos]] call MISSION_fnc_log;
+        deleteGroup _group;
+        [grpNull, []]
     };
 
     // Set group behavior
@@ -199,12 +241,15 @@ MISSION_fnc_spawnAI = {
         ];
         private _wp = _group addWaypoint [_wpPos, 0];
         _wp setWaypointType "MOVE";
-        _wp setWaypointBehaviour "SAFE";
+        _wp setWaypointBehaviour "COMBAT";  // ✅ FIX: Changed from "SAFE" to "COMBAT"
+        _wp setWaypointCombatMode "RED";    // ✅ FIX: Added combat mode
     };
 
     // Cycle waypoints
     private _wp = _group addWaypoint [_pos, 0];
     _wp setWaypointType "CYCLE";
+
+    [format ["Successfully spawned %1 AI units at %2", count _units, _pos]] call MISSION_fnc_log;
 
     [_group, _units]
 };

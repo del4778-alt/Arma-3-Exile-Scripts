@@ -1,8 +1,13 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.4
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.5
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v8.5 A3XAI FIX:
+        ✅ Fixed A3XAI vehicles spinning in place
+        ✅ Disables AI PATH/AUTOTARGET to prevent conflict with EAD control
+        ✅ Re-enables AI when EAD releases control
 
     v8.4 OPTIMIZATION:
         ✅ Batch raycast processing (Arma 3 v2.20+)
@@ -709,13 +714,21 @@ EAD_fnc_runDriver = {
     _veh removeEventHandler ["Local",_localEH];
     _veh removeEventHandler ["Killed",_killedEH];
 
+    // ✅ FIX: Re-enable AI pathfinding when EAD releases control
+    if (_veh getVariable ["EAD_aiDisabled", false]) then {
+        if (alive _unit) then {
+            _unit enableAI "PATH";
+            _unit enableAI "AUTOTARGET";
+        };
+    };
+
     {
         _veh setVariable [_x,nil];
     } forEach [
         "EAD_active","EAD_stuckTime","EAD_reverseUntil","EAD_profile",
         "EAD_onBridge","EAD_altT","EAD_altPos","EAD_altLastSpeed",
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
-        "EAD_treeCheckTime","EAD_lastReverseEnd"
+        "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;
@@ -743,6 +756,12 @@ EAD_fnc_registerDriver = {
     if (_veh getVariable ["EAD_active",false]) exitWith {};
 
     _veh setVariable ["EAD_active",true];
+
+    // ✅ FIX: Disable AI pathfinding to prevent conflict with EAD's direct control
+    // This stops the AI from fighting against EAD's setDir/setVelocity commands
+    _unit disableAI "PATH";
+    _unit disableAI "AUTOTARGET";
+    _veh setVariable ["EAD_aiDisabled", true];
 
     EAD_TrackedVehicles pushBackUnique _veh;
     EAD_Stats set ["totalVehicles", count EAD_TrackedVehicles];
@@ -801,7 +820,7 @@ EAD_fnc_registerDriver = {
         private _max = (EAD_Stats get "maxTickTime") * 1000;
 
         diag_log format [
-            "[EAD 8.4]  Total:%1 | Avg:%2 ms | Max:%3 ms (last 10 min) [BATCH OPTIMIZED]",
+            "[EAD 8.5]  Total:%1 | Avg:%2 ms | Max:%3 ms (last 10 min) [A3XAI FIX]",
             _tot,
             _avg toFixed 2,
             _max toFixed 2

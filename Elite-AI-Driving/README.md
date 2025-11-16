@@ -1,4 +1,4 @@
-# Elite AI Driving System (EAD) v8.3
+# Elite AI Driving System (EAD) v8.5
 
 Advanced AI vehicle driving system with realistic physics-based navigation.
 
@@ -59,7 +59,19 @@ Works seamlessly with recruit AI drivers. When a recruit AI becomes a driver, EA
 
 ## Version History
 
-### v8.3 (Current)
+### v8.5 (Current)
+- **CRITICAL FIX**: Resolved A3XAI vehicle spinning issue
+- EAD now disables AI PATH and AUTOTARGET when taking control
+- Prevents conflict between EAD's direct control and AI waypoint pathfinding
+- AI is properly re-enabled when EAD releases control
+
+### v8.4
+- Batch raycast processing (Arma 3 v2.20+)
+- 22 raycasts per vehicle → 1 batch call
+- ~10-15x faster obstacle detection
+- Reduced CPU load for multiple AI vehicles
+
+### v8.3
 - Fixed hashMap string key usage for vehicle tracking
 - Improved A3XAI integration with EAID_Ignore flag
 - Enhanced stuck detection on bridges

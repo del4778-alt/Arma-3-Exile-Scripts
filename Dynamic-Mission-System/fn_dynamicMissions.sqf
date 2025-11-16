@@ -37,6 +37,7 @@ MISSION_CONFIG = createHashMapFromArray [
     ["safeZoneDistance", 1000],           // Min distance from trader zones
     ["minPlayerDistance", 500],           // Min distance from players on spawn
     ["completionDistance", 100],          // Distance to trigger "area clear" check
+    ["initialMissionsOnJoin", 3],         // Number of missions to spawn when players join
 
     // Rewards
     ["rewardPoptabs", [5000, 15000]],     // Min/Max Poptabs
@@ -68,6 +69,7 @@ MISSION_CONFIG = createHashMapFromArray [
 MISSION_ActiveMissions = [];              // Array of active mission hashmaps
 MISSION_SafeZones = [];                   // Cache of safe zone positions
 MISSION_InitComplete = false;
+MISSION_InitialMissionsSpawned = false;   // Track if initial missions spawned on player join
 
 // ========================================
 // UTILITY FUNCTIONS
@@ -905,6 +907,34 @@ MISSION_fnc_init = {
     // Cache safe zones
     MISSION_SafeZones = call MISSION_fnc_getSafeZones;
 
+    // Player join detection - spawn initial missions when players get online
+    [] spawn {
+        while {true} do {
+            sleep 5;  // Check every 5 seconds
+
+            if (!MISSION_InitialMissionsSpawned && count allPlayers >= (MISSION_CONFIG get "minPlayers")) then {
+                MISSION_InitialMissionsSpawned = true;
+
+                private _initialCount = MISSION_CONFIG get "initialMissionsOnJoin";
+                [format ["Players detected! Spawning %1 initial missions...", _initialCount]] call MISSION_fnc_log;
+
+                // Spawn multiple initial missions
+                for "_i" from 1 to _initialCount do {
+                    sleep 2;  // Small delay between spawns to avoid position conflicts
+                    call MISSION_fnc_spawnMission;
+                };
+
+                ["Initial missions spawned successfully"] call MISSION_fnc_log;
+            };
+
+            // Reset flag if all players leave (for server persistence)
+            if (MISSION_InitialMissionsSpawned && count allPlayers < (MISSION_CONFIG get "minPlayers")) then {
+                MISSION_InitialMissionsSpawned = false;
+                ["All players left - initial mission flag reset"] call MISSION_fnc_log;
+            };
+        };
+    };
+
     // Start mission spawn loop
     [] spawn {
         while {true} do {
@@ -920,10 +950,6 @@ MISSION_fnc_init = {
             call MISSION_fnc_updateMissions;
         };
     };
-
-    // Spawn initial mission
-    sleep 30;
-    call MISSION_fnc_spawnMission;
 
     MISSION_InitComplete = true;
     ["Dynamic Mission System v1.0 initialized successfully"] call MISSION_fnc_log;

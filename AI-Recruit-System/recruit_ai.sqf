@@ -233,66 +233,87 @@ RECRUIT_fnc_DriverStuckMonitor = {
     
     while {!isNull _unit && alive _unit} do {
         private _veh = vehicle _unit;
-        
+
         // Only monitor when unit is driver
         if (_veh != _unit && driver _veh == _unit) then {
             private _role = assignedVehicleRole _unit;
             if (count _role > 0 && (_role select 0) == "driver") then {
-                
-                // Check if stuck
-                private _spd = speed _veh;
-                private _lastPos = _unit getVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
-                private _currentPos = getPosATL _unit;
-                private _moved = _lastPos distance2D _currentPos;
-                
-                _unit setVariable ["RECRUIT_lastDriverPos", _currentPos];
-                
-                // Stuck if: speed < 5 km/h AND moved < 2m in 5 seconds
-                if (_spd < 5 && _moved < 2) then {
-                    private _stuckTime = _unit getVariable ["RECRUIT_driverStuckTime", time];
-                    
-                    if ((time - _stuckTime) > 8) then {
-                        diag_log format ["[AI RECRUIT] Driver %1 stuck in %2 - attempting recovery",
-                            name _unit, typeOf _veh];
-                        
-                        // Recovery: Everyone out, wait, everyone back in
-                        private _player = [_playerUID] call BIS_fnc_getUnitByUID;
-                        if (!isNull _player) then {
-                            private _allCrew = crew _veh;
-                            
-                            // Dismount all
-                            {
-                                if (!isPlayer _x) then {
-                                    unassignVehicle _x;
-                                    [_x] orderGetIn false;
-                                    _x action ["Eject", _veh];
-                                };
-                            } forEach _allCrew;
-                            
-                            sleep 2;
-                            
-                            // Re-board
-                            {
-                                if (!isPlayer _x && alive _x) then {
-                                    _x assignAsDriver _veh;
-                                    [_x] orderGetIn true;
-                                };
-                            } forEach [_unit]; // Only driver gets back in
-                            
-                            sleep 1;
-                            
-                            // Force EAD re-register
-                            [_veh] call RECRUIT_fnc_ForceEADReregister;
-                        };
-                        
-                        _unit setVariable ["RECRUIT_driverStuckTime", time];
-                    };
-                } else {
+
+                // ✅ FIX: Don't run stuck detection if a PLAYER is in the vehicle as passenger/driver
+                private _player = [_playerUID] call BIS_fnc_getUnitByUID;
+                private _playerInVehicle = (!isNull _player && vehicle _player == _veh);
+
+                if (_playerInVehicle) then {
+                    // Player is in vehicle - reset stuck timer and skip detection
                     _unit setVariable ["RECRUIT_driverStuckTime", time];
+                    _unit setVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
+                } else {
+                    // ✅ FIX: Add grace period after getting into vehicle
+                    private _getInTime = _unit getVariable ["RECRUIT_driverGetInTime", 0];
+                    private _timeSinceGetIn = time - _getInTime;
+
+                    // Only check stuck if AI has been driver for at least 20 seconds
+                    if (_timeSinceGetIn > 20) then {
+                        // Check if stuck
+                        private _spd = speed _veh;
+                        private _lastPos = _unit getVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
+                        private _currentPos = getPosATL _unit;
+                        private _moved = _lastPos distance2D _currentPos;
+
+                        _unit setVariable ["RECRUIT_lastDriverPos", _currentPos];
+
+                        // Stuck if: speed < 5 km/h AND moved < 2m in 5 seconds
+                        if (_spd < 5 && _moved < 2) then {
+                            private _stuckTime = _unit getVariable ["RECRUIT_driverStuckTime", time];
+
+                            if ((time - _stuckTime) > 8) then {
+                                diag_log format ["[AI RECRUIT] Driver %1 stuck in %2 - attempting recovery",
+                                    name _unit, typeOf _veh];
+
+                                // Recovery: Everyone out, wait, everyone back in
+                                private _player = [_playerUID] call BIS_fnc_getUnitByUID;
+                                if (!isNull _player) then {
+                                    private _allCrew = crew _veh;
+
+                                    // Dismount all
+                                    {
+                                        if (!isPlayer _x) then {
+                                            unassignVehicle _x;
+                                            [_x] orderGetIn false;
+                                            _x action ["Eject", _veh];
+                                        };
+                                    } forEach _allCrew;
+
+                                    sleep 2;
+
+                                    // Re-board
+                                    {
+                                        if (!isPlayer _x && alive _x) then {
+                                            _x assignAsDriver _veh;
+                                            [_x] orderGetIn true;
+                                        };
+                                    } forEach [_unit]; // Only driver gets back in
+
+                                    sleep 1;
+
+                                    // Force EAD re-register
+                                    [_veh] call RECRUIT_fnc_ForceEADReregister;
+                                };
+
+                                _unit setVariable ["RECRUIT_driverStuckTime", time];
+                            };
+                        } else {
+                            _unit setVariable ["RECRUIT_driverStuckTime", time];
+                        };
+                    } else {
+                        // Still in grace period - reset stuck timer
+                        _unit setVariable ["RECRUIT_driverStuckTime", time];
+                        _unit setVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
+                    };
                 };
             };
         };
-        
+
         sleep 5;
     };
 };
@@ -719,9 +740,14 @@ fn_spawnAI = {
     _unit addEventHandler ["GetInMan", {
         params ["_unit", "_role", "_vehicle", "_turret"];
         _unit setVariable ["RECRUIT_lastVehicleRole", [_role, _turret]];
-        
+
         // If this AI just became driver, ensure Elite Driving activates
         if (_role == "driver") then {
+            // ✅ FIX: Set grace period timestamp to prevent immediate stuck detection
+            _unit setVariable ["RECRUIT_driverGetInTime", time];
+            _unit setVariable ["RECRUIT_driverStuckTime", time];
+            _unit setVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
+
             [_vehicle] spawn {
                 params ["_veh"];
                 sleep 1;

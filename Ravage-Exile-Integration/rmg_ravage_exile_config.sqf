@@ -279,6 +279,9 @@ addMissionEventHandler ["EntityKilled", {
         };
 
         // ✅ v2.7: Check zombie resurrection limit (prevents infinite loops)
+        // Use flag variable to control spawn logic
+        private _allowSpawn = true;
+
         if (side _killed == civilian) then {
             private _resCount = _killed getVariable ["RMG_ResurrectionCount", 0];
             private _maxRes = ["maxZombieResurrections"] call RMG_Ravage_get;
@@ -288,19 +291,21 @@ addMissionEventHandler ["EntityKilled", {
                 diag_log format ["  - Resurrection count: %1 / %2 max", _resCount, _maxRes];
             };
 
-            if (_resCount >= _maxRes) exitWith {
+            // ✅ CRITICAL FIX: Set flag to prevent spawning if limit reached
+            if (_resCount >= _maxRes) then {
+                _allowSpawn = false;
                 if (_debug) then {
                     diag_log format ["[RMG:Ravage] Zombie %1 reached resurrection limit (%2/%3) - NO SPAWN",
                         name _killed, _resCount, _maxRes];
+                    diag_log "=================================================";
+                };
+            } else {
+                // ✅ Zombie can still resurrect - increment counter for next spawn
+                if (_debug) then {
+                    diag_log format ["[RMG:Ravage] Zombie %1 can resurrect (%2/%3) - SPAWNING",
+                        name _killed, _resCount, _maxRes];
                 };
             };
-
-            // ✅ Zombie can still resurrect - increment counter for next spawn
-            if (_debug) then {
-                diag_log format ["[RMG:Ravage] Zombie %1 can resurrect (%2/%3) - SPAWNING",
-                    name _killed, _resCount, _maxRes];
-            };
-            // Counter will be set on newly spawned zombie below
         };
 
         // Check if side is allowed to resurrect
@@ -311,9 +316,10 @@ addMissionEventHandler ["EntityKilled", {
             diag_log format ["  - Allowed sides: %1", _sides];
             diag_log format ["  - Killed side: %1", _killedSide];
             diag_log format ["  - Side match: %1", _killedSide in _sides];
+            diag_log format ["  - Allow spawn: %1", _allowSpawn];
         };
 
-        if (_killedSide in _sides) then {
+        if (_killedSide in _sides && _allowSpawn) then {
             private _pos = getPosATL _killed;
             private _killedName = name _killed;
             // ✅ v2.7: Get resurrection counter from parent zombie (or 0 if non-zombie)

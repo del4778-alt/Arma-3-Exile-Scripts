@@ -754,6 +754,18 @@ fn_spawnAI = {
                 [_veh] call RECRUIT_fnc_ForceEADReregister;
             };
         };
+
+        // ✅ FIX: Immediately disable AUTOCOMBAT for passengers to prevent instant exit
+        if (_role == "cargo") then {
+            _unit disableAI "AUTOCOMBAT";
+            _unit disableAI "FSM";
+            diag_log format ["[AI RECRUIT] %1 boarded as passenger - disabled AUTOCOMBAT", name _unit];
+        };
+
+        // For gunners, keep combat AI active but prevent dismounting
+        if (_role == "gunner" || {_role == "turret"}) then {
+            _unit disableAI "AUTOCOMBAT"; // Prevent exit for combat, but keep targeting
+        };
     }];
     
     // ✅ GetOut Event Handler - Re-enable FSM

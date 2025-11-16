@@ -1,6 +1,8 @@
 # Arma 3 Exile - Elite AI Systems Collection
 
-Complete, debugged AI systems for Arma 3 Exile servers.
+**13 Complete AI & Gameplay Systems** for Arma 3 Exile servers.
+
+From advanced AI driving and recruit systems to dynamic missions, faction warfare, and environmental hazards - a comprehensive modular collection for enhanced PvE gameplay.
 
 ## Systems Included
 
@@ -105,8 +107,8 @@ call compile preprocessFileLineNumbers "Mission-Systems\convoy_spawn_fix.sqf";
 // 1. Configure patrol system
 EXILE_PATROL_CONFIG = [2, 300, 1000, 999, 2000];
 
-// 2. Start all systems
-[] execVM "Elite-AI-Driving\ead.sqf";
+// 2. Start core systems (load in order)
+[] execVM "Elite-AI-Driving\ead.sqf";                    // Load first - required by many systems
 [] execVM "AI-Patrol-System\fn_aiPatrolSystem.sqf";
 [] execVM "AI-Recruit-System\recruit_ai.sqf";
 [] execVM "Ravage-Exile-Integration\rmg_ravage_exile_config.sqf";

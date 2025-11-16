@@ -77,6 +77,26 @@ Zombie resurrection system for Ravage mod.
 
 ---
 
+### 5. Mission System Convoy Fix
+**Location**: `Mission-Systems/`
+
+Fixes convoy missions where AI/vehicles die instantly on spawn.
+
+- Auto-patches A3XAI convoy spawns
+- Manual integration for DMS/VEMF
+- Prevents collision, fall damage, simulation issues
+- Safe spawn function for custom missions
+- Diagnostic tools
+
+**Installation** (A3XAI auto-patch):
+```sqf
+call compile preprocessFileLineNumbers "Mission-Systems\convoy_spawn_fix.sqf";
+```
+
+**See**: `Mission-Systems/CONVOY_TROUBLESHOOTING.md` for detailed guide
+
+---
+
 ## Full Integration Example
 
 **initServer.sqf or init.sqf**:
@@ -90,6 +110,9 @@ EXILE_PATROL_CONFIG = [2, 300, 1000, 999, 2000];
 [] execVM "AI-Patrol-System\fn_aiPatrolSystem.sqf";
 [] execVM "AI-Recruit-System\recruit_ai.sqf";
 [] execVM "Ravage-Exile-Integration\rmg_ravage_exile_config.sqf";
+
+// 3. Fix mission system convoy spawns (if using A3XAI/DMS/VEMF)
+call compile preprocessFileLineNumbers "Mission-Systems\convoy_spawn_fix.sqf";
 ```
 
 ---

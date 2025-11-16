@@ -79,157 +79,23 @@ Zombie resurrection system for Ravage mod.
 
 ---
 
-### 5. Dynamic Mission System v1.0
-**Location**: `Dynamic-Mission-System/`
+### 5. Mission System Convoy Fix
+**Location**: `Mission-Systems/`
 
-AI-driven missions with 5 types: Crash Sites, Supply Caches, Convoys, Rescue, and AI Camps.
+Fixes convoy missions where AI/vehicles die instantly on spawn.
 
-- Dynamic spawning avoiding safe zones
-- Rewards based on difficulty (Easy/Medium/Hard)
-- Elite Driving integration for convoy missions
-- Auto cleanup and despawn
+- Auto-patches A3XAI convoy spawns
+- Manual integration for DMS/VEMF
+- Prevents collision, fall damage, simulation issues
+- Safe spawn function for custom missions
+- Diagnostic tools
 
-**Installation**:
+**Installation** (A3XAI auto-patch):
 ```sqf
-[] execVM "Dynamic-Mission-System\fn_dynamicMissions.sqf";
+call compile preprocessFileLineNumbers "Mission-Systems\convoy_spawn_fix.sqf";
 ```
 
----
-
-### 6. Territory Defense AI v1.0
-**Location**: `Territory-Defense-AI/`
-
-AI defenders spawn when enemies approach player Exile territories.
-
-- Auto-detect Exile territory flags
-- Defender count scales with territory level (1-10)
-- Vehicle patrols at level 5+
-- Respawn system with cooldown
-
-**Installation**:
-```sqf
-[] execVM "Territory-Defense-AI\fn_territoryDefense.sqf";
-```
-
----
-
-### 7. AI Trader Convoy System v1.0
-**Location**: `AI-Trader-Convoy/`
-
-Convoys travel between trader zones with valuable cargo.
-
-- 2-4 vehicle convoys using Elite Driving
-- High-value loot in cargo vehicles
-- Attack helicopter reinforcements
-- Trader bonuses on successful delivery
-
-**Installation**:
-```sqf
-[] execVM "AI-Trader-Convoy\fn_traderConvoy.sqf";
-```
-
----
-
-### 8. Recruit AI Loadout Manager v1.0
-**Location**: `Recruit-AI-Loadout-Manager/`
-
-In-game menu to customize recruit AI equipment.
-
-- Change weapons, attachments, gear
-- Save/load loadout presets
-- Quick templates (CQB, Long Range, Stealth)
-- Poptabs-based upgrade costs
-
-**Installation**:
-```sqf
-[] execVM "Recruit-AI-Loadout-Manager\fn_loadoutManager.sqf";
-```
-
----
-
-### 9. AI Roaming Horde System v1.0
-**Location**: `AI-Roaming-Horde/`
-
-Large zombie hordes (20-50) that patrol between towns.
-
-- Ravage integration for zombie classes
-- Dynamic pathing avoiding safe zones
-- Horde split/merge mechanics
-- Player pursuit system
-- High rewards for clearing hordes
-
-**Installation**:
-```sqf
-[] execVM "AI-Roaming-Horde\fn_roamingHorde.sqf";
-```
-
----
-
-### 10. Vehicle Recovery Service v1.0
-**Location**: `Vehicle-Recovery-Service/`
-
-AI tow trucks recover disabled vehicles using Elite Driving.
-
-- Request via action menu
-- Cost based on distance and vehicle value
-- Auto-repair at destination
-- Tow truck autopilot navigation
-
-**Installation**:
-```sqf
-[] execVM "Vehicle-Recovery-Service\fn_vehicleRecovery.sqf";
-```
-
----
-
-### 11. Dynamic Weather Hazards v1.0
-**Location**: `Dynamic-Weather-Hazards/`
-
-Environmental survival challenges.
-
-- Radiation zones with continuous damage
-- Toxic fog events spawning zombies
-- Temperature system (hypothermia/heatstroke)
-- Visual markers and alerts
-
-**Installation**:
-```sqf
-[] execVM "Dynamic-Weather-Hazards\fn_weatherHazards.sqf";
-```
-
----
-
-### 12. AI Faction Warfare v1.0
-**Location**: `AI-Faction-Warfare/`
-
-Three AI factions compete for territory control.
-
-- Red Army, Blue Alliance, Green Coalition
-- 10 contested territories
-- Dynamic battles and shifting frontlines
-- AI patrols defend territories
-
-**Installation**:
-```sqf
-[] execVM "AI-Faction-Warfare\fn_factionWarfare.sqf";
-```
-
----
-
-### 13. Advanced Healing System v1.0
-**Location**: `Advanced-Healing-System/`
-
-Realistic medical mechanics with injuries and treatments.
-
-- Bleeding requiring bandages
-- Fractures reducing movement speed
-- Infections from zombie attacks
-- Item-based treatment system
-
-**Installation**:
-```sqf
-[] execVM "Advanced-Healing-System\fn_advancedHealing.sqf";
-```
+**See**: `Mission-Systems/CONVOY_TROUBLESHOOTING.md` for detailed guide
 
 ---
 
@@ -247,18 +113,8 @@ EXILE_PATROL_CONFIG = [2, 300, 1000, 999, 2000];
 [] execVM "AI-Recruit-System\recruit_ai.sqf";
 [] execVM "Ravage-Exile-Integration\rmg_ravage_exile_config.sqf";
 
-// 3. Start new gameplay systems
-[] execVM "Dynamic-Mission-System\fn_dynamicMissions.sqf";
-[] execVM "Territory-Defense-AI\fn_territoryDefense.sqf";
-[] execVM "AI-Trader-Convoy\fn_traderConvoy.sqf";
-[] execVM "AI-Roaming-Horde\fn_roamingHorde.sqf";
-[] execVM "AI-Faction-Warfare\fn_factionWarfare.sqf";
-[] execVM "Dynamic-Weather-Hazards\fn_weatherHazards.sqf";
-[] execVM "Advanced-Healing-System\fn_advancedHealing.sqf";
-
-// 4. Start utility systems
-[] execVM "Recruit-AI-Loadout-Manager\fn_loadoutManager.sqf";
-[] execVM "Vehicle-Recovery-Service\fn_vehicleRecovery.sqf";
+// 3. Fix mission system convoy spawns (if using A3XAI/DMS/VEMF)
+call compile preprocessFileLineNumbers "Mission-Systems\convoy_spawn_fix.sqf";
 ```
 
 ---

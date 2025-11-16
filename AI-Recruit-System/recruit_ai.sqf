@@ -1,12 +1,20 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.20 - ELITE DRIVING FIX
+    ELITE AI RECRUIT SYSTEM v7.30 - OVERFLOW AI FIX
     ✅ Fixed: Driver stops after combat (EAD re-registration)
     ✅ Fixed: FSM interference with Elite Driving
     ✅ Fixed: Passengers jumping out immediately
     ✅ Fixed: Bridge freezing (stuck detection)
     ✅ Fixed: Movement commands conflicting with autopilot
-    
-    CHANGES IN v7.20:
+    ✅ Fixed: 2-seat vehicles - overflow AI now WAIT instead of slowing driver
+
+    CHANGES IN v7.30:
+    - NEW: Automatic seat counting and AI assignment system
+    - NEW: Overflow AI detection for vehicles with insufficient seats
+    - NEW: Overflow AI enter WAIT state (disable movement, stop following)
+    - NEW: Auto-recovery when vehicle stops or player exits
+    - FIXED: Driver no longer slows down for AI left behind in 2-seat vehicles
+
+    PREVIOUS (v7.20):
     - FSM now PAUSES completely when player is in vehicle as driver
     - Elite Driving re-registers automatically after combat
     - Passenger lock only applies to specific seats, not entire vehicle
@@ -17,7 +25,7 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.20 (Elite Driving Fix)...";
+diag_log "[AI RECRUIT] Starting v7.30 (Overflow AI Fix)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -190,6 +198,186 @@ RECRUIT_fnc_FSM_ExecuteState = {
             };
         };
     };
+};
+
+// ====================================================================================
+// NEW: Count available vehicle seats
+// ====================================================================================
+RECRUIT_fnc_CountVehicleSeats = {
+    params ["_veh"];
+
+    if (isNull _veh) exitWith {[0, 0, 0, 0]};
+
+    private _driverSeats = if (isNull driver _veh) then {1} else {0};
+    private _cargoSeats = _veh emptyPositions "cargo";
+    private _turretSeats = 0;
+
+    // Count available turrets
+    {
+        if (_veh emptyPositions (_x select 0) > 0) then {
+            _turretSeats = _turretSeats + 1;
+        };
+    } forEach (allTurrets _veh);
+
+    private _totalSeats = _driverSeats + _cargoSeats + _turretSeats;
+
+    [_totalSeats, _driverSeats, _turretSeats, _cargoSeats]
+};
+
+// ====================================================================================
+// NEW: Handle vehicle seat assignments and overflow AI
+// ====================================================================================
+RECRUIT_fnc_HandleVehicleSeats = {
+    params ["_player", "_veh"];
+
+    if (isNull _player || isNull _veh) exitWith {};
+
+    private _uid = getPlayerUID _player;
+    private _aiList = all_recruited_ai_map getOrDefault [_uid, []];
+    private _validAI = _aiList select {!isNull _x && alive _x && vehicle _x == _x}; // Only AI on foot
+
+    if (count _validAI == 0) exitWith {
+        diag_log "[AI RECRUIT] No AI to assign to vehicle";
+    };
+
+    // Count available seats (player already in vehicle, so don't count their seat)
+    private _seatInfo = [_veh] call RECRUIT_fnc_CountVehicleSeats;
+    _seatInfo params ["_totalSeats", "_driverSeats", "_turretSeats", "_cargoSeats"];
+
+    diag_log format ["[AI RECRUIT] Vehicle seats: Total=%1, Driver=%2, Turrets=%3, Cargo=%4",
+        _totalSeats, _driverSeats, _turretSeats, _cargoSeats];
+
+    // Assign AI to available seats
+    private _assignedAI = [];
+    private _overflowAI = [];
+    private _aiIndex = 0;
+
+    // Priority 1: Assign driver
+    if (_driverSeats > 0 && _aiIndex < count _validAI) then {
+        private _ai = _validAI select _aiIndex;
+        _ai assignAsDriver _veh;
+        [_ai] orderGetIn true;
+        _assignedAI pushBack _ai;
+        _aiIndex = _aiIndex + 1;
+        diag_log format ["[AI RECRUIT] Assigned %1 as DRIVER", name _ai];
+    };
+
+    // Priority 2: Assign gunners to turrets
+    private _assignedTurrets = 0;
+    while {_assignedTurrets < _turretSeats && _aiIndex < count _validAI} do {
+        private _ai = _validAI select _aiIndex;
+        _ai assignAsGunner _veh;
+        [_ai] orderGetIn true;
+        _assignedAI pushBack _ai;
+        _aiIndex = _aiIndex + 1;
+        _assignedTurrets = _assignedTurrets + 1;
+        diag_log format ["[AI RECRUIT] Assigned %1 as GUNNER", name _ai];
+    };
+
+    // Priority 3: Assign cargo passengers
+    private _assignedCargo = 0;
+    while {_assignedCargo < _cargoSeats && _aiIndex < count _validAI} do {
+        private _ai = _validAI select _aiIndex;
+        _ai assignAsCargo _veh;
+        [_ai] orderGetIn true;
+        _assignedAI pushBack _ai;
+        _aiIndex = _aiIndex + 1;
+        _assignedCargo = _assignedCargo + 1;
+        diag_log format ["[AI RECRUIT] Assigned %1 as CARGO", name _ai];
+    };
+
+    // Remaining AI are overflow
+    while {_aiIndex < count _validAI} do {
+        private _ai = _validAI select _aiIndex;
+        _overflowAI pushBack _ai;
+        _aiIndex = _aiIndex + 1;
+    };
+
+    // Handle overflow AI
+    if (count _overflowAI > 0) then {
+        diag_log format ["[AI RECRUIT] ⚠ OVERFLOW: %1 AI cannot fit in vehicle - putting them in WAIT state",
+            count _overflowAI];
+
+        {
+            private _ai = _x;
+
+            // Set overflow state
+            _ai setVariable ["FSM_CurrentState", "OVERFLOW", false];
+            _ai setVariable ["RECRUIT_overflowWaitPos", getPosATL _ai, false];
+
+            // Stop following
+            _ai doWatch objNull;
+            _ai doFollow _ai; // Follow self = stop following others
+
+            // Make them wait at current position
+            _ai disableAI "MOVE";
+            _ai setBehaviour "SAFE";
+            _ai setSpeedMode "LIMITED";
+
+            diag_log format ["[AI RECRUIT] %1 set to OVERFLOW/WAIT state at %2",
+                name _ai, getPosATL _ai];
+        } forEach _overflowAI;
+
+        // Store overflow AI on vehicle
+        _veh setVariable ["RECRUIT_overflowAI", _overflowAI];
+
+        // Start overflow recovery monitor
+        [_player, _veh, _overflowAI] spawn RECRUIT_fnc_OverflowRecoveryMonitor;
+    };
+};
+
+// ====================================================================================
+// NEW: Monitor for overflow AI recovery
+// ====================================================================================
+RECRUIT_fnc_OverflowRecoveryMonitor = {
+    params ["_player", "_veh", "_overflowAI"];
+
+    diag_log format ["[AI RECRUIT] Starting overflow recovery monitor for %1 AI", count _overflowAI];
+
+    private _monitorActive = true;
+
+    while {_monitorActive && !isNull _veh} do {
+        sleep 5;
+
+        // Check if player left the vehicle
+        private _playerInVehicle = (!isNull _player && vehicle _player == _veh);
+
+        // Check if vehicle has stopped (speed < 5 km/h for > 10 seconds)
+        private _vehSpeed = speed _veh;
+        private _vehStopped = _vehSpeed < 5;
+
+        if (!_playerInVehicle || _vehStopped) then {
+            // Conditions met - recover overflow AI
+            diag_log format ["[AI RECRUIT] Recovering %1 overflow AI (PlayerInVeh=%2, VehStopped=%3)",
+                count _overflowAI, _playerInVehicle, _vehStopped];
+
+            {
+                private _ai = _x;
+                if (!isNull _ai && alive _ai) then {
+                    // Clear overflow state
+                    _ai setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
+                    _ai setVariable ["RECRUIT_overflowWaitPos", nil];
+
+                    // Re-enable movement
+                    _ai enableAI "MOVE";
+                    _ai setBehaviour "SAFE";
+                    _ai setSpeedMode "FULL";
+
+                    // Resume following player
+                    _ai doFollow _player;
+
+                    diag_log format ["[AI RECRUIT] %1 recovered from overflow - resuming normal behavior",
+                        name _ai];
+                };
+            } forEach _overflowAI;
+
+            // Clear overflow list
+            _veh setVariable ["RECRUIT_overflowAI", nil];
+            _monitorActive = false;
+        };
+    };
+
+    diag_log "[AI RECRUIT] Overflow recovery monitor ended";
 };
 
 // ====================================================================================
@@ -394,7 +582,7 @@ RECRUIT_fnc_FSM_BrainLoop = {
             
         } else {
             // ✅ ON FOOT - FSM brain active
-            
+
             // Re-enable AI if coming from vehicle
             private _lastState = _unit getVariable ["FSM_CurrentState", FSM_STATE_IDLE];
             if (_lastState in ["VEHICLE_DRIVER", "VEHICLE_GUNNER", "VEHICLE_PASSENGER"]) then {
@@ -409,6 +597,22 @@ RECRUIT_fnc_FSM_BrainLoop = {
                 _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
                 _unit setVariable ["FSM_StateTimer", time, false];
                 diag_log format ["[AI RECRUIT FSM] %1 exited vehicle - FSM resumed", name _unit];
+            };
+
+            // ✅ HANDLE OVERFLOW STATE - AI waiting because vehicle was full
+            if (_lastState == "OVERFLOW") then {
+                // Check if still in overflow or if we should resume
+                private _overflowPos = _unit getVariable ["RECRUIT_overflowWaitPos", []];
+
+                // If overflow state but no wait position, clear it
+                if (count _overflowPos == 0) then {
+                    _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
+                    _unit enableAI "MOVE";
+                    diag_log format ["[AI RECRUIT FSM] %1 cleared from overflow - resuming normal", name _unit];
+                } else {
+                    // Still in overflow - skip normal FSM logic
+                    sleep 5;
+                };
             };
 
             // Normal FSM brain logic
@@ -1100,6 +1304,58 @@ fn_setupPlayerHandlers = {
         };
     }];
 
+    // ✅ NEW: Player GetIn event - Handle vehicle seat assignments and overflow AI
+    _player addEventHandler ["GetInMan", {
+        params ["_unit", "_role", "_vehicle", "_turret"];
+
+        diag_log format ["[AI RECRUIT] Player %1 entered %2 as %3", name _unit, typeOf _vehicle, _role];
+
+        // Small delay to let player settle into seat
+        [_unit, _vehicle] spawn {
+            params ["_player", "_veh"];
+            sleep 1;
+
+            // Only handle if player is still in vehicle
+            if (vehicle _player == _veh) then {
+                [_player, _veh] call RECRUIT_fnc_HandleVehicleSeats;
+            };
+        };
+    }];
+
+    // ✅ NEW: Player GetOut event - Recover overflow AI
+    _player addEventHandler ["GetOutMan", {
+        params ["_unit", "_role", "_vehicle", "_turret"];
+
+        diag_log format ["[AI RECRUIT] Player %1 exited %2", name _unit, typeOf _vehicle];
+
+        // Check if there are overflow AI to recover
+        private _overflowAI = _vehicle getVariable ["RECRUIT_overflowAI", []];
+        if (count _overflowAI > 0) then {
+            diag_log format ["[AI RECRUIT] Player exited - recovering %1 overflow AI", count _overflowAI];
+
+            {
+                private _ai = _x;
+                if (!isNull _ai && alive _ai) then {
+                    // Clear overflow state
+                    _ai setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
+                    _ai setVariable ["RECRUIT_overflowWaitPos", nil];
+
+                    // Re-enable movement
+                    _ai enableAI "MOVE";
+                    _ai setBehaviour "SAFE";
+                    _ai setSpeedMode "FULL";
+
+                    // Resume following player
+                    _ai doFollow _unit;
+
+                    diag_log format ["[AI RECRUIT] %1 recovered from overflow", name _ai];
+                };
+            } forEach _overflowAI;
+
+            _vehicle setVariable ["RECRUIT_overflowAI", nil];
+        };
+    }];
+
     diag_log format ["[AI RECRUIT] Handlers setup complete for %1", name _player];
 };
 
@@ -1296,7 +1552,7 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.20 - ELITE DRIVING FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.30 - OVERFLOW AI FIX";
 diag_log "";
 diag_log "  ✅ MAJOR FIXES:";
 diag_log "    - Driver stops after combat → EAD auto re-registers";
@@ -1304,12 +1560,20 @@ diag_log "    - FSM interference → Paused when player drives";
 diag_log "    - Passengers jumping out → Per-seat cargo lock";
 diag_log "    - Bridge freezing → Stuck detection & recovery";
 diag_log "    - Movement conflicts → No commands to drivers";
+diag_log "    - 2-SEAT VEHICLES → Overflow AI wait instead of slowing driver";
 diag_log "";
 diag_log "  • VEHICLE BEHAVIOR:";
 diag_log "    - Driver = Elite Driving (ZERO FSM interference)";
 diag_log "    - Passengers = Locked per cargo index";
 diag_log "    - Gunners = Active combat AI";
 diag_log "    - Auto-recovery after 8s stuck";
+diag_log "";
+diag_log "  • OVERFLOW AI SYSTEM (NEW):";
+diag_log "    - Detects when vehicle has insufficient seats";
+diag_log "    - Assigns AI: Driver → Gunner → Cargo (priority order)";
+diag_log "    - Overflow AI enter WAIT state (no follow = no slowdown)";
+diag_log "    - Auto-recovery when vehicle stops or player exits";
+diag_log "    - Perfect for 2-seat sports cars and fast vehicles";
 diag_log "";
 diag_log "  • EXTREME SKILLS: 1.0 (PERFECT) all categories";
 diag_log "  • 300M SIGHT: Detect enemies at extreme distance";

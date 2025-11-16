@@ -63,6 +63,8 @@ Works seamlessly with recruit AI drivers. When a recruit AI becomes a driver, EA
 - **CRITICAL FIX**: Resolved A3XAI vehicle spinning issue
 - EAD now disables AI PATH and AUTOTARGET when taking control
 - Prevents conflict between EAD's direct control and AI waypoint pathfinding
+- **NEW**: EAD steers toward AI group waypoints automatically
+- Vehicles reach A3XAI objectives while maintaining smooth EAD control
 - AI is properly re-enabled when EAD releases control
 
 ### v8.4

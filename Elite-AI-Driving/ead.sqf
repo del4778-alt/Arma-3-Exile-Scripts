@@ -8,6 +8,8 @@
         ✅ Fixed A3XAI vehicles spinning in place
         ✅ Disables AI PATH/AUTOTARGET to prevent conflict with EAD control
         ✅ Re-enables AI when EAD releases control
+        ✅ EAD now steers toward AI waypoints while maintaining smooth control
+        ✅ Vehicles reach A3XAI objectives without pathfinding conflicts
 
     v8.4 OPTIMIZATION:
         ✅ Batch raycast processing (Arma 3 v2.20+)
@@ -537,8 +539,48 @@ EAD_fnc_stuck = {
 };
 
 /* =====================================================================================
-    SECTION 7 — VECTOR DRIVE + STEERING + DEBUG
+    SECTION 7 — WAYPOINT NAVIGATION + VECTOR DRIVE + STEERING + DEBUG
 ===================================================================================== */
+
+// ✅ NEW: Get steering bias toward AI waypoint
+EAD_fnc_waypointBias = {
+    params ["_veh"];
+
+    private _drv = driver _veh;
+    if (isNull _drv) exitWith {0};
+
+    private _grp = group _drv;
+    private _wpIdx = currentWaypoint _grp;
+
+    // If no valid waypoint, just drive forward
+    if (_wpIdx < 0) exitWith {0};
+
+    private _wpPos = waypointPosition [_grp, _wpIdx];
+
+    // Check if waypoint is valid
+    if (_wpPos isEqualTo [0,0,0]) exitWith {0};
+
+    private _vehPos = getPosATL _veh;
+    private _dist = _vehPos distance2D _wpPos;
+
+    // If very close to waypoint (within 30m), reduce steering influence
+    if (_dist < 30) exitWith {0};
+
+    // Calculate angle to waypoint
+    private _dirToWP = _vehPos getDir _wpPos;
+    private _vehDir = getDir _veh;
+
+    // Calculate angle difference (-180 to 180)
+    private _angleDiff = _dirToWP - _vehDir;
+    while {_angleDiff > 180} do {_angleDiff = _angleDiff - 360};
+    while {_angleDiff < -180} do {_angleDiff = _angleDiff + 360};
+
+    // Convert to steering bias (stronger at longer distances)
+    private _strength = ((_dist min 200) / 200) * 0.15; // Max 0.15 bias
+    private _bias = (_angleDiff / 180) * _strength;
+
+    _bias
+};
 
 EAD_fnc_vectorDrive = {
     params ["_veh","_s","_tSpd","_profile"];
@@ -557,7 +599,10 @@ EAD_fnc_vectorDrive = {
     if ((_s get "NL") < 8) then {_near = _near + 0.03};
     if ((_s get "NR") < 8) then {_near = _near - 0.03};
 
-    private _bias = _center + _pathAdj + _drift + _near;
+    // ✅ NEW: Add waypoint steering to guide vehicle toward A3XAI objectives
+    private _wpSteer = [_veh] call EAD_fnc_waypointBias;
+
+    private _bias = _center + _pathAdj + _drift + _near + _wpSteer;
     _bias = _bias max -0.25 min 0.25;
 
     private _newDir = _dir + (_bias * 55);

@@ -1,15 +1,20 @@
 /*
-    rmg_ravage_exile_config.sqf - DEBUGGING ZOMBIE SPAWNS
+    rmg_ravage_exile_config.sqf - SAFE ZOMBIE RESURRECTION
 
-    Added comprehensive debug logging to diagnose why zombies aren't spawning
+    v2.7 - ZOMBIE RESURRECTION WITH LIMITS:
+        ✅ Zombies can now resurrect (CIVILIAN added to spawn sides)
+        ✅ Resurrection limit prevents infinite loops (default: 1 resurrection)
+        ✅ Tracks resurrection count per zombie
+        ✅ Configurable via maxZombieResurrections
 
-    Version: 2.6 - DEBUG MODE
+    v2.6 - DEBUG MODE:
+        Added comprehensive debug logging to diagnose zombie spawning
 */
 
 if (!isServer) exitWith {};
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Initializing Ravage/Exile integration v2.6 DEBUG...";
+diag_log "[RMG:Ravage] Initializing Ravage/Exile integration v2.7...";
 diag_log "========================================";
 
 // ========================== CONFIG ==========================
@@ -24,10 +29,13 @@ private _CFG = [
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
     ["chanceHorde", 0.10],
-    // ✅ ALL AI sides spawn zombies (EAST, WEST, RESISTANCE)
+    // ✅ ALL AI sides spawn zombies (EAST, WEST, RESISTANCE, CIVILIAN)
     // RECRUIT AI is still EXCLUDED via ExileRecruited check below
-    ["spawnFromSides", [east, west, resistance]],
+    ["spawnFromSides", [east, west, resistance, civilian]],
     ["minPlayerDist", 10],
+    // ✅ v2.7: Zombie resurrection limit (prevents infinite loops)
+    // 0 = zombies never resurrect, 1 = resurrect once, 2 = twice, etc.
+    ["maxZombieResurrections", 1],
 
     // --- Ambient bandits/scavengers
     ["ambientEnabled", true],
@@ -189,6 +197,9 @@ RMG_Ravage_spawnZed = {
         diag_log "[RMG:Ravage:WARNING] rvg_fnc_infectCivilian not found - Ravage mod loaded?";
     };
 
+    // ✅ v2.7: Initialize resurrection counter (starts at 0)
+    _u setVariable ["RMG_ResurrectionCount", 0, true];
+
     if (_debug) then {
         diag_log format ["[RMG:Ravage:DEBUG] ✓ Zombie spawned successfully: %1 (side: %2)", typeOf _u, side _u];
     };
@@ -267,11 +278,29 @@ addMissionEventHandler ["EntityKilled", {
             diag_log format ["[RMG:Ravage] Recruit AI death ignored: %1 (no zombie spawn)", name _killed];
         };
 
-        // ✅ Don't resurrect zombies as zombies
-        if (side _killed == civilian) exitWith {
+        // ✅ v2.7: Check zombie resurrection limit (prevents infinite loops)
+        if (side _killed == civilian) then {
+            private _resCount = _killed getVariable ["RMG_ResurrectionCount", 0];
+            private _maxRes = ["maxZombieResurrections"] call RMG_Ravage_get;
+
             if (_debug) then {
-                diag_log format ["[RMG:Ravage] Zombie death ignored: %1 (no resurrection)", name _killed];
+                diag_log format ["[RMG:Ravage:DEBUG] Zombie death detected: %1", name _killed];
+                diag_log format ["  - Resurrection count: %1 / %2 max", _resCount, _maxRes];
             };
+
+            if (_resCount >= _maxRes) exitWith {
+                if (_debug) then {
+                    diag_log format ["[RMG:Ravage] Zombie %1 reached resurrection limit (%2/%3) - NO SPAWN",
+                        name _killed, _resCount, _maxRes];
+                };
+            };
+
+            // ✅ Zombie can still resurrect - increment counter for next spawn
+            if (_debug) then {
+                diag_log format ["[RMG:Ravage] Zombie %1 can resurrect (%2/%3) - SPAWNING",
+                    name _killed, _resCount, _maxRes];
+            };
+            // Counter will be set on newly spawned zombie below
         };
 
         // Check if side is allowed to resurrect
@@ -287,16 +316,19 @@ addMissionEventHandler ["EntityKilled", {
         if (_killedSide in _sides) then {
             private _pos = getPosATL _killed;
             private _killedName = name _killed;
+            // ✅ v2.7: Get resurrection counter from parent zombie (or 0 if non-zombie)
+            private _parentResCount = _killed getVariable ["RMG_ResurrectionCount", 0];
 
             if (_debug) then {
                 diag_log format ["[RMG:Ravage:DEBUG] ✓ ZOMBIE SPAWN CONDITIONS MET for %1", _killedName];
                 diag_log format ["  - Position: %1", _pos];
+                diag_log format ["  - Parent resurrection count: %1", _parentResCount];
                 diag_log "  - Spawning thread started...";
             };
 
             // Spawn in new thread for sleep commands
-            [_pos, _killedName, _debug] spawn {
-                params ["_pos", "_killedName", "_debug"];
+            [_pos, _killedName, _parentResCount, _debug] spawn {
+                params ["_pos", "_killedName", "_parentResCount", "_debug"];
 
                 if (_debug) then {
                     diag_log format ["[RMG:Ravage:DEBUG] Spawn thread running for %1", _killedName];
@@ -329,7 +361,7 @@ addMissionEventHandler ["EntityKilled", {
                     private _count = floor ( (_minMax select 0) + random ((_minMax select 1) - (_minMax select 0) + 1) );
                     private _rad = 8 max (_count * 0.7);
 
-                    diag_log format ["[RMG:Ravage] ★★★ SPAWNING HORDE: %1 zombies from %2 (EAST AI death) ★★★", _count, _killedName];
+                    diag_log format ["[RMG:Ravage] ★★★ SPAWNING HORDE: %1 zombies from %2 ★★★", _count, _killedName];
 
                     for "_i" from 1 to _count do {
                         private _pick = selectRandom _pool;
@@ -341,26 +373,38 @@ addMissionEventHandler ["EntityKilled", {
 
                         private _zombie = [_pick, _p] call RMG_Ravage_spawnZed;
 
+                        if (!isNull _zombie) then {
+                            // ✅ v2.7: Inherit and increment resurrection counter
+                            _zombie setVariable ["RMG_ResurrectionCount", _parentResCount + 1, true];
+                        };
+
                         if (_debug) then {
                             if (isNull _zombie) then {
                                 diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 FAILED", _i];
                             } else {
-                                diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 OK: %2", _i, typeOf _zombie];
+                                diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 OK: %2 (ResCount: %3)",
+                                    _i, typeOf _zombie, _parentResCount + 1];
                             };
                         };
                     };
                 } else {
                     // SINGLE SPAWN
-                    diag_log format ["[RMG:Ravage] ★ SPAWNING SINGLE ZOMBIE from %1 (EAST AI death) ★", _killedName];
+                    diag_log format ["[RMG:Ravage] ★ SPAWNING SINGLE ZOMBIE from %1 ★", _killedName];
 
                     private _pick = selectRandom _pool;
                     private _zombie = [_pick, _pos] call RMG_Ravage_spawnZed;
+
+                    if (!isNull _zombie) then {
+                        // ✅ v2.7: Inherit and increment resurrection counter
+                        _zombie setVariable ["RMG_ResurrectionCount", _parentResCount + 1, true];
+                    };
 
                     if (_debug) then {
                         if (isNull _zombie) then {
                             diag_log "[RMG:Ravage:DEBUG] Single zombie spawn FAILED!";
                         } else {
-                            diag_log format ["[RMG:Ravage:DEBUG] Single zombie spawn OK: %1", typeOf _zombie];
+                            diag_log format ["[RMG:Ravage:DEBUG] Single zombie spawn OK: %1 (ResCount: %2)",
+                                typeOf _zombie, _parentResCount + 1];
                         };
                     };
                 };
@@ -467,14 +511,15 @@ if (["ambientEnabled"] call _get) then {
 };
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Exile integration complete - v2.6 DEBUG MODE";
-diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE";
+diag_log "[RMG:Ravage] Exile integration complete - v2.7";
+diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE WITH LIMITS";
+diag_log format ["[RMG:Ravage] - Max resurrections per zombie: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
 diag_log "[RMG:Ravage] - Zombies: CIVILIAN side (zombie_bolter, zombie_walker, zombie_runner)";
 diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no resurrection)";
-diag_log "[RMG:Ravage] - Spawn sides: EAST only (A3XAI patrol AI)";
+diag_log "[RMG:Ravage] - Spawn sides: EAST, WEST, RESISTANCE, CIVILIAN";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
 diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE";
 diag_log "[RMG:Ravage] - Faction hostility: ALL vs CIVILIAN zombies";
-diag_log "[RMG:Ravage] - DEBUG MODE: ENABLED (verbose logging)";
+diag_log format ["[RMG:Ravage] - DEBUG MODE: %1", if (["debugMode"] call RMG_Ravage_get) then {"ENABLED"} else {"DISABLED"}];
 diag_log "[RMG:Ravage] All systems operational.";
 diag_log "========================================";

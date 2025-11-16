@@ -1,11 +1,18 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.30 - OVERFLOW AI FIX
+    ELITE AI RECRUIT SYSTEM v7.31 - EAD PERSISTENCE FIX
     ✅ Fixed: Driver stops after combat (EAD re-registration)
     ✅ Fixed: FSM interference with Elite Driving
     ✅ Fixed: Passengers jumping out immediately
     ✅ Fixed: Bridge freezing (stuck detection)
     ✅ Fixed: Movement commands conflicting with autopilot
     ✅ Fixed: 2-seat vehicles - overflow AI now WAIT instead of slowing driver
+    ✅ Fixed: EAD stops responding after player exit/re-enter
+
+    CHANGES IN v7.31:
+    - FIXED: EAD now re-activates when player re-enters vehicle
+    - FIXED: Continuous EAD monitoring checks if inactive and re-registers
+    - FIXED: Driver responds to waypoints after reaching destination
+    - FIXED: Bridge stops no longer permanently disable driving
 
     CHANGES IN v7.30:
     - NEW: Automatic seat counting and AI assignment system
@@ -25,7 +32,7 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.30 (Overflow AI Fix)...";
+diag_log "[AI RECRUIT] Starting v7.31 (EAD Persistence Fix)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -435,6 +442,12 @@ RECRUIT_fnc_DriverStuckMonitor = {
                     // Player is in vehicle - reset stuck timer and skip detection
                     _unit setVariable ["RECRUIT_driverStuckTime", time];
                     _unit setVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
+
+                    // ✅ FIX: Check if EAD is still active, re-register if needed
+                    if !(_veh getVariable ["EAD_active", false]) then {
+                        diag_log format ["[AI RECRUIT] EAD inactive while player in vehicle %1 - re-registering", typeOf _veh];
+                        [_veh] call RECRUIT_fnc_ForceEADReregister;
+                    };
                 } else {
                     // ✅ FIX: Add grace period after getting into vehicle
                     private _getInTime = _unit getVariable ["RECRUIT_driverGetInTime", 0];
@@ -1318,6 +1331,20 @@ fn_setupPlayerHandlers = {
             // Only handle if player is still in vehicle
             if (vehicle _player == _veh) then {
                 [_player, _veh] call RECRUIT_fnc_HandleVehicleSeats;
+
+                // ✅ FIX: Wait for AI to get in, then ensure EAD is active
+                sleep 2;
+
+                private _driver = driver _veh;
+                if (!isNull _driver && !isPlayer _driver) then {
+                    // Check if EAD is active for the AI driver
+                    if !(_veh getVariable ["EAD_active", false]) then {
+                        diag_log format ["[AI RECRUIT] Player entered %1 but EAD inactive - re-registering", typeOf _veh];
+                        [_veh] call RECRUIT_fnc_ForceEADReregister;
+                    } else {
+                        diag_log format ["[AI RECRUIT] Player entered %1 - EAD already active", typeOf _veh];
+                    };
+                };
             };
         };
     }];
@@ -1552,7 +1579,7 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.30 - OVERFLOW AI FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.31 - EAD PERSISTENCE FIX";
 diag_log "";
 diag_log "  ✅ MAJOR FIXES:";
 diag_log "    - Driver stops after combat → EAD auto re-registers";
@@ -1561,6 +1588,13 @@ diag_log "    - Passengers jumping out → Per-seat cargo lock";
 diag_log "    - Bridge freezing → Stuck detection & recovery";
 diag_log "    - Movement conflicts → No commands to drivers";
 diag_log "    - 2-SEAT VEHICLES → Overflow AI wait instead of slowing driver";
+diag_log "    - EAD NON-RESPONSIVE → Re-activates after player exit/re-enter";
+diag_log "";
+diag_log "  • EAD PERSISTENCE (v7.31):";
+diag_log "    - Continuous monitoring when player in vehicle";
+diag_log "    - Auto re-register if EAD becomes inactive";
+diag_log "    - Works after long trips, bridges, destinations";
+diag_log "    - Player can exit/re-enter without losing AI driver";
 diag_log "";
 diag_log "  • VEHICLE BEHAVIOR:";
 diag_log "    - Driver = Elite Driving (ZERO FSM interference)";
@@ -1568,7 +1602,7 @@ diag_log "    - Passengers = Locked per cargo index";
 diag_log "    - Gunners = Active combat AI";
 diag_log "    - Auto-recovery after 8s stuck";
 diag_log "";
-diag_log "  • OVERFLOW AI SYSTEM (NEW):";
+diag_log "  • OVERFLOW AI SYSTEM:";
 diag_log "    - Detects when vehicle has insufficient seats";
 diag_log "    - Assigns AI: Driver → Gunner → Cargo (priority order)";
 diag_log "    - Overflow AI enter WAIT state (no follow = no slowdown)";

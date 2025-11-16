@@ -1,478 +1,125 @@
-# AI Patrol System
+# AI Patrol System v8.2
 
-**Dynamic patrol routes for AI squads with intelligent waypoint placement and squad leader coordination.**
+Elite AI patrol system for Exile servers with ExileSpawnZone marker detection.
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg)
-![Arma 3](https://img.shields.io/badge/Arma%203-compatible-green.svg)
+## Features
 
----
+- **Automatic Exile zone detection** - Spawns patrols at ExileSpawnZone markers
+- **Dynamic caching** - AI despawn when no players nearby
+- **VCOMAI integration** - Enhanced AI behavior when VCOMAI mod detected
+- **Cover system** - Intelligent tactical positioning
+- **Military building patrols** - Prefers patrolling military structures
+- **Optimized performance** - distanceSqr, cached player checks
+- **Zombie resurrection protection** - Won't be resurrected by Ravage/zombie mods
+- **Elite Driving exclusion** - Won't interfere with vehicle AI
 
-## 🎯 Features
+## Installation
 
-- ✅ **Dynamic waypoint generation**
-- ✅ **Squad leader coordination**
-- ✅ **Automatic patrol route creation**
-- ✅ **Building and cover awareness**
-- ✅ **Looping patrol routes**
-- ✅ **Configurable patrol radius and waypoint count**
-- ✅ **Terrain-aware placement**
-
----
-
-## 📥 Quick Download
-
-**Download just this script:**
-- [fn_aiPatrolSystem.sqf](fn_aiPatrolSystem.sqf) - Right-click → Save As
-
-**Or clone the repository:**
-```bash
-git clone https://github.com/del4778-alt/Arma-3-Exile-Scripts.git
-cd Arma-3-Exile-Scripts/AI-Patrol-System
-```
-
----
-
-## 🚀 Installation
-
-### Step 1: Add Script to Mission
-
-Place `fn_aiPatrolSystem.sqf` in your mission folder:
-```
-Exile.YourMap/
-├── initServer.sqf
-└── scripts/
-    └── fn_aiPatrolSystem.sqf
-```
-
-### Step 2: Compile Function
-
-Add to your `initServer.sqf`:
-```sqf
-// Compile AI Patrol Function
-if (isServer) then {
-    fnc_aiPatrolSystem = compile preprocessFileLineNumbers "scripts\fn_aiPatrolSystem.sqf";
-};
-```
-
-### Step 3: Use in Your Scripts
-
----
-
-## 💻 Usage
-
-### Basic Patrol
+### Server Config (init.sqf or initServer.sqf)
 
 ```sqf
-// Create patrol for a group around a position
-[_aiGroup, _centerPosition, 200] call fnc_aiPatrolSystem;
+// Configure patrol settings
+EXILE_PATROL_CONFIG = [
+    2,      // Units per patrol group
+    300,    // Respawn delay (seconds)
+    1000,   // Cache distance (meters)
+    999,    // Max spawn attempts
+    2000    // Detection radius (meters)
+];
+
+// Execute patrol system
+[] execVM "AI-Patrol-System\fn_aiPatrolSystem.sqf";
 ```
 
-### Advanced Patrol
+### Map Markers
+
+Create markers with type **"ExileSpawnZone"** where you want patrols to spawn.
+
+## Configuration
+
+Edit `EXILE_PATROL_CONFIG` array:
 
 ```sqf
-// Full parameters
-[
-    _aiGroup,           // Group to patrol
-    _centerPosition,    // Center of patrol area [x,y,z]
-    _radius,           // Patrol radius in meters
-    _waypointCount     // Number of waypoints (optional, default: 4)
-] call fnc_aiPatrolSystem;
-```
-
-### Example with DMS Mission
-
-```sqf
-// In your DMS mission file
-_aiGroup = createGroup independent;
-
-// Spawn AI units
-for "_i" from 0 to 5 do {
-    _unit = _aiGroup createUnit ["I_Soldier_F", _missionCenter, [], 0, "FORM"];
-};
-
-// Set up patrol with 6 waypoints in 150m radius
-[_aiGroup, _missionCenter, 150, 6] call fnc_aiPatrolSystem;
-```
-
-### Example with VEMF
-
-```sqf
-// After VEMF spawns AI group
-[_aiGroup, getPos _aiLeader, 200, 5] call fnc_aiPatrolSystem;
-```
-
-### Example with Custom AI
-
-```sqf
-// Create group
-_grp = createGroup independent;
-
-// Spawn units
-_pos = [1000, 2000, 0];
-for "_i" from 0 to 3 do {
-    _unit = _grp createUnit ["O_Soldier_F", _pos, [], 5, "FORM"];
-};
-
-// Start patrol
-[_grp, _pos, 250, 8] call fnc_aiPatrolSystem;
-```
-
----
-
-## ⚙️ Configuration
-
-### Patrol Parameters
-
-```sqf
-[
-    _aiGroup,          // The AI group
-    _centerPosition,   // [x, y, z] or object
-    _radius,          // 50 to 500 (recommended)
-    _waypointCount    // 3 to 12 (default: 4)
-] call fnc_aiPatrolSystem;
-```
-
-### Waypoint Timeout
-
-Edit in the function:
-```sqf
-_waypointTimeout = [10, 20, 30];  // [min, mid, max] seconds
-
-// More aggressive patrol:
-_waypointTimeout = [5, 10, 15];
-
-// Slower, defensive patrol:
-_waypointTimeout = [20, 30, 40];
-```
-
-### Waypoint Behavior
-
-Edit in the function:
-```sqf
-_wp setWaypointBehaviour "AWARE";   // or "SAFE", "COMBAT"
-_wp setWaypointCombatMode "YELLOW"; // or "RED", "GREEN"
-_wp setWaypointSpeed "LIMITED";     // or "NORMAL", "FULL"
-```
-
----
-
-## 📊 How It Works
-
-### Waypoint Generation
-
-1. **Calculate Perimeter Points**
-   - Distributes waypoints evenly around circle
-   - Uses radius to define patrol area
-
-2. **Squad Leader Assignment**
-   - First unit becomes squad leader
-   - Other units follow leader's commands
-   - Leader controls patrol route
-
-3. **Waypoint Settings**
-   - Type: Move
-   - Timeout: Random delay at each point
-   - Formation: Group stays together
-   - Completion: Cycles back to start
-
-4. **Loop Behavior**
-   - Last waypoint cycles to first
-   - Continuous patrol
-   - Never ends until group eliminated
-
----
-
-## 🎮 Features Explained
-
-### Squad Leader Coordination
-- First unit in group becomes leader
-- Leader navigates waypoints
-- Other units maintain formation
-- Cohesive group movement
-
-### Dynamic Waypoints
-- Placed around perimeter of radius
-- Avoid extreme terrain
-- Distributed evenly
-- Return to start point
-
-### Patrol Behaviors
-
-**AWARE Mode (Default):**
-- Medium alertness
-- Balanced speed
-- Tactical movement
-
-**SAFE Mode:**
-- Low alertness
-- Normal walking speed
-- Casual patrol
-
-**COMBAT Mode:**
-- High alertness
-- Combat ready
-- Aggressive posture
-
----
-
-## 💡 Usage Examples
-
-### Small Building Patrol (50m)
-```sqf
-[_grp, getPos _building, 50, 4] call fnc_aiPatrolSystem;
-```
-
-### Town Patrol (200m)
-```sqf
-[_grp, _townCenter, 200, 8] call fnc_aiPatrolSystem;
-```
-
-### Perimeter Defense (500m)
-```sqf
-[_grp, _baseCenter, 500, 12] call fnc_aiPatrolSystem;
-```
-
-### Road Checkpoint
-```sqf
-[_grp, _roadPosition, 100, 6] call fnc_aiPatrolSystem;
-```
-
----
-
-## 🎯 Recommended Settings
-
-### For Different Scenarios
-
-#### **Building Interior**
-```sqf
-[_grp, _pos, 30, 3] call fnc_aiPatrolSystem;
-```
-
-#### **Small Compound**
-```sqf
-[_grp, _pos, 75, 4] call fnc_aiPatrolSystem;
-```
-
-#### **Town Patrol**
-```sqf
-[_grp, _pos, 150, 6] call fnc_aiPatrolSystem;
-```
-
-#### **Large Base**
-```sqf
-[_grp, _pos, 300, 10] call fnc_aiPatrolSystem;
-```
-
-#### **Perimeter Defense**
-```sqf
-[_grp, _pos, 500, 12] call fnc_aiPatrolSystem;
-```
-
----
-
-## 🔧 Advanced Customization
-
-### Modify Waypoint Type
-
-In the function, change:
-```sqf
-_wp = _group addWaypoint [_wpPos, 0];
-_wp setWaypointType "MOVE";  // Change to "HOLD", "GUARD", etc.
-```
-
-**Available types:**
-- `"MOVE"` - Move to position (default)
-- `"HOLD"` - Hold position
-- `"GUARD"` - Guard area
-- `"PATROL"` - Patrol movement
-- `"SCRIPTED"` - Custom script
-
-### Add Completion Statement
-
-```sqf
-_wp setWaypointStatements [
-    "true",
-    "hint 'Waypoint reached!';"
+EXILE_PATROL_CONFIG = [
+    2,      // [0] Units per group (recommended: 2-4)
+    300,    // [1] Respawn delay in seconds
+    1000,   // [2] Cache distance - AI deleted if no players within this range
+    999,    // [3] Max spawn attempts per zone
+    2000    // [4] Player detection radius - activates patrol when player enters
 ];
 ```
 
-### Custom Formation
+### Advanced Options
+
+Edit constants in the script file:
 
 ```sqf
-_wp setWaypointFormation "COLUMN";  // "LINE", "VEE", "WEDGE", etc.
+#define DETECT_RAD 1500        // Combat detection radius
+#define AUDIO_RAD 2000         // FiredNear event radius
+#define GREN_CHANCE 0.7        // Grenade throw probability
 ```
 
----
+## AI Behavior
 
-## 🔄 Integration Examples
+- **Skills**: 0.75-0.95 (high accuracy and awareness)
+- **Speed**: 1.4x movement speed
+- **Formation**: WEDGE formation, switches to LINE in combat
+- **Combat Mode**: YELLOW (defensive), switches to RED in combat
+- **Grenades**: 70% chance to throw when enemy 10-40m away
+- **Cover**: Seeks tactical positions every 15 seconds in combat
 
-### DMS Mission Integration
+## VCOMAI Integration
 
-```sqf
-// In your DMS mission file after spawning AI
-{
-    if (count (units _x) > 0) then {
-        [_x, _missionCenter, 200, 6] call fnc_aiPatrolSystem;
-    };
-} forEach [_AIGroup1, _AIGroup2, _AIGroup3];
-```
+When VCOMAI is detected:
+- Units registered with `VCM_NOAI` array
+- Groups registered with `VCM_SERVERAI` array
+- Custom AI flags set: `VCM_CUSTOMAI`, `VCM_CUSTOMGROUP`
+- Calls `VCM_fnc_INITAI` for enhanced behavior
 
-### VEMF Integration
+## Compatibility
 
-```sqf
-// In VEMF config after AI spawn
-{
-    [_x, VEMFrMissionCenter, 150] call fnc_aiPatrolSystem;
-} forEach VEMFrAIGroups;
-```
+- **Arma 3**: 2.00+
+- **Exile Mod**: All versions
+- **VCOMAI**: Auto-detected and integrated
+- **Elite AI Driving**: Compatible (EAID_Ignore flag set)
+- **Ravage/Zombies**: Resurrection immunity enabled
 
-### Occupation Integration
+## Performance
 
-```sqf
-// Hook into Occupation's AI spawn
-PARAMS_OccupationSpawn = {
-    params ["_group", "_position"];
-    [_group, _position, 250, 8] call fnc_aiPatrolSystem;
-};
-```
+- **distanceSqr optimization**: 3x faster than distance checks
+- **Player caching**: Checks every 15 seconds, not every tick
+- **Player validation**: Filters out parachuting/JIP players
+- **Automatic cleanup**: Dead bodies and empty groups removed
 
----
+## Troubleshooting
 
-## 📈 Performance
+### Patrols not spawning
 
-| Setting | Impact |
-|---------|--------|
-| Waypoint Count | Low - calculated once |
-| Patrol Radius | None - only affects placement |
-| Group Size | None - handled by game engine |
-| Multiple Groups | Minimal - independent patrols |
+1. Verify `ExileSpawnZone` markers exist and have valid positions
+2. Check player is within detection radius (default 2000m)
+3. Check RPT logs for errors
+4. Ensure `isServer` returns true
 
-**Performance Tips:**
-- Keep waypoint count reasonable (4-12)
-- Use appropriate radius for area
-- Don't create thousands of simultaneous patrols
+### High server FPS drop
 
----
+1. Reduce units per group (index 0 in config)
+2. Increase cache distance (index 2)
+3. Reduce detection radius (index 4)
 
-## 🆘 Troubleshooting
+## Version History
 
-### AI Not Moving
+### v8.2 (Current)
+- Variable shadowing fixed in ammo calculation
+- Elite Driving exclusion flag added
+- VCOMAI double-null checks
+- Distance checks optimized with distanceSqr
+- Player validation added
+- Zombie resurrection protection
 
-**Check:**
-- Group has units: `count (units _group) > 0`
-- Group not empty
-- Position is valid
+### v8.1
+- VCOMAI integration added
+- BIS function optimizations
 
-**Solution:**
-```sqf
-if (count (units _group) > 0) then {
-    [_group, _pos, 200] call fnc_aiPatrolSystem;
-};
-```
+## License
 
-### Waypoints Too Close/Far
-
-**Adjust radius:**
-```sqf
-// Too close
-[_grp, _pos, 100, 4] call fnc_aiPatrolSystem;  // Increase to 200
-
-// Too far
-[_grp, _pos, 500, 4] call fnc_aiPatrolSystem;  // Decrease to 300
-```
-
-### AI Stuck
-
-**Check terrain:**
-- Waypoints may be on water
-- Extreme elevation changes
-- Buildings blocking path
-
-**Solution:** Reduce radius or adjust center position
-
----
-
-## 🔄 Compatibility
-
-### ✅ Works With:
-- **DMS** (Defent's Mission System)
-- **VEMF Reloaded**
-- **Occupation**
-- **A3XAI**
-- **Custom AI spawning**
-- **Any AI group**
-
-### ⚠️ Conflicts With:
-- Scripts that override AI waypoints
-- Mods that control AI movement
-- Other patrol systems (use one only)
-
----
-
-## 📝 Parameters Reference
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `_aiGroup` | GROUP | Yes | - | AI group to patrol |
-| `_centerPosition` | ARRAY/OBJECT | Yes | - | Center point [x,y,z] |
-| `_radius` | NUMBER | Yes | - | Patrol radius (meters) |
-| `_waypointCount` | NUMBER | No | 4 | Number of waypoints |
-
----
-
-## 💡 Tips & Best Practices
-
-1. **Match radius to area**
-   - Small buildings: 50-100m
-   - Town sectors: 150-250m
-   - Large bases: 300-500m
-
-2. **Appropriate waypoint count**
-   - Small patrols: 3-4 waypoints
-   - Medium: 6-8 waypoints
-   - Large: 10-12 waypoints
-
-3. **Test your setup**
-   - Spawn in-game and watch AI
-   - Adjust based on behavior
-   - Check for stuck units
-
-4. **Use with vehicle patrols**
-   ```sqf
-   // AI in vehicles
-   [_vehicleGroup, _pos, 800, 6] call fnc_aiPatrolSystem;
-   ```
-
----
-
-## 🆘 Support
-
-### Reporting Issues
-Include:
-- Group size
-- Position/map
-- Radius and waypoint count
-- AI behavior description
-
-### Resources
-- **GitHub Issues:** [Report a bug](https://github.com/del4778-alt/Arma-3-Exile-Scripts/issues)
-
----
-
-## 📄 License
-
-Free to use and modify for your Arma 3 server.
-Please give credit if you redistribute.
-
----
-
-## 🙏 Credits
-
-- **Script Author:** del4778-alt
-- **Arma 3 Community:** BIS functions and support
-
----
-
-**Last Updated:** 2025
-**Version:** 1.0
-**Tested On:** Arma 3 v2.18+
+Free to use and modify.

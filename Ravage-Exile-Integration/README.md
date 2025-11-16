@@ -1,261 +1,139 @@
-# Ravage Exile Integration
+# Ravage/Exile Integration v2.6
 
-**Complete zombie apocalypse integration for Exile servers using the Ravage mod**
+Zombie resurrection system for Ravage mod with Exile server integration.
 
-Transform your Exile server into a zombie survival experience with AI-to-zombie resurrection, ambient threats, and rewarding gameplay.
+## Features
 
----
+- **Zombie resurrection**: EAST AI spawn zombies when killed
+- **Recruit AI exclusion**: Player companions don't resurrect
+- **Kill rewards**: Poptabs + Respect for killing zombies
+- **Safe zones**: No zombie spawns near traders
+- **Ambient bandits**: Scavenger groups patrol the map
+- **Faction hostility**: All sides attack CIVILIAN zombies
+- **Debug mode**: Comprehensive logging for troubleshooting
 
-## Overview
+## Installation
 
-This script seamlessly integrates the Ravage zombie mod with Exile, providing:
-
-- 🧟 **Dynamic Zombie Spawning** - AI deaths spawn zombies (90% single, 10% horde)
-- 💰 **Kill Rewards** - 100 poptabs + 250 respect per zombie kill
-- 🎯 **Faction System** - All AI factions attack zombies on sight
-- 🛡️ **Safe Zones** - Trader zones protected from zombie/bandit spawns
-- 🎖️ **Ambient Bandits** - Light patrol groups for additional PvE content
-- ⚡ **Performance Optimized** - AI cap system prevents server lag
-
----
-
-## Quick Start
-
-### 1. Requirements
-- Exile Mod (installed)
-- Ravage Mod (Steam Workshop or manual)
-- CBA_A3 (required dependency)
-
-### 2. Installation (4 steps)
-
-**Step 1**: Copy the script
-```
-Copy: scripts/rmg_ravage_exile_config.sqf
-To: mpmissions/Exile.Altis/scripts/rmg_ravage_exile_config.sqf
-```
-
-**Step 2**: Edit initServer.sqf
 ```sqf
-[] execVM "scripts\rmg_ravage_exile_config.sqf";
+[] execVM "Ravage-Exile-Integration\rmg_ravage_exile_config.sqf";
 ```
 
-**Step 3**: ⚠️ **REQUIRED** - Apply description.ext patch
-```
-Open: description.ext.patch
-Follow instructions to add Ravage remoteExec whitelist
-(Fixes: "tried to remoteExec a disabled function" errors)
-```
+## Configuration
 
-**Step 4**: Configure trader zones (in the script)
+Edit the `_CFG` array at the top of the script:
+
 ```sqf
-["safeZoneMarkers", ["YourTraderZone1", "YourTraderZone2"]],
+private _CFG = [
+    // Safe zones
+    ["safeZoneMarkers", ["MafiaTraderCity","TraderZoneSilderas","TraderZoneFolia"]],
+    ["safeZoneRadius", 500],
+
+    // Zombie resurrection
+    ["zedClasses", ["zombie_bolter","zombie_walker","zombie_runner"]],
+    ["hordeSizeRange", [6, 12]],
+    ["chanceHorde", 0.10],              // 10% chance of horde vs single zombie
+    ["spawnFromSides", [east]],         // Only EAST AI resurrect
+
+    // Rewards
+    ["zombieKillRewardPoptabs", 200],
+    ["zombieKillRewardRespect", 250],
+
+    // Debug
+    ["debugMode", true]                 // Enable verbose logging
+];
 ```
 
-**Done!** Restart your server and enjoy zombies.
+## How It Works
 
-📖 **See [INSTALLATION.md](INSTALLATION.md) for complete setup instructions**
+1. EAST AI dies (A3XAI patrols, etc.)
+2. System checks if position is safe (not in trader zone)
+3. 10% chance spawn horde (6-12 zombies), 90% spawn single zombie
+4. Zombies are CIVILIAN side, hostile to all
+5. Player kills zombie → Receives Poptabs + Respect reward
 
----
+## Exclusions
 
-## Configuration Examples
+- **Recruit AI**: Never resurrect (ExileRecruited flag checked)
+- **Zombies**: Don't resurrect other zombies
+- **RESISTANCE**: Explicitly excluded (recruits are RESISTANCE)
+- **Safe zones**: No spawns within 500m of traders
 
-### Adjust Zombie Rewards
+## Ambient Bandits
+
+Optional scavenger/bandit groups that patrol the map:
+
 ```sqf
-["zombieKillRewardPoptabs", 150],   // Increase to 150 poptabs
-["zombieKillRewardRespect", 500]    // Increase to 500 respect
+["ambientEnabled", true],
+["ambientMaxGroups", 6],
+["ambientGroupSize", [2,4]],
+["ambientSpawnRadius", [100, 200]],
+["ambientMinPlayerDist", 300],
 ```
 
-### Change Horde Settings
+## Zombie Kill Rewards
+
+When players kill zombies:
+- **+200 Poptabs** (configurable)
+- **+250 Respect** (configurable)
+- Notification sent to player
+
+## Debug Mode
+
+Enable detailed logging:
+
 ```sqf
-["hordeSizeRange", [8, 16]],  // Bigger hordes (8-16 zombies)
-["chanceHorde", 0.20],        // 20% horde chance (up from 10%)
+["debugMode", true]
 ```
 
-### Disable Ambient Bandits
-```sqf
-["ambientEnabled", false],  // Turn off bandit patrols
-```
-
-### Performance Tuning
-```sqf
-["globalAICap", 150],  // Lower AI limit for better performance
-```
-
----
-
-## Features in Detail
-
-### Zombie Resurrection System
-When AI units die, they resurrect as zombies:
-- **90% chance**: Single zombie spawn
-- **10% chance**: Horde spawn (6-12 zombies)
-- **Smart spawning**: Won't spawn near players (<40m) or in safe zones
-- **Configurable sides**: Choose which AI factions resurrect
-
-### Zombie Kill Rewards
-Players earn rewards for every zombie kill:
-- **100 poptabs** added to player account
-- **250 respect** added to player score
-- **In-game notification**: "Zombie Kill: +100 Poptabs, +250 Respect"
-- **No penalties**: Killing CIVILIAN zombies has no negative effects
-- **Vehicle kills**: Works from vehicles (instigator tracking)
-
-### Faction Hostility
-All AI factions will automatically attack zombies:
-- EAST (OPFOR) ↔️ Zombies (hostile)
-- RESISTANCE (Independent) ↔️ Zombies (hostile)
-- WEST (BLUFOR) ↔️ Zombies (hostile)
-- Zombies spawn on CIVILIAN side
-
-### Safe Zone Protection
-Trader zones are protected:
-- No zombie spawns in trader zones
-- No bandit patrols in trader zones
-- Configurable radius (default 175m)
-- Multiple trader zones supported
-
-### Ambient Bandits
-Light bandit patrols spawn dynamically:
-- 2-4 bandits per group
-- Maximum 6 groups active
-- Spawn 800-1600m from players
-- Simple patrol behavior
-- Auto-despawn when far from players
-- Fully configurable classes (supports RHS, CUP, etc.)
-
-### Performance Optimization
-Built-in AI cap system:
-- Global AI limit: 220 units (configurable)
-- Automatic culling of farthest AI
-- Distance-based despawn logic
-- Optimized for minimal server load
-
----
-
-## File Structure
-
-```
-Ravage-Exile-Integration/
-├── README.md                           ← You are here
-├── INSTALLATION.md                     ← Full setup guide
-└── scripts/
-    └── rmg_ravage_exile_config.sqf    ← Main script file
-```
-
----
+Logs include:
+- Entity death events
+- Side checks
+- Spawn conditions
+- Horde rolls
+- Individual zombie spawns
 
 ## Compatibility
 
-### Works With:
-- ✅ All Exile versions
-- ✅ A3XAI, DMS, VEMF, Occupation scripts
-- ✅ CUP, RHS, and other weapon/unit mods
-- ✅ Custom missions and AI spawners
-- ✅ Infistar and other anti-cheat systems
-
-### Server Requirements:
-- **Minimum**: 8GB RAM, 4 CPU cores
-- **Recommended**: 16GB RAM, 8 CPU cores (for 40+ players)
-- **Mods**: Exile, Ravage, CBA_A3
-
----
+- **Arma 3**: 2.00+
+- **Exile Mod**: Required
+- **Ravage Mod**: Required for `rvg_fnc_infectCivilian`
+- **AI Recruit System**: Compatible (exclusion built-in)
+- **AI Patrol System**: Compatible (EAST AI spawn zombies)
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Zombies not spawning | Check zombie class names in config match Ravage version |
-| No rewards | Verify `ExileServer_system_network_send_to` in CfgRemoteExec |
-| AI ignore zombies | Check faction setup in RPT log |
-| Performance lag | Lower `globalAICap` to 150 or disable ambient bandits |
-| Script errors | Verify file path: `scripts\rmg_ravage_exile_config.sqf` |
+### Zombies not spawning
 
-📖 **See [INSTALLATION.md](INSTALLATION.md#troubleshooting) for detailed troubleshooting**
+1. Check Ravage mod loaded
+2. Enable DEBUG mode
+3. Check RPT logs for "zombie spawn" messages
+4. Verify AI dying is EAST side
+5. Verify not in safe zone
 
----
+### Too many zombies
 
-## Screenshots
-
-```
-[Screenshot: Zombie horde attacking a player]
-[Screenshot: In-game reward notification]
-[Screenshot: AI fighting zombies]
+Reduce horde chance or size:
+```sqf
+["chanceHorde", 0.05],        // 5% instead of 10%
+["hordeSizeRange", [3, 6]],   // Smaller hordes
 ```
 
----
+### Performance issues
 
-## Changelog
+Lower AI cap:
+```sqf
+["globalAICap", 50],          // Lower from 100
+```
 
-### Version 2.0 (Current)
-- ✨ Added zombie kill reward system (poptabs + respect)
-- ✨ Added WEST faction hostility support
-- ⚡ Performance optimizations (cap culling)
-- 🛠️ Custom trader zone configuration
-- 📖 Comprehensive documentation
+## Version History
 
-### Version 1.0
-- Initial release
-- Zombie resurrection system
-- Ambient bandit patrols
-- Safe zone protection
-
----
-
-## Credits
-
-**Author**: RMG
-**Version**: 2.0
-**License**: Free to use and modify
-
-### Special Thanks:
-- **Haleks** - Creator of Ravage Mod
-- **Exile Mod Team** - For the amazing Exile framework
-- **Community** - For feedback and testing
-
----
-
-## Support
-
-### Need Help?
-1. Read [INSTALLATION.md](INSTALLATION.md) thoroughly
-2. Check the [Troubleshooting](#troubleshooting) section
-3. Review your server's RPT log for errors
-4. Test with default configuration first
-
-### Found a Bug?
-Please report issues with:
-- Server RPT log excerpt
-- Script configuration used
-- Steps to reproduce
-- Expected vs actual behavior
-
----
-
-## Configuration Reference
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `safeZoneMarkers` | `["MafiaTraderCity",...]` | Trader zone marker names |
-| `safeZoneRadius` | `175` | Safe zone radius in meters |
-| `zedClasses` | `["zombie_runner",...]` | Zombie class names |
-| `hordeSizeRange` | `[6, 12]` | Min/max zombies in horde |
-| `chanceHorde` | `0.10` | 10% horde, 90% single |
-| `zombieKillRewardPoptabs` | `100` | Poptabs per kill |
-| `zombieKillRewardRespect` | `250` | Respect per kill |
-| `ambientEnabled` | `true` | Enable/disable bandits |
-| `ambientMaxGroups` | `6` | Max bandit groups |
-| `globalAICap` | `220` | Total AI unit limit |
-
-📖 **See [INSTALLATION.md](INSTALLATION.md#configuration) for complete configuration guide**
-
----
+### v2.6 (Current)
+- Debug mode added
+- Comprehensive logging
+- EAST-only resurrection
+- Recruit AI explicit exclusion
+- Zombie kill rewards added
 
 ## License
 
-This script is free to use, modify, and distribute. No attribution required, but appreciated.
-
-**Ravage Mod** and **Exile Mod** have their own respective licenses. Please respect them.
-
----
-
-**Enjoy the apocalypse! 🧟💀**
+Free to use and modify.

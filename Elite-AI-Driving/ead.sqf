@@ -4,12 +4,15 @@
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
 
-    v8.6 SPEED IMPROVEMENTS:
+    v8.6 SPEED + ROAD SAFETY:
         ✅ Increased highway speed: 170 km/h (was 145)
         ✅ Increased city speed: 100 km/h (was 85)
-        ✅ Less aggressive obstacle speed reduction
+        ✅ High speeds ONLY on straight, clear, paved roads
+        ✅ Straight path detection (forward rays within 10m variance, >40m clear)
+        ✅ Heavy offroad penalty (0.55x) to keep AI on pavement
+        ✅ Conservative obstacle detection (reverted) - no hitting stuff
         ✅ Reduced curve speed penalty (0.5 from 0.8)
-        ✅ Cars now reach 75%+ of max speed on pavement
+        ✅ Cars reach 75%+ of max on ideal road conditions
         ✅ Updated vehicle profiles for better performance
 
     v8.5 A3XAI FIX:
@@ -330,9 +333,37 @@ EAD_fnc_speedBrain = {
     _terrain params ["_isRoad","_slope","_dense","_norm"];
 
     private _base = EAD_CFG get "HIGHWAY_BASE";
-    if (!_isRoad) then {_base = _base * (_profile get "offroad")};
+
+    // ✅ STRICT: Heavy penalty for offroad to keep AI on pavement
+    if (!_isRoad) then {_base = _base * 0.55};  // Reduced from offroad mult
 
     if (_dense) then {_base = _base * 0.85};
+
+    // ✅ NEW: Check if path is straight and clear for high-speed allowance
+    private _isStraight = true;
+    private _minFrontDist = selectMin [
+        _s get "F0",
+        _s get "FL1",
+        _s get "FR1"
+    ];
+
+    // Path is straight if all forward rays are nearly equal and > 40m
+    private _f0 = _s get "F0";
+    private _fl1 = _s get "FL1";
+    private _fr1 = _s get "FR1";
+
+    if (_f0 < 40 || abs(_f0 - _fl1) > 10 || abs(_f0 - _fr1) > 10) then {
+        _isStraight = false;
+    };
+
+    // Only allow high speeds on straight, clear, paved roads
+    if (_isRoad && _isStraight && _minFrontDist > 45) then {
+        // Perfect conditions - allow full speed
+        _base = _base * 1.0;
+    } else {
+        // Not ideal - reduce speed moderately
+        if (!_isStraight) then {_base = _base * 0.80};
+    };
 
     private _curve = (_s get "CL") min (_s get "CR");
     private _drop = 1 - (_curve / 80);
@@ -356,10 +387,10 @@ EAD_fnc_obstacleLimit = {
         _s get "FR2"
     ];
 
-    // Less aggressive speed reduction (improved from v8.5)
-    if (_m < 30) then {_cur = _cur * 0.75};  // Was 0.60
-    if (_m < 25) then {_cur = _cur * 0.70};  // Was 0.55
-    if (_m < 15) then {_cur = _cur * 0.50};  // Was 0.35
+    // ✅ REVERTED: Conservative obstacle detection for safety (no hitting stuff)
+    if (_m < 30) then {_cur = _cur * 0.60};
+    if (_m < 25) then {_cur = _cur * 0.55};
+    if (_m < 15) then {_cur = _cur * 0.35};
 
     _cur
 };

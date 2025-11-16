@@ -199,25 +199,28 @@ RECRUIT_fnc_FSM_ExecuteState = {
 // ====================================================================================
 RECRUIT_fnc_ForceEADReregister = {
     params ["_veh"];
-    
+
     if (isNull _veh) exitWith {};
-    
+
     private _driver = driver _veh;
     if (isNull _driver || isPlayer _driver) exitWith {};
-    
+
+    // Check if already active to avoid spam
+    if (_veh getVariable ["EAD_active", false]) exitWith {};
+
     // Clear Elite Driving state
-    _veh setVariable ["EAD_active", false];
     _veh setVariable ["EAID_Ignore", false]; // Remove block flag
-    
+
     // Force immediate re-registration
     [_driver, _veh] spawn {
         params ["_driver", "_veh"];
         sleep 0.5;
-        
+
         if (!isNull _driver && alive _driver && driver _veh == _driver) then {
             // Call Elite Driving registration function
             if (!isNil "EAD_fnc_registerDriver") then {
                 [_driver, _veh] call EAD_fnc_registerDriver;
+                _veh setVariable ["EAD_active", true]; // Set active flag after registration
                 diag_log format ["[AI RECRUIT] ✓ Elite Driving re-registered for %1", typeOf _veh];
             };
         };
@@ -376,26 +379,14 @@ RECRUIT_fnc_FSM_BrainLoop = {
             // Re-enable AI if coming from vehicle
             private _lastState = _unit getVariable ["FSM_CurrentState", FSM_STATE_IDLE];
             if (_lastState in ["VEHICLE_DRIVER", "VEHICLE_GUNNER", "VEHICLE_PASSENGER"]) then {
-                
-                // Unlock cargo seat if was passenger
-                if (_lastState == "VEHICLE_PASSENGER") then {
-                    private _lastVeh = objectParent _unit;
-                    if (!isNull _lastVeh) then {
-                        private _lastRole = _unit getVariable ["RECRUIT_lastVehicleRole", []];
-                        if (count _lastRole > 1) then {
-                            private _cargoIdx = _lastRole select 1;
-                            _lastVeh lockCargo [_cargoIdx, false];
-                        };
-                    };
-                };
-                
+
                 // Re-enable all AI
                 _unit enableAI "MOVE";
                 _unit enableAI "FSM";
                 _unit enableAI "AUTOTARGET";
                 _unit enableAI "TARGET";
                 _unit enableAI "AUTOCOMBAT";
-                
+
                 _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
                 _unit setVariable ["FSM_StateTimer", time, false];
                 diag_log format ["[AI RECRUIT FSM] %1 exited vehicle - FSM resumed", name _unit];
@@ -744,12 +735,7 @@ fn_spawnAI = {
     // ✅ GetOut Event Handler - Re-enable FSM
     _unit addEventHandler ["GetOutMan", {
         params ["_unit", "_role", "_vehicle", "_turret"];
-        
-        // Unlock cargo seat if was passenger
-        if (_role == "cargo") then {
-            _vehicle lockCargo [_turret, false];
-        };
-        
+
         // Force FSM back to IDLE
         _unit setVariable ["FSM_CurrentState", FSM_STATE_IDLE, false];
         _unit setVariable ["FSM_StateTimer", time, false];

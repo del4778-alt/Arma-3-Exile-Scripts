@@ -1,21 +1,25 @@
 /*
     IVORY'S CAR PACK - FN_TAKEDOWN.SQF PATCH
     Fixes: "waitUntil returned nil" spam error on line 57
-    
+
     Installation:
-    1. Place this file in: mpmissions\__cur_mp.Altis\custom\ivory_patch.sqf
-    2. Add to your init.sqf: [] execVM "custom\ivory_patch.sqf";
+    1. Place this file in: mpmissions\__cur_mp.Altis\scripts\ivory_patch.sqf
+    2. Add to your init.sqf: [] execVM "scripts\ivory_patch.sqf";
     3. This OVERRIDES the buggy function WITHOUT touching the mod
-    
+
     This keeps your server "green button" (no mod modifications)
 */
 
-if (!hasInterface) exitWith {}; // Client-side only
+// Run on BOTH client and server to catch all vehicle spawns
+if (!hasInterface && !isDedicated) exitWith {};
 
-// Wait for Ivory's mod to load
-waitUntil {sleep 1; !isNil "ivory_fnc_takedown"};
+diag_log "[IVORY PATCH] Starting Ivory takedown function override...";
 
-diag_log "[IVORY PATCH] Replacing buggy fn_takedown with fixed version...";
+// Wait for CfgFunctions to compile (Ivory's mod functions)
+[] spawn {
+    waitUntil {sleep 0.5; !isNil {missionNamespace getVariable "ivory_fnc_takedown"}};
+
+    diag_log "[IVORY PATCH] Ivory functions loaded, replacing buggy fn_takedown...";
 
 // ✅ FIXED VERSION - Added default values to prevent nil errors
 ivory_fnc_takedown = {
@@ -93,4 +97,9 @@ ivory_fnc_takedown = {
     };
 };
 
-diag_log "[IVORY PATCH] ✅ fn_takedown patched successfully!";
+    // Force compile the function into mission namespace
+    missionNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown];
+    publicVariable "ivory_fnc_takedown";
+
+    diag_log "[IVORY PATCH] ✅ fn_takedown patched successfully!";
+};

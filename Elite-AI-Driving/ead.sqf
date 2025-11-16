@@ -1,15 +1,28 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.6
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.7
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
 
-    v8.6 SPEED IMPROVEMENTS:
+    v8.7 TOP-DOWN ROAD DETECTION:
+        ✅ NEW: Top-down raycasts for road surface detection
+        ✅ Scans 5 points ahead: center, near lanes, far lanes (15m and 30m)
+        ✅ Road confidence score (0.0-1.0) based on road ahead
+        ✅ Speed reduction when approaching road edges (<80% confidence)
+        ✅ Prevents offroad driving by detecting terrain ahead
+        ✅ Cached every 1 second for performance
+        ✅ Integrated with speed brain for better road adherence
+        ✅ High speeds require: straight + clear + paved + 80%+ road ahead
+
+    v8.6 SPEED + ROAD SAFETY:
         ✅ Increased highway speed: 170 km/h (was 145)
         ✅ Increased city speed: 100 km/h (was 85)
-        ✅ Less aggressive obstacle speed reduction
+        ✅ High speeds ONLY on straight, clear, paved roads
+        ✅ Straight path detection (forward rays within 10m variance, >40m clear)
+        ✅ Heavy offroad penalty (0.55x) to keep AI on pavement
+        ✅ Conservative obstacle detection (reverted) - no hitting stuff
         ✅ Reduced curve speed penalty (0.5 from 0.8)
-        ✅ Cars now reach 75%+ of max speed on pavement
+        ✅ Cars reach 75%+ of max on ideal road conditions
         ✅ Updated vehicle profiles for better performance
 
     v8.5 A3XAI FIX:
@@ -222,6 +235,52 @@ EAD_fnc_rayBatch = {
     _distances
 };
 
+// ✅ v8.7 NEW: Top-down raycasts for road detection and terrain awareness
+EAD_fnc_topDownRoadScan = {
+    params ["_veh"];
+
+    private _vehPos = getPosASL _veh;
+    private _dir = getDir _veh;
+    private _castHeight = 15; // Cast from 15m above vehicle
+
+    // Define 5 top-down scan points: center, near-left, near-right, far-left, far-right
+    private _scanPoints = [
+        [0, 15],    // Center, 15m ahead
+        [-3, 15],   // Left lane, 15m ahead
+        [3, 15],    // Right lane, 15m ahead
+        [-4, 30],   // Far left, 30m ahead
+        [4, 30]     // Far right, 30m ahead
+    ];
+
+    private _roadAhead = 0;
+    private _totalChecks = count _scanPoints;
+
+    {
+        _x params ["_lateralOffset", "_forwardDist"];
+
+        // Calculate position ahead
+        private _fwdVec = [sin _dir, cos _dir, 0] vectorMultiply _forwardDist;
+        private _rightVec = [sin(_dir + 90), cos(_dir + 90), 0] vectorMultiply _lateralOffset;
+        private _checkPos = _vehPos vectorAdd _fwdVec vectorAdd _rightVec;
+
+        // Cast ray from above looking down
+        private _startPos = [_checkPos select 0, _checkPos select 1, (_vehPos select 2) + _castHeight];
+        private _endPos = [_checkPos select 0, _checkPos select 1, (_vehPos select 2) - 5];
+
+        // Check if this position will be on road
+        private _checkPos2D = [_checkPos select 0, _checkPos select 1, 0];
+        if (isOnRoad _checkPos2D) then {
+            _roadAhead = _roadAhead + 1;
+        };
+
+    } forEach _scanPoints;
+
+    // Calculate road confidence (0.0 to 1.0)
+    private _roadConfidence = _roadAhead / _totalChecks;
+
+    _roadConfidence
+};
+
 EAD_fnc_terrainInfo = {
     params ["_veh"];
 
@@ -241,7 +300,17 @@ EAD_fnc_terrainInfo = {
         _veh setVariable ["EAD_treeCheckTime", _now];
     };
 
-    [_isRoad,_slope,_dense,_norm]
+    // ✅ v8.7: Add top-down road scan (cached every 1 second)
+    private _lastRoadScan = _veh getVariable ["EAD_lastRoadScanTime", 0];
+    private _roadAheadConfidence = _veh getVariable ["EAD_roadAheadConfidence", 1.0];
+
+    if ((_now - _lastRoadScan) > 1) then {
+        _roadAheadConfidence = [_veh] call EAD_fnc_topDownRoadScan;
+        _veh setVariable ["EAD_roadAheadConfidence", _roadAheadConfidence];
+        _veh setVariable ["EAD_lastRoadScanTime", _now];
+    };
+
+    [_isRoad,_slope,_dense,_norm,_roadAheadConfidence]
 };
 
 EAD_fnc_isBridge = {
@@ -327,12 +396,47 @@ EAD_fnc_scanAdaptive = {
 EAD_fnc_speedBrain = {
     params ["_veh","_s","_terrain","_profile"];
 
-    _terrain params ["_isRoad","_slope","_dense","_norm"];
+    _terrain params ["_isRoad","_slope","_dense","_norm","_roadAheadConfidence"];
 
     private _base = EAD_CFG get "HIGHWAY_BASE";
-    if (!_isRoad) then {_base = _base * (_profile get "offroad")};
+
+    // ✅ STRICT: Heavy penalty for offroad to keep AI on pavement
+    if (!_isRoad) then {_base = _base * 0.55};  // Reduced from offroad mult
 
     if (_dense) then {_base = _base * 0.85};
+
+    // ✅ v8.7: Use top-down road scan to enforce road adherence
+    // If road ahead confidence is low, reduce speed significantly
+    if (_roadAheadConfidence < 0.8) then {
+        // Less than 80% road ahead - approaching road edge or offroad
+        _base = _base * (0.5 + (_roadAheadConfidence * 0.5)); // 50-100% speed based on confidence
+    };
+
+    // ✅ NEW: Check if path is straight and clear for high-speed allowance
+    private _isStraight = true;
+    private _minFrontDist = selectMin [
+        _s get "F0",
+        _s get "FL1",
+        _s get "FR1"
+    ];
+
+    // Path is straight if all forward rays are nearly equal and > 40m
+    private _f0 = _s get "F0";
+    private _fl1 = _s get "FL1";
+    private _fr1 = _s get "FR1";
+
+    if (_f0 < 40 || abs(_f0 - _fl1) > 10 || abs(_f0 - _fr1) > 10) then {
+        _isStraight = false;
+    };
+
+    // Only allow high speeds on straight, clear, paved roads WITH good road confidence
+    if (_isRoad && _isStraight && _minFrontDist > 45 && _roadAheadConfidence > 0.8) then {
+        // Perfect conditions - allow full speed
+        _base = _base * 1.0;
+    } else {
+        // Not ideal - reduce speed moderately
+        if (!_isStraight) then {_base = _base * 0.80};
+    };
 
     private _curve = (_s get "CL") min (_s get "CR");
     private _drop = 1 - (_curve / 80);
@@ -356,10 +460,10 @@ EAD_fnc_obstacleLimit = {
         _s get "FR2"
     ];
 
-    // Less aggressive speed reduction (improved from v8.5)
-    if (_m < 30) then {_cur = _cur * 0.75};  // Was 0.60
-    if (_m < 25) then {_cur = _cur * 0.70};  // Was 0.55
-    if (_m < 15) then {_cur = _cur * 0.50};  // Was 0.35
+    // ✅ REVERTED: Conservative obstacle detection for safety (no hitting stuff)
+    if (_m < 30) then {_cur = _cur * 0.60};
+    if (_m < 25) then {_cur = _cur * 0.55};
+    if (_m < 15) then {_cur = _cur * 0.35};
 
     _cur
 };

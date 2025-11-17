@@ -343,7 +343,7 @@ EAD_fnc_isBridge = {
     if !(isOnRoad _pos) exitWith {false};
 
     private _off = EAD_CFG get "BRIDGE_SIDE_OFFSET";
-    private _right = vectorRight _veh;
+    private _right = vectorSide _veh;
     private _dir = getDir _veh;
     private _fwd = [sin _dir, cos _dir, 0] vectorMultiply 10;
 
@@ -574,7 +574,7 @@ EAD_fnc_driftBias = {
 
     if (_ang < 0.25) exitWith {0};
 
-    private _right = vectorRight _veh;
+    private _right = vectorSide _veh;
     private _lat = _velN vectorDotProduct _right;
 
     -_lat * 0.11
@@ -703,7 +703,7 @@ EAD_fnc_waypointBias = {
     if (_dist < 30) exitWith {0};
 
     // Calculate angle to waypoint
-    private _dirToWP = [_vehPos, _wpPos] call BIS_fnc_dirTo;
+    private _dirToWP = _vehPos getDir _wpPos;
     private _vehDir = getDir _veh;
 
     // Calculate angle difference (-180 to 180)
@@ -754,7 +754,8 @@ EAD_fnc_vectorDrive = {
     _newVel set [2, _vert max -10];
 
     // ✅ v9.0: Only apply velocity changes when on ground (prevents mid-air physics issues)
-    if (isTouchingGround _veh) then {
+    // Combined check: isTouchingGround (may be unreliable) + height check for accuracy
+    if ((isTouchingGround _veh) && ((getPosATL _veh) select 2) < 1.5) then {
         _veh setVelocity _newVel;
     };
     _veh limitSpeed _tSpd;
@@ -1081,7 +1082,7 @@ EAD_fnc_calculatePhysicsSpeed = {
     private _vehicleMaxSpeed = _configMaxSpeed * 0.85;
 
     private _currentDir = getDir _vehicle;
-    private _targetDir = [_vPos, _targetPos] call BIS_fnc_dirTo;
+    private _targetDir = _vPos getDir _targetPos;
     private _turnAngle = abs (_targetDir - _currentDir);
     if (_turnAngle > 180) then { _turnAngle = 360 - _turnAngle };
 
@@ -1229,7 +1230,7 @@ EAD_fnc_progressiveSteering = {
 
     private _vehicleDir = getDir _vehicle;
     private _vPos = getPosASL _vehicle;
-    private _targetDir = [_vPos, _targetPos] call BIS_fnc_dirTo;
+    private _targetDir = _vPos getDir _targetPos;
     private _currentSpeed = speed _vehicle;
 
     private _angleDiff = _targetDir - _vehicleDir;

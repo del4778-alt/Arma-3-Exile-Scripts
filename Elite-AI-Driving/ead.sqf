@@ -814,6 +814,9 @@ EAD_fnc_debugDraw = {
 EAD_fnc_runDriver = {
     params ["_unit","_veh"];
 
+    // ✅ v9.0: Record start time for timeout protection
+    _veh setVariable ["EAD_startTime", time];
+
     // locality protector
     private _localEH = _veh addEventHandler ["Local", {
         params ["_veh","_isLocal"];
@@ -831,7 +834,8 @@ EAD_fnc_runDriver = {
         alive _veh &&
         driver _veh isEqualTo _unit &&
         local _veh &&
-        (_veh getVariable ["EAD_active",false])
+        (_veh getVariable ["EAD_active",false]) &&
+        {(time - (_veh getVariable ["EAD_startTime", time])) < 600}  // ✅ v9.0: 10-minute timeout
     } do {
 
         private _t0 = diag_tickTime;
@@ -877,6 +881,9 @@ EAD_fnc_runDriver = {
         _spd = [_veh,_scan,_spd] call EAD_fnc_stuck;
         _spd = [_veh,_spd] call EAD_fnc_convoySpeed;
         _spd = [_veh,_spd,_terrain] call EAD_fnc_altitudeCorrection;
+
+        // ✅ v9.0: Safety clamp on target speed (prevent negative or excessive speeds)
+        _spd = (_spd max 0) min 200;
 
         [_veh,_scan,_spd,_profile] call EAD_fnc_vectorDrive;
 

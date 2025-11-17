@@ -1109,7 +1109,7 @@ EAD_fnc_calculatePhysicsSpeed = {
     if (_distance > 5) then {
         private _targetHeight = _targetPos select 2;
         private _heightDiff = abs (_targetHeight - (_vPos select 2));
-        private _distance2D = _vPos distance2D _targetPos max 0.1;
+        private _distance2D = (_vPos distance2D _targetPos) max 0.1;
         _slope = atan (_heightDiff / _distance2D);
     };
 

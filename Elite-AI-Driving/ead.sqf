@@ -221,7 +221,7 @@ EAD_fnc_rayBatch = {
     } forEach _rayDefs;
 
     // ✅ BATCH PROCESSING: Single call for all 22 raycasts
-    private _results = lineIntersectsSurfaces [_batch];
+    private _results = lineIntersectsSurfaces _batch;
 
     // Process results: extract distances for each ray
     private _distances = [];
@@ -343,7 +343,7 @@ EAD_fnc_isBridge = {
     if !(isOnRoad _pos) exitWith {false};
 
     private _off = EAD_CFG get "BRIDGE_SIDE_OFFSET";
-    private _right = vectorSide _veh;  // Changed from vectorRight
+    private _right = vectorRight _veh;
     private _dir = getDir _veh;
     private _fwd = [sin _dir, cos _dir, 0] vectorMultiply 10;
 
@@ -574,7 +574,7 @@ EAD_fnc_driftBias = {
 
     if (_ang < 0.25) exitWith {0};
 
-    private _right = vectorSide _veh;
+    private _right = vectorRight _veh;
     private _lat = _velN vectorDotProduct _right;
 
     -_lat * 0.11
@@ -703,7 +703,7 @@ EAD_fnc_waypointBias = {
     if (_dist < 30) exitWith {0};
 
     // Calculate angle to waypoint
-    private _dirToWP = _vehPos getDir _wpPos;
+    private _dirToWP = [_vehPos, _wpPos] call BIS_fnc_dirTo;
     private _vehDir = getDir _veh;
 
     // Calculate angle difference (-180 to 180)

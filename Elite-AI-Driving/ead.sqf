@@ -989,5 +989,286 @@ EAD_fnc_registerDriver = {
 };
 
 /* =====================================================================================
-    END OF FILE
+    SECTION 11 — EAD v9.0 PHYSICS UPGRADE - NEW FUNCTIONS
+
+    Added physics-based calculations from Elite Driving v3.4:
+    - EAD_fnc_calculatePhysicsSpeed: Physics-based corner speed calculation
+    - EAD_fnc_calculateBrakingAction: Braking distance prediction
+    - EAD_fnc_progressiveSteering: Speed-dependent steering control
+    - EAD_fnc_analyzeTerrainGradient: Terrain slope analysis
+
+    These functions can be called by existing EAD functions to enhance behavior.
+===================================================================================== */
+
+/* -------------------------------------------------------------------------------------
+    Physics Function 1: Calculate Physics-Based Speed
+
+    Calculates maximum safe cornering speed based on:
+    - Turn radius and turn angle
+    - Surface friction (asphalt, gravel, mud, etc.)
+    - Terrain gradient (uphill/downhill)
+    - Vehicle specifications
+
+    Params:
+        _vehicle - The vehicle
+        _targetPos - Target position to calculate turn to
+
+    Returns: [_maxSafeSpeed, _vehicleMaxSpeed, _turnAngle, _turnRadius, _friction]
+------------------------------------------------------------------------------------- */
+EAD_fnc_calculatePhysicsSpeed = {
+    params ["_vehicle", "_targetPos"];
+
+    if (isNull _vehicle) exitWith {[0,0,0,0,0]};
+
+    private _vPos = getPosASL _vehicle;
+    private _currentSpeed = speed _vehicle;
+    private _distance = _vPos distance _targetPos;
+
+    private _configMaxSpeed = getNumber (configFile >> "CfgVehicles" >> typeOf _vehicle >> "maxSpeed");
+    private _vehicleMaxSpeed = _configMaxSpeed * 0.85;
+
+    private _currentDir = getDir _vehicle;
+    private _targetDir = [_vPos, _targetPos] call BIS_fnc_dirTo;
+    private _turnAngle = abs (_targetDir - _currentDir);
+    if (_turnAngle > 180) then { _turnAngle = 360 - _turnAngle };
+
+    private _turnRadius = if (_turnAngle > 3 && _distance > 0.1) then {
+        _distance / (2 * (sin (_turnAngle / 2)))
+    } else {
+        9999
+    };
+
+    private _aglPos = ASLToAGL _vPos;
+    private _surfaceRaw = toLower surfaceType _aglPos;
+    private _friction = switch (true) do {
+        case (_surfaceRaw find "asphalt" > -1): {0.85};
+        case (_surfaceRaw find "concrete" > -1): {0.85};
+        case (_surfaceRaw find "gravel" > -1): {0.60};
+        case (_surfaceRaw find "mud" > -1): {0.45};
+        case (_surfaceRaw find "soil" > -1): {0.45};
+        case (_surfaceRaw find "rock" > -1): {0.70};
+        case (_surfaceRaw find "stone" > -1): {0.70};
+        case (_surfaceRaw find "sand" > -1): {0.50};
+        default {0.65};
+    };
+
+    private _slope = 0;
+    if (_distance > 5) then {
+        private _targetHeight = _targetPos select 2;
+        private _heightDiff = abs (_targetHeight - (_vPos select 2));
+        private _distance2D = _vPos distance2D _targetPos max 0.1;
+        _slope = atan (_heightDiff / _distance2D);
+    };
+
+    private _maxCornerSpeed = (sqrt (_friction * 9.81 * (_turnRadius max 1))) * 3.6;
+
+    if (_slope > 15) then {
+        _maxCornerSpeed = _maxCornerSpeed * 0.7;
+    };
+
+    if (_turnAngle > 75) then {
+        _maxCornerSpeed = _maxCornerSpeed * 0.85;
+    } else {
+        if (_turnAngle > 45) then {
+            _maxCornerSpeed = _maxCornerSpeed * 0.90;
+        };
+    };
+
+    _maxCornerSpeed = _maxCornerSpeed * 0.95;
+    private _finalMax = _maxCornerSpeed min _vehicleMaxSpeed;
+
+    [_finalMax, _vehicleMaxSpeed, _turnAngle, _turnRadius, _friction]
+};
+
+/* -------------------------------------------------------------------------------------
+    Physics Function 2: Calculate Braking Action
+
+    Calculates required braking action based on physics:
+    - Current speed vs target speed
+    - Distance to obstacle
+    - Reaction time (0.15s)
+    - Braking power (8 m/s²)
+
+    Params:
+        _vehicle - The vehicle
+        _obstacleDistance - Distance to obstacle in meters
+        _targetSpeed - Desired speed in km/h
+
+    Returns: [_action, _urgency, _totalStopDist, _brakingDist]
+        _action: "ACCELERATE", "MAINTAIN", "PREPARE", "SLOW", "BRAKE", "EMERGENCY_BRAKE"
+        _urgency: 0.0 to 1.0 (how critical the situation is)
+        _totalStopDist: Total distance needed to stop (reaction + braking)
+        _brakingDist: Pure braking distance
+------------------------------------------------------------------------------------- */
+EAD_fnc_calculateBrakingAction = {
+    params ["_vehicle", "_obstacleDistance", "_targetSpeed"];
+
+    if (isNull _vehicle) exitWith {["MAINTAIN",0,0,0]};
+
+    private _currentSpeed = speed _vehicle;
+    private _speedMS = _currentSpeed / 3.6;
+    private _targetSpeedMS = _targetSpeed / 3.6;
+
+    private _brakingPower = 8;
+    private _reactionTime = 0.15;
+
+    private _reactionDist = _speedMS * _reactionTime;
+
+    private _brakingDist = 0;
+    if (_speedMS > _targetSpeedMS) then {
+        private _v1sq = _speedMS * _speedMS;
+        private _v2sq = _targetSpeedMS * _targetSpeedMS;
+        _brakingDist = (_v1sq - _v2sq) / (2 * _brakingPower max 0.1);
+        if (_brakingDist < 0) then {_brakingDist = 0};
+    };
+
+    private _totalStopDist = _reactionDist + _brakingDist;
+
+    private _action = "ACCELERATE";
+    private _urgency = 0;
+
+    if (_totalStopDist > 0 && _obstacleDistance < _totalStopDist) then {
+        _urgency = 1 - (_obstacleDistance / _totalStopDist);
+
+        if (_urgency > 0.85) then {
+            _action = "EMERGENCY_BRAKE";
+        } else {
+            if (_urgency > 0.50) then {
+                _action = "BRAKE";
+            } else {
+                _action = "SLOW";
+            };
+        };
+    } else {
+        if (_obstacleDistance < (_totalStopDist * 1.4)) then {
+            _action = "PREPARE";
+        } else {
+            if (_currentSpeed < (_targetSpeed * 0.9)) then {
+                _action = "ACCELERATE";
+            } else {
+                _action = "MAINTAIN";
+            };
+        };
+    };
+
+    [_action, _urgency, _totalStopDist, _brakingDist]
+};
+
+/* -------------------------------------------------------------------------------------
+    Physics Function 3: Progressive Steering
+
+    Applies smooth, speed-dependent steering corrections.
+    At high speeds, uses velocity manipulation for realistic turning.
+    At low speeds, allows more aggressive steering.
+
+    Params:
+        _vehicle - The vehicle
+        _targetPos - Position to steer toward
+
+    Returns: [_steeringInput, _angleDiff]
+        _steeringInput: Calculated steering input (-1 to 1)
+        _angleDiff: Angle difference to target
+------------------------------------------------------------------------------------- */
+EAD_fnc_progressiveSteering = {
+    params ["_vehicle", "_targetPos"];
+
+    if (isNull _vehicle) exitWith {[0,0]};
+
+    private _vehicleDir = getDir _vehicle;
+    private _vPos = getPosASL _vehicle;
+    private _targetDir = [_vPos, _targetPos] call BIS_fnc_dirTo;
+    private _currentSpeed = speed _vehicle;
+
+    private _angleDiff = _targetDir - _vehicleDir;
+    if (_angleDiff > 180) then {_angleDiff = _angleDiff - 360};
+    if (_angleDiff < -180) then {_angleDiff = _angleDiff + 360};
+
+    private _maxSpeed = getNumber (configFile >> "CfgVehicles" >> typeOf _vehicle >> "maxSpeed") * 0.85;
+    private _speedRatio = (_currentSpeed / (_maxSpeed max 1)) max 0.2;
+    private _steerAggressive = 0.3 + ((1 - _speedRatio) * 0.7);
+
+    private _steeringInput = ((_angleDiff / 35) max -1 min 1) * _steerAggressive;
+
+    if (_currentSpeed > 25 && abs _angleDiff > 4) then {
+        private _vel = velocity _vehicle;
+        private _speed = vectorMagnitude _vel;
+
+        private _maxTurnRate = 5 / (_speedRatio max 0.5);
+        private _turnAmount = (_steeringInput * _maxTurnRate) max -_maxTurnRate min _maxTurnRate;
+
+        private _newDir = _vehicleDir + _turnAmount;
+        private _newVel = [
+            (sin _newDir) * _speed,
+            (cos _newDir) * _speed,
+            _vel select 2
+        ];
+
+        _vehicle setVelocity _newVel;
+    };
+
+    [_steeringInput, _angleDiff]
+};
+
+/* -------------------------------------------------------------------------------------
+    Physics Function 4: Analyze Terrain Gradient
+
+    Scans terrain ahead in 5 sample points to detect slopes and steep obstacles.
+    Helps predict uphill/downhill sections for speed adjustment.
+
+    Params:
+        _vehicle - The vehicle
+        _scanDistance - How far ahead to scan (meters)
+
+    Returns: [_avgGradient, _maxGradient, _hasObstacle]
+        _avgGradient: Average terrain gradient in degrees
+        _maxGradient: Maximum gradient detected
+        _hasObstacle: true if gradient > 25 degrees (cliff/wall)
+------------------------------------------------------------------------------------- */
+EAD_fnc_analyzeTerrainGradient = {
+    params ["_vehicle", "_scanDistance"];
+
+    if (isNull _vehicle) exitWith {[0,0,false]};
+
+    private _vPos = getPosASL _vehicle;
+    private _vDir = getDir _vehicle;
+
+    private _samples = [];
+    for "_i" from 1 to 5 do {
+        private _dist = (_scanDistance / 5) * _i;
+        private _samplePos = _vPos vectorAdd [
+            (sin _vDir) * _dist,
+            (cos _vDir) * _dist,
+            0
+        ];
+        private _h = getTerrainHeightASL _samplePos;
+        _samples pushBack [_dist, _h];
+    };
+
+    private _avgGradient = 0;
+    private _maxGradient = 0;
+
+    for "_i" from 1 to ((count _samples) - 1) do {
+        private _prev = _samples select (_i - 1);
+        private _curr = _samples select _i;
+
+        private _heightChange = (_curr select 1) - (_prev select 1);
+        private _dist = (_curr select 0) - (_prev select 0) max 0.1;
+        private _gradient = atan (_heightChange / _dist);
+
+        _avgGradient = _avgGradient + _gradient;
+        if (abs _gradient > abs _maxGradient) then {
+            _maxGradient = _gradient;
+        };
+    };
+
+    if ((count _samples) > 1) then {
+        _avgGradient = _avgGradient / ((count _samples) - 1);
+    };
+
+    private _hasObstacle = (abs _maxGradient > 25);
+    [_avgGradient, _maxGradient, _hasObstacle]
+};
+
+/* =====================================================================================
+    END OF FILE - EAD v9.0
 ===================================================================================== */

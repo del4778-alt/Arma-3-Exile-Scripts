@@ -730,7 +730,10 @@ EAD_fnc_vectorDrive = {
     private _newVel = [sin _newDir, cos _newDir, 0] vectorMultiply _ms;
     _newVel set [2, _vert max -10];
 
-    _veh setVelocity _newVel;
+    // ✅ v9.0: Only apply velocity changes when on ground (prevents mid-air physics issues)
+    if (isTouchingGround _veh) then {
+        _veh setVelocity _newVel;
+    };
     _veh limitSpeed _tSpd;
 
     if (EAD_CFG get "DEBUG_ENABLED") then {

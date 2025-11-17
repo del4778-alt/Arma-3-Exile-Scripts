@@ -844,6 +844,26 @@ EAD_fnc_runDriver = {
 
         private _spd = [_veh,_scan,_terrain,_profile] call EAD_fnc_speedBrain;
 
+        // ✅ v9.0: Physics-based terrain safety limit
+        // NOTE: This adds surface friction and slope awareness to EAD's existing
+        // geometry-based curve detection. EAD's rays handle path geometry,
+        // physics adds material property awareness (mud vs asphalt, uphill vs flat).
+        private _lookAheadDist = 40;
+        private _vehPos = getPosASL _veh;
+        private _vehDir = getDir _veh;
+
+        private _targetPos = _vehPos vectorAdd [
+            (sin _vehDir) * _lookAheadDist,
+            (cos _vehDir) * _lookAheadDist,
+            0
+        ];
+
+        private _physicsData = [_veh, _targetPos] call EAD_fnc_calculatePhysicsSpeed;
+        private _maxSafeSpeed = _physicsData select 0;
+
+        // Apply as safety cap (only reduces speed, never increases)
+        _spd = _spd min _maxSafeSpeed;
+
         if ([_veh,_scan,_profile] call EAD_fnc_emergencyBrake) then {
             uiSleep (EAD_CFG get "TICK");
             continue;

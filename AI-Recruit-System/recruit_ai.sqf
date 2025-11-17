@@ -117,7 +117,12 @@ RECRUIT_fnc_FSM_AnalyzeThreat = {
 
     private _closest = (_threats select 0) select 0;
     private _closestDistSqr = (_threats select 0) select 1;
-    private _avgKnowledge = ((_threats apply {_x select 2}) call BIS_fnc_arithmeticMean);
+
+    // Calculate average knowledge (optimized: replaced BIS_fnc_arithmeticMean)
+    private _knowledgeValues = _threats apply {_x select 2};
+    private _sum = 0;
+    {_sum = _sum + _x} forEach _knowledgeValues;
+    private _avgKnowledge = _sum / (count _knowledgeValues max 1);
 
     [count _threats, _closest, sqrt _closestDistSqr, _avgKnowledge]
 };
@@ -217,14 +222,11 @@ RECRUIT_fnc_CountVehicleSeats = {
 
     private _driverSeats = if (isNull driver _veh) then {1} else {0};
     private _cargoSeats = _veh emptyPositions "cargo";
-    private _turretSeats = 0;
 
-    // Count available turrets
-    {
-        if (_veh emptyPositions (_x select 0) > 0) then {
-            _turretSeats = _turretSeats + 1;
-        };
-    } forEach (allTurrets _veh);
+    // Count available turrets (FIXED: emptyPositions doesn't accept turret paths)
+    // Use fullCrew to get all turret positions and count empty ones
+    private _allTurrets = fullCrew [_veh, "turret", true];
+    private _turretSeats = count (_allTurrets select {isNull (_x select 0)});
 
     private _totalSeats = _driverSeats + _cargoSeats + _turretSeats;
 
@@ -828,7 +830,16 @@ fn_spawnAI = {
 
     private _offset = 3 + (_spawnIndex * 0.5);
     private _angle = 120 * _spawnIndex;
-    private _pos = [_player, _offset, _angle] call BIS_fnc_relPos;
+
+    // Calculate relative position (optimized: replaced BIS_fnc_relPos)
+    private _playerPos = getPosATL _player;
+    private _playerDir = getDir _player;
+    private _finalAngle = _playerDir + _angle;
+    private _pos = [
+        (_playerPos select 0) + (_offset * sin _finalAngle),
+        (_playerPos select 1) + (_offset * cos _finalAngle),
+        _playerPos select 2
+    ];
 
     private _unit = _playerGroup createUnit [_type, _pos, [], 0, "FORM"];
 
@@ -843,7 +854,7 @@ fn_spawnAI = {
         objNull
     };
 
-    _unit setDir ([_player, _pos] call BIS_fnc_dirTo);
+    _unit setDir (_player getDirVisual _pos);
     _unit setVariable ["ExileRecruited", true, true];
     _unit setVariable ["OwnerUID", getPlayerUID _player, true];
     _unit setVariable ["OwnerName", name _player, true];

@@ -450,7 +450,7 @@ MISSION_fnc_createConvoy = {
 
         _vehicles pushBack _vehicle;
 
-        // Create AI crew
+        // Create AI crew (MAX 3 per vehicle)
         private _group = createGroup EAST;
 
         // ✅ FIX #7: Protect AI during spawn too
@@ -461,15 +461,17 @@ MISSION_fnc_createConvoy = {
         _driver setSkill (MISSION_CONFIG get "aiSkill");
         _allCrew pushBack _driver;
 
-        // Gunner
-        private _gunner = _group createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
-        _gunner allowDamage false;  // ✅ Protect from spawn damage
-        _gunner moveInGunner _vehicle;
-        _gunner setSkill (MISSION_CONFIG get "aiSkill");
-        _allCrew pushBack _gunner;
+        // Gunner (if turret available)
+        if (count (allTurrets _vehicle) > 0) then {
+            private _gunner = _group createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
+            _gunner allowDamage false;  // ✅ Protect from spawn damage
+            _gunner moveInGunner _vehicle;
+            _gunner setSkill (MISSION_CONFIG get "aiSkill");
+            _allCrew pushBack _gunner;
+        };
 
-        // Cargo troops
-        private _cargoCount = 2;
+        // Cargo troops (limit to 1 for performance)
+        private _cargoCount = 1;  // Reduced from 2 to 1
         for "_j" from 1 to _cargoCount do {
             private _cargo = _group createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
             _cargo allowDamage false;  // ✅ Protect from spawn damage
@@ -507,10 +509,12 @@ MISSION_fnc_createConvoy = {
         _lastVehicle addItemCargoGlobal [selectRandom (MISSION_CONFIG get "lootItems"), 1];
     };
 
-    // ✅ FIX #8: CRITICAL - DELAYED ACTIVATION
+    // ✅ FIX #8: CRITICAL - DELAYED ACTIVATION (FIXED spawn command)
     // This prevents collision damage by allowing vehicles to settle before enabling physics
-    [{
+    [_vehicles, _allCrew] spawn {
         params ["_vehArray", "_crewArray"];
+
+        sleep 2;  // ✅ 2-second delay before activation
 
         [format ["[CONVOY FIX] Enabling simulation for %1 convoy vehicles", count _vehArray]] call MISSION_fnc_log;
 
@@ -520,7 +524,7 @@ MISSION_fnc_createConvoy = {
         } forEach _vehArray;
 
         // Step 2: Wait for physics to settle (1 second)
-        uiSleep 1;
+        sleep 1;
 
         // Step 3: Re-enable damage for vehicles
         {
@@ -534,8 +538,7 @@ MISSION_fnc_createConvoy = {
 
         [format ["[CONVOY FIX] ✓ Convoy fully initialized - %1 vehicles, %2 crew ready",
             count _vehArray, count _crewArray]] call MISSION_fnc_log;
-
-    }, [_vehicles, _allCrew], 2] call BIS_fnc_execVM;  // ✅ 2-second delay before activation
+    };
 
     // Create marker
     private _marker = [_pos, "convoy", format ["Convoy [%1]", toUpper _difficulty]] call MISSION_fnc_createMarker;

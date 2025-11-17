@@ -1,10 +1,17 @@
 /*
-    CONVOY SPAWN FIX - Patch for fn_dynamicMissions.sqf
+    CONVOY SPAWN FIX v1.1 - Patch for fn_dynamicMissions.sqf
 
-    PROBLEM: Convoys spawn with AI/vehicles dead due to:
+    PROBLEM #1: Convoys spawn with AI/vehicles dead due to:
     - 15m spacing (too close, causes collisions)
     - Random vehicle directions (collision risk)
     - No damage/simulation protection during spawn
+
+    PROBLEM #2 (NEW): AI/vehicles completely frozen and unresponsive:
+    - Can't shoot AI
+    - Can't loot vehicles
+    - Can't enter vehicles
+    - AI don't respond or move
+    - ROOT CAUSE: Invalid BIS_fnc_execVM call never re-enables simulation
 
     SOLUTION: Replace MISSION_fnc_createConvoy function with this safe version
 
@@ -13,6 +20,10 @@
     2. Find the MISSION_fnc_createConvoy function (around line 310)
     3. Replace the ENTIRE function with this code
     4. Save and restart server
+
+    VERSION HISTORY:
+    v1.0 - Initial collision prevention fixes
+    v1.1 - Fixed frozen AI (spawn command fix), limited to 3 AI per vehicle
 */
 
 // ========================================
@@ -80,7 +91,7 @@ MISSION_fnc_createConvoy = {
 
         _vehicles pushBack _vehicle;
 
-        // Create AI crew
+        // Create AI crew (MAX 3 per vehicle)
         private _group = createGroup EAST;
 
         // ✅ FIX #7: Protect AI during spawn too
@@ -91,15 +102,17 @@ MISSION_fnc_createConvoy = {
         _driver setSkill (MISSION_CONFIG get "aiSkill");
         _allCrew pushBack _driver;
 
-        // Gunner
-        private _gunner = _group createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
-        _gunner allowDamage false;  // ✅ Protect from spawn damage
-        _gunner moveInGunner _vehicle;
-        _gunner setSkill (MISSION_CONFIG get "aiSkill");
-        _allCrew pushBack _gunner;
+        // Gunner (if turret available)
+        if (count (allTurrets _vehicle) > 0) then {
+            private _gunner = _group createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
+            _gunner allowDamage false;  // ✅ Protect from spawn damage
+            _gunner moveInGunner _vehicle;
+            _gunner setSkill (MISSION_CONFIG get "aiSkill");
+            _allCrew pushBack _gunner;
+        };
 
-        // Cargo troops
-        private _cargoCount = 2;
+        // ✅ FIX #9: Limit to 1 cargo troop per vehicle (total max 3 AI: driver + gunner + 1 cargo)
+        private _cargoCount = 1;  // Reduced from 2 to 1
         for "_j" from 1 to _cargoCount do {
             private _cargo = _group createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
             _cargo allowDamage false;  // ✅ Protect from spawn damage
@@ -139,8 +152,10 @@ MISSION_fnc_createConvoy = {
 
     // ✅ FIX #8: CRITICAL - DELAYED ACTIVATION
     // This prevents collision damage by allowing vehicles to settle before enabling physics
-    [{
+    [_vehicles, _allCrew] spawn {
         params ["_vehArray", "_crewArray"];
+
+        sleep 2;  // ✅ 2-second delay before activation
 
         diag_log format ["[MISSION FIX] Enabling simulation for %1 convoy vehicles", count _vehArray];
 
@@ -150,7 +165,7 @@ MISSION_fnc_createConvoy = {
         } forEach _vehArray;
 
         // Step 2: Wait for physics to settle (1 second)
-        uiSleep 1;
+        sleep 1;
 
         // Step 3: Re-enable damage for vehicles
         {
@@ -164,8 +179,7 @@ MISSION_fnc_createConvoy = {
 
         diag_log format ["[MISSION FIX] ✓ Convoy fully initialized - %1 vehicles, %2 crew ready",
             count _vehArray, count _crewArray];
-
-    }, [_vehicles, _allCrew], 2] call BIS_fnc_execVM;  // ✅ 2-second delay before activation
+    };
 
     // Create marker
     private _marker = [_pos, "convoy", format ["Convoy [%1]", toUpper _difficulty]] call MISSION_fnc_createMarker;
@@ -186,18 +200,36 @@ MISSION_fnc_createConvoy = {
     ✅ FIX #5: allowDamage false + enableSimulationGlobal false during spawn - CRITICAL
     ✅ FIX #6: Proper positioning with setVectorUp and setVelocity - prevents physics issues
     ✅ FIX #7: Protect AI crew with allowDamage false during spawn
-    ✅ FIX #8: 2-second delayed activation - gives physics time to settle
+    ✅ FIX #8: FIXED spawn command - replaced broken BIS_fnc_execVM with working spawn
+    ✅ FIX #9: Limit to MAX 3 AI per vehicle (driver + gunner + 1 cargo) - reduces lag
+
+    ROOT CAUSE OF FROZEN AI:
+    - Line 168 used invalid "BIS_fnc_execVM" function that doesn't exist/work
+    - Delayed activation code never executed
+    - AI/vehicles stayed with:
+      * enableSimulationGlobal false (frozen, unresponsive)
+      * allowDamage false (can't be shot)
+      * Locked/frozen state forever
+
+    SOLUTION:
+    - Replaced with proper spawn syntax
+    - Simulation now properly re-enables after 2 seconds
+    - Damage re-enables after 3 seconds
+    - AI and vehicles become fully interactive
 
     EXPECTED RESULT:
     - Vehicles spawn in proper convoy formation
     - 30m spacing prevents collisions
     - Damage disabled during spawn prevents instant deaths
     - 2-second delay allows physics to stabilize
-    - All AI and vehicles should be alive and functional when mission is active
+    - Simulation/damage RE-ENABLE after delay
+    - All AI and vehicles fully responsive and functional
+    - Max 3 AI per vehicle for better performance
 
     TESTING:
     1. Spawn a convoy mission
     2. Teleport to mission location: player setPos <mission pos>
     3. Check: All vehicles intact? All AI alive?
-    4. Check RPT logs for "[MISSION FIX]" messages
+    4. Check: Can you shoot AI? Can you loot? Can you enter vehicles?
+    5. Check RPT logs for "[MISSION FIX] ✓ Convoy fully initialized" message
 */

@@ -1,8 +1,31 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 8.7
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.0
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.0 PHYSICS-BASED ENHANCEMENTS (Elite AI Driving v3.4 Integration):
+        ✅ NEW: 4 physics calculation functions for terrain-aware driving
+            - calculatePhysicsSpeed: Surface friction + slope + turn radius
+            - calculateBrakingAction: Progressive braking with urgency levels
+            - progressiveSteering: Speed-dependent velocity manipulation
+            - analyzeTerrainGradient: 5-point slope detection
+        ✅ NEW: Physics terrain safety limit in main loop
+            - Complements existing ray-based geometry detection
+            - Adds surface friction awareness (asphalt 0.85, mud 0.45, etc)
+            - Adds slope awareness (uphill/downhill speed adjustments)
+            - Uses 40m lookahead matching ray scan range
+            - Only reduces speed (never increases) via min() operator
+        ✅ NEW: isTouchingGround check for velocity changes
+            - Prevents mid-air physics manipulation
+            - Ensures vectorDrive only applies when on surface
+        ✅ NEW: Main loop safety enhancements
+            - 10-minute timeout protection (prevents infinite loops)
+            - Speed clamping [0, 200] km/h (prevents calculation errors)
+        ✅ INTEGRATION: Physics adds material properties, rays handle geometry
+            - Division of labor: Friction/slope (physics) + Curves (EAD rays)
+            - Conservative approach: All enhancements use safety caps
+            - Maintains all existing EAD v8.7 functionality
 
     v8.7 TOP-DOWN ROAD DETECTION:
         ✅ NEW: Top-down raycasts for road surface detection

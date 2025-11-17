@@ -95,7 +95,7 @@ EAD_CFG = createHashMapFromArray [
     ["REVERSE_SPEED_KMH", 20],
 
     // Emergency brake
-    ["EMERGENCY_BRAKE_DIST", 5],
+    ["EMERGENCY_BRAKE_DIST", 15],       // Increased from 5 (stopping distance safety)
 
     // Debug
     ["DEBUG_ENABLED", false],
@@ -425,7 +425,7 @@ EAD_fnc_speedBrain = {
     private _base = EAD_CFG get "HIGHWAY_BASE";
 
     // ✅ STRICT: Heavy penalty for offroad to keep AI on pavement
-    if (!_isRoad) then {_base = _base * 0.55};  // Reduced from offroad mult
+    if (!_isRoad) then {_base = _base * 0.35};  // Reduced from 0.55 to prevent offroad shortcuts
 
     if (_dense) then {_base = _base * 0.85};
 
@@ -484,10 +484,13 @@ EAD_fnc_obstacleLimit = {
         _s get "FR2"
     ];
 
-    // ✅ REVERTED: Conservative obstacle detection for safety (no hitting stuff)
-    if (_m < 30) then {_cur = _cur * 0.60};
-    if (_m < 25) then {_cur = _cur * 0.55};
-    if (_m < 15) then {_cur = _cur * 0.35};
+    // ✅ AGGRESSIVE: Earlier detection and stronger braking for obstacle avoidance
+    // Progressive speed reduction based on obstacle distance
+    if (_m < 50) then {_cur = _cur * 0.70};  // Early warning: 30% reduction
+    if (_m < 40) then {_cur = _cur * 0.50};  // Significant: 50% reduction
+    if (_m < 30) then {_cur = _cur * 0.35};  // Heavy braking: 65% reduction
+    if (_m < 20) then {_cur = _cur * 0.20};  // Emergency slow: 80% reduction
+    if (_m < 10) then {_cur = _cur * 0.10};  // Crawl speed: 90% reduction
 
     _cur
 };

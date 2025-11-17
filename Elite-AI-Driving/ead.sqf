@@ -220,8 +220,9 @@ EAD_fnc_rayBatch = {
         _batch pushBack [_startMid, _endMid, _veh, objNull, true, 1, "GEOM", "NONE"];
     } forEach _rayDefs;
 
-    // ✅ BATCH PROCESSING: Single call for all 22 raycasts
-    private _results = lineIntersectsSurfaces _batch;
+    // Process raycasts (call lineIntersectsSurfaces for each ray)
+    // Note: Arma 3 v2.20+ supports batch but requires specific format
+    private _results = _batch apply {lineIntersectsSurfaces _x};
 
     // Process results: extract distances for each ray
     private _distances = [];

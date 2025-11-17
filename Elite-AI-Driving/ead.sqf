@@ -1171,7 +1171,7 @@ EAD_fnc_calculateBrakingAction = {
     if (_speedMS > _targetSpeedMS) then {
         private _v1sq = _speedMS * _speedMS;
         private _v2sq = _targetSpeedMS * _targetSpeedMS;
-        _brakingDist = (_v1sq - _v2sq) / (2 * _brakingPower max 0.1);
+        _brakingDist = (_v1sq - _v2sq) / ((2 * _brakingPower) max 0.1);
         if (_brakingDist < 0) then {_brakingDist = 0};
     };
 

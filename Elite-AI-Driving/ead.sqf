@@ -343,8 +343,8 @@ EAD_fnc_isBridge = {
     if !(isOnRoad _pos) exitWith {false};
 
     private _off = EAD_CFG get "BRIDGE_SIDE_OFFSET";
-    private _right = vectorRight _veh;
     private _dir = getDir _veh;
+    private _right = [cos _dir, -sin _dir, 0];
     private _fwd = [sin _dir, cos _dir, 0] vectorMultiply 10;
 
     private _checks = [
@@ -574,7 +574,7 @@ EAD_fnc_driftBias = {
 
     if (_ang < 0.25) exitWith {0};
 
-    private _right = vectorRight _veh;
+    private _right = [cos _dir, -sin _dir, 0];
     private _lat = _velN vectorDotProduct _right;
 
     -_lat * 0.11

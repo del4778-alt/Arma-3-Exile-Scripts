@@ -221,7 +221,7 @@ EAD_fnc_rayBatch = {
     } forEach _rayDefs;
 
     // ✅ BATCH PROCESSING: Single call for all 22 raycasts
-    private _results = lineIntersectsSurfaces [_batch];
+    private _results = lineIntersectsSurfaces _batch;
 
     // Process results: extract distances for each ray
     private _distances = [];
@@ -343,7 +343,7 @@ EAD_fnc_isBridge = {
     if !(isOnRoad _pos) exitWith {false};
 
     private _off = EAD_CFG get "BRIDGE_SIDE_OFFSET";
-    private _right = vectorSide _veh;  // Changed from vectorRight
+    private _right = vectorRight _veh;
     private _dir = getDir _veh;
     private _fwd = [sin _dir, cos _dir, 0] vectorMultiply 10;
 
@@ -574,7 +574,7 @@ EAD_fnc_driftBias = {
 
     if (_ang < 0.25) exitWith {0};
 
-    private _right = vectorSide _veh;
+    private _right = vectorRight _veh;
     private _lat = _velN vectorDotProduct _right;
 
     -_lat * 0.11
@@ -703,7 +703,7 @@ EAD_fnc_waypointBias = {
     if (_dist < 30) exitWith {0};
 
     // Calculate angle to waypoint
-    private _dirToWP = _vehPos getDir _wpPos;
+    private _dirToWP = [_vehPos, _wpPos] call BIS_fnc_dirTo;
     private _vehDir = getDir _veh;
 
     // Calculate angle difference (-180 to 180)
@@ -1109,7 +1109,7 @@ EAD_fnc_calculatePhysicsSpeed = {
     if (_distance > 5) then {
         private _targetHeight = _targetPos select 2;
         private _heightDiff = abs (_targetHeight - (_vPos select 2));
-        private _distance2D = _vPos distance2D _targetPos max 0.1;
+        private _distance2D = (_vPos distance2D _targetPos) max 0.1;
         _slope = atan (_heightDiff / _distance2D);
     };
 
@@ -1171,7 +1171,7 @@ EAD_fnc_calculateBrakingAction = {
     if (_speedMS > _targetSpeedMS) then {
         private _v1sq = _speedMS * _speedMS;
         private _v2sq = _targetSpeedMS * _targetSpeedMS;
-        _brakingDist = (_v1sq - _v2sq) / (2 * _brakingPower max 0.1);
+        _brakingDist = (_v1sq - _v2sq) / ((2 * _brakingPower) max 0.1);
         if (_brakingDist < 0) then {_brakingDist = 0};
     };
 

@@ -69,9 +69,9 @@
 EAD_CFG = createHashMapFromArray [
     ["TICK", 0.10],                     // main frequency
 
-    // Speed profiles (INCREASED for better performance on pavement)
-    ["HIGHWAY_BASE", 170],              // Increased from 145 (allows 75%+ of max speed)
-    ["CITY_BASE", 100],                 // Increased from 85 (proportional)
+    // Speed profiles - 🔥 LUDICROUS MODE
+    ["HIGHWAY_BASE", 220],              // 🔥 LUDICROUS: Increased from 170
+    ["CITY_BASE", 120],                 // 🔥 LUDICROUS: Increased from 100
     ["OFFROAD_MULT", 0.75],
 
     // Distances
@@ -95,7 +95,7 @@ EAD_CFG = createHashMapFromArray [
     ["REVERSE_SPEED_KMH", 20],
 
     // Emergency brake
-    ["EMERGENCY_BRAKE_DIST", 5],
+    ["EMERGENCY_BRAKE_DIST", 15],       // Increased from 5 (stopping distance safety)
 
     // Debug
     ["DEBUG_ENABLED", false],
@@ -259,6 +259,82 @@ EAD_fnc_rayBatch = {
     _distances
 };
 
+// 🔥 LUDICROUS MODE: 4-height raycast for ultra-high-fidelity obstacle detection
+// 31 rays × 4 heights = 124 raycasts per vehicle
+EAD_fnc_rayBatchLudicrous = {
+    params ["_veh", "_rayDefs"];
+
+    private _vehPos = getPosASL _veh;
+    private _dir = getDir _veh;
+    private _dirRad = _dir * (pi / 180);
+
+    private _batch = [];
+
+    {
+        _x params ["_angleOffset", "_dist"];
+
+        private _rayAngle = _dirRad + (_angleOffset * (pi / 180));
+        private _dx = sin _rayAngle;
+        private _dy = cos _rayAngle;
+
+        // 🔥 LUDICROUS: 4 height levels
+        private _startGround = _vehPos vectorAdd [0, 0, 0.2];
+        private _endGround = _startGround vectorAdd [_dx * _dist, _dy * _dist, 0];
+        _batch pushBack [_startGround, _endGround, _veh, objNull, true, 1, "GEOM", "NONE"];
+
+        private _startLow = _vehPos vectorAdd [0, 0, 1.0];
+        private _endLow = _startLow vectorAdd [_dx * _dist, _dy * _dist, 0];
+        _batch pushBack [_startLow, _endLow, _veh, objNull, true, 1, "GEOM", "NONE"];
+
+        private _startMid = _vehPos vectorAdd [0, 0, 2.5];
+        private _endMid = _startMid vectorAdd [_dx * _dist, _dy * _dist, 0];
+        _batch pushBack [_startMid, _endMid, _veh, objNull, true, 1, "GEOM", "NONE"];
+
+        private _startHigh = _vehPos vectorAdd [0, 0, 4.0];
+        private _endHigh = _startHigh vectorAdd [_dx * _dist, _dy * _dist, 0];
+        _batch pushBack [_startHigh, _endHigh, _veh, objNull, true, 1, "GEOM", "NONE"];
+
+    } forEach _rayDefs;
+
+    private _results = _batch apply {lineIntersectsSurfaces _x};
+
+    private _distances = [];
+    private _idx = 0;
+
+    {
+        _x params ["_angleOffset", "_dist"];
+
+        private _resultGround = _results select _idx;
+        private _resultLow = _results select (_idx + 1);
+        private _resultMid = _results select (_idx + 2);
+        private _resultHigh = _results select (_idx + 3);
+
+        private _distGround = if (count _resultGround > 0) then {
+            (_vehPos vectorAdd [0,0,0.2]) vectorDistance (_resultGround#0#0)
+        } else {_dist};
+
+        private _distLow = if (count _resultLow > 0) then {
+            (_vehPos vectorAdd [0,0,1.0]) vectorDistance (_resultLow#0#0)
+        } else {_dist};
+
+        private _distMid = if (count _resultMid > 0) then {
+            (_vehPos vectorAdd [0,0,2.5]) vectorDistance (_resultMid#0#0)
+        } else {_dist};
+
+        private _distHigh = if (count _resultHigh > 0) then {
+            (_vehPos vectorAdd [0,0,4.0]) vectorDistance (_resultHigh#0#0)
+        } else {_dist};
+
+        private _finalDist = ((_distGround min _distLow) min _distMid) min _distHigh;
+
+        _distances pushBack _finalDist;
+        _idx = _idx + 4;
+
+    } forEach _rayDefs;
+
+    _distances
+};
+
 // ✅ v8.7 NEW: Top-down raycasts for road detection and terrain awareness
 EAD_fnc_topDownRoadScan = {
     params ["_veh"];
@@ -369,41 +445,58 @@ EAD_fnc_isBridge = {
     (_hits >= 2)
 };
 
+// 🔥 LUDICROUS MODE: 31-ray ultra-wide scanning with graduated distances
 EAD_fnc_scanAdaptive = {
     params ["_veh"];
 
-    private _spd = speed _veh;
+    private _vehPos = getPosASL _veh;
     private _dir = getDir _veh;
 
-    private _m = EAD_CFG get "DIST_MAIN";
-    private _w = EAD_CFG get "DIST_WIDE";
-    private _s = EAD_CFG get "DIST_SIDE";
-    private _c = EAD_CFG get "DIST_CORNER";
-    private _n = EAD_CFG get "DIST_NEAR";
-
-    // ✅ v8.4 BATCH OPTIMIZATION: Define all 11 rays for batch processing
+    // 🔥 LUDICROUS: 31 rays × 4 heights = 124 raycasts
     // Format: [label, angleOffset, distance]
     private _rayDefinitions = [
-        ["F0",  0,   _m],
-        ["FL1", 12,  _m],
-        ["FR1", -12, _m],
-        ["FL2", 25,  _w],
-        ["FR2", -25, _w],
-        ["L",   45,  _s],
-        ["R",   -45, _s],
-        ["CL",  70,  _c],
-        ["CR",  -70, _c],
-        ["NL",  90,  _n],
-        ["NR",  -90, _n]
+        ["F0",    0,   150],
+        ["FL02",  1.5, 145],
+        ["FR02", -1.5, 145],
+        ["FL05",  3,   140],
+        ["FR05", -3,   140],
+        ["FL07",  4.5, 135],
+        ["FR07", -4.5, 135],
+        ["FL1",   6,   130],
+        ["FR1",  -6,   130],
+        ["FL12",  9,   125],
+        ["FR12", -9,   125],
+        ["FL2",   12,  120],
+        ["FR2",  -12,  120],
+        ["FL16",  16,  115],
+        ["FR16", -16,  115],
+        ["FL20",  20,  110],
+        ["FR20", -20,  110],
+        ["FL25",  25,  105],
+        ["FR25", -25,  105],
+        ["FL30",  30,  100],
+        ["FR30", -30,  100],
+        ["FL35",  35,  95],
+        ["FR35", -35,  95],
+        ["FL40",  40,  90],
+        ["FR40", -40,  90],
+        ["CL45",  45,  85],
+        ["CR45", -45,  85],
+        ["CL55",  55,  80],
+        ["CR55", -55,  80],
+        ["CL65",  65,  75],
+        ["CR65", -65,  75],
+        ["CL75",  75,  70],
+        ["CR75", -75,  70],
+        ["L90",   90,  60],
+        ["R90",  -90,  60]
     ];
 
-    // Extract angle/distance pairs for batch raycast
     private _rayDefs = _rayDefinitions apply {[_x#1, _x#2]};
 
-    // ✅ BATCH RAYCAST: Process all 11 rays × 2 heights = 22 checks in one call
-    private _distances = [_veh, _rayDefs] call EAD_fnc_rayBatch;
+    // 🔥 LUDICROUS: Use 4-height batch function
+    private _distances = [_veh, _rayDefs] call EAD_fnc_rayBatchLudicrous;
 
-    // Build result hashmap
     private _map = createHashMap;
     {
         _x params ["_label", "_angleOffset", "_distance"];
@@ -425,7 +518,7 @@ EAD_fnc_speedBrain = {
     private _base = EAD_CFG get "HIGHWAY_BASE";
 
     // ✅ STRICT: Heavy penalty for offroad to keep AI on pavement
-    if (!_isRoad) then {_base = _base * 0.55};  // Reduced from offroad mult
+    if (!_isRoad) then {_base = _base * 0.35};  // Reduced from 0.55 to prevent offroad shortcuts
 
     if (_dense) then {_base = _base * 0.85};
 
@@ -436,36 +529,47 @@ EAD_fnc_speedBrain = {
         _base = _base * (0.5 + (_roadAheadConfidence * 0.5)); // 50-100% speed based on confidence
     };
 
-    // ✅ NEW: Check if path is straight and clear for high-speed allowance
-    private _isStraight = true;
-    private _minFrontDist = selectMin [
-        _s get "F0",
-        _s get "FL1",
-        _s get "FR1"
-    ];
+    // 🔥 LUDICROUS: Graduated curve penalties
+    private _distCL45 = _s getOrDefault ["CL45", 85];
+    private _distCR45 = _s getOrDefault ["CR45", 85];
 
-    // Path is straight if all forward rays are nearly equal and > 40m
-    private _f0 = _s get "F0";
-    private _fl1 = _s get "FL1";
-    private _fr1 = _s get "FR1";
-
-    if (_f0 < 40 || abs(_f0 - _fl1) > 10 || abs(_f0 - _fr1) > 10) then {
-        _isStraight = false;
-    };
-
-    // Only allow high speeds on straight, clear, paved roads WITH good road confidence
-    if (_isRoad && _isStraight && _minFrontDist > 45 && _roadAheadConfidence > 0.8) then {
-        // Perfect conditions - allow full speed
-        _base = _base * 1.0;
+    if (_distCL45 < 20 || _distCR45 < 20) then {
+        _base = _base * 0.3;
     } else {
-        // Not ideal - reduce speed moderately
-        if (!_isStraight) then {_base = _base * 0.80};
+        if (_distCL45 < 40 || _distCR45 < 40) then {
+            _base = _base * 0.5;
+        } else {
+            if (_distCL45 < 70 || _distCR45 < 70) then {
+                _base = _base * 0.7;
+            } else {
+                if (_distCL45 < 100 || _distCR45 < 100) then {
+                    _base = _base * 0.85;
+                };
+            };
+        };
     };
 
-    private _curve = (_s get "CL") min (_s get "CR");
-    private _drop = 1 - (_curve / 80);
-    if (_drop > 0) then {
-        _base = _base * (1 - (_drop * (EAD_CFG get "CURVE_MULT")));
+    // 🔥 LUDICROUS: Aggressive straight detection with speed boost
+    private _isStraight = (
+        _s get "F0" > 120 &&
+        _s get "FL1" > 100 &&
+        _s get "FR1" > 100 &&
+        _s get "FL2" > 90 &&
+        _s get "FR2" > 90
+    );
+
+    if (_isStraight) then {
+        private _f0 = _s get "F0";
+        private _fl1 = _s get "FL1";
+        private _fr1 = _s get "FR1";
+
+        if ((_f0 - _fl1) < 20 && (_f0 - _fr1) < 20) then {
+            _base = _base * 1.25;
+
+            if (_f0 > 140) then {
+                _base = _base * 1.1;
+            };
+        };
     };
 
     if (_slope > 0.35) then {_base = _base * 0.75};
@@ -484,10 +588,12 @@ EAD_fnc_obstacleLimit = {
         _s get "FR2"
     ];
 
-    // ✅ REVERTED: Conservative obstacle detection for safety (no hitting stuff)
+    // 🔥 LUDICROUS: Graduated braking with 150m detection
+    if (_m < 60) then {_cur = _cur * 0.85};
+    if (_m < 45) then {_cur = _cur * 0.75};
     if (_m < 30) then {_cur = _cur * 0.60};
-    if (_m < 25) then {_cur = _cur * 0.55};
-    if (_m < 15) then {_cur = _cur * 0.35};
+    if (_m < 20) then {_cur = _cur * 0.40};
+    if (_m < 10) then {_cur = _cur * 0.20};
 
     _cur
 };
@@ -520,7 +626,7 @@ EAD_fnc_emergencyBrake = {
 
     if (_profile get "brute") then {_t = _t * 0.6};
 
-    if (_f0 < _t && _spd > 30) then {
+    if (_f0 < 20 && _spd > 50) then {  // 🔥 LUDICROUS: Tighter threshold, trust 150m detection
         _veh setVelocity [0,0,0];
         true
     } else {
@@ -894,7 +1000,7 @@ EAD_fnc_runDriver = {
         private _maxSafeSpeed = _physicsData select 0;
 
         // Apply as safety cap (only reduces speed, never increases)
-        _spd = _spd min _maxSafeSpeed;
+        _spd = _spd min (_maxSafeSpeed * 1.4);  // 🔥 LUDICROUS: Aggressive physics cap (+40% buffer)
 
         if ([_veh,_scan,_profile] call EAD_fnc_emergencyBrake) then {
             uiSleep (EAD_CFG get "TICK");
@@ -908,7 +1014,7 @@ EAD_fnc_runDriver = {
         _spd = [_veh,_spd,_terrain] call EAD_fnc_altitudeCorrection;
 
         // ✅ v9.0: Safety clamp on target speed (prevent negative or excessive speeds)
-        _spd = (_spd max 0) min 200;
+        _spd = (_spd max 0) min 250;  // 🔥 LUDICROUS: Raised to 250 km/h
 
         [_veh,_scan,_spd,_profile] call EAD_fnc_vectorDrive;
 
@@ -1096,15 +1202,18 @@ EAD_fnc_calculatePhysicsSpeed = {
     private _aglPos = ASLToAGL _vPos;
     private _surfaceRaw = toLower surfaceType _aglPos;
     private _friction = switch (true) do {
-        case (_surfaceRaw find "asphalt" > -1): {0.85};
-        case (_surfaceRaw find "concrete" > -1): {0.85};
-        case (_surfaceRaw find "gravel" > -1): {0.60};
-        case (_surfaceRaw find "mud" > -1): {0.45};
-        case (_surfaceRaw find "soil" > -1): {0.45};
-        case (_surfaceRaw find "rock" > -1): {0.70};
-        case (_surfaceRaw find "stone" > -1): {0.70};
-        case (_surfaceRaw find "sand" > -1): {0.50};
-        default {0.65};
+        case (_surfaceRaw find "asphalt" > -1): {0.95};  // 🔥 LUDICROUS: Optimistic grip
+        case (_surfaceRaw find "concrete" > -1): {0.93};
+        case (_surfaceRaw find "gravel" > -1): {0.70};
+        case (_surfaceRaw find "mud" > -1): {0.50};
+        case (_surfaceRaw find "soil" > -1): {0.50};
+        case (_surfaceRaw find "rock" > -1): {0.75};
+        case (_surfaceRaw find "stone" > -1): {0.75};
+        case (_surfaceRaw find "sand" > -1): {0.55};
+        case (_surfaceRaw find "grass" > -1): {0.65};
+        case (_surfaceRaw find "forest" > -1): {0.55};
+        case (_surfaceRaw find "water" > -1): {0.30};
+        default {0.70};
     };
 
     private _slope = 0;
@@ -1117,8 +1226,12 @@ EAD_fnc_calculatePhysicsSpeed = {
 
     private _maxCornerSpeed = (sqrt (_friction * 9.81 * (_turnRadius max 1))) * 3.6;
 
-    if (_slope > 15) then {
-        _maxCornerSpeed = _maxCornerSpeed * 0.7;
+    if (_slope > 20) then {  // 🔥 LUDICROUS: Less aggressive slope penalty
+        _maxCornerSpeed = _maxCornerSpeed * 0.75;
+    } else {
+        if (_slope > 10) then {
+            _maxCornerSpeed = _maxCornerSpeed * 0.90;
+        };
     };
 
     if (_turnAngle > 75) then {

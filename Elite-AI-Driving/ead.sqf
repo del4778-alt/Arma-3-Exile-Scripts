@@ -1085,16 +1085,19 @@ EAD_fnc_runDriver = {
     _veh setVariable ["EAD_startTime", time];
 
     // 🔥 v9.5.3: Detect A3XAI vehicle (check for A3XAI-specific variables)
+    // IMPORTANT: This is VARIABLE-BASED detection, NOT side-based!
+    // Other mission AI on EAST/WEST/etc will get full EAD control
     private _grp = group _unit;
     private _isA3XAI = false;
 
-    // A3XAI detection: Check for A3XAI group variables
+    // A3XAI detection: Check for A3XAI-specific variables only
     if (!isNil "_grp") then {
         if (
-            !isNil {_grp getVariable "A3XAI_group"} ||
-            !isNil {_grp getVariable "A3XAI_Vehicle"} ||
-            !isNil {_veh getVariable "A3XAI_veh"} ||
-            {count (waypoints _grp) > 0 && {waypointType [_grp, 0] == "MOVE"}}
+            !isNil {_grp getVariable "A3XAI_group"} ||           // A3XAI marks groups
+            !isNil {_grp getVariable "A3XAI_Vehicle"} ||         // A3XAI vehicle patrols
+            !isNil {_veh getVariable "A3XAI_veh"} ||             // A3XAI vehicle marker
+            !isNil {_veh getVariable "A3XAI_customspawn"} ||     // Your custom_spawns.sqf
+            !isNil {_grp getVariable "A3XAI_spawned"}            // A3XAI spawn flag
         ) then {
             _isA3XAI = true;
             _veh setVariable ["EAD_A3XAI_mode", true];
@@ -1258,14 +1261,18 @@ EAD_fnc_registerDriver = {
     _veh setVariable ["EAD_active",true];
 
     // 🔥 v9.5.3: A3XAI Detection - check for A3XAI group variables
+    // IMPORTANT: Variable-based detection, NOT side-based
+    // Other mission AI on same side will get full EAD control
     private _grp = group _unit;
     private _isA3XAI = false;
 
     if (!isNil "_grp") then {
         if (
-            !isNil {_grp getVariable "A3XAI_group"} ||
-            !isNil {_grp getVariable "A3XAI_Vehicle"} ||
-            !isNil {_veh getVariable "A3XAI_veh"}
+            !isNil {_grp getVariable "A3XAI_group"} ||           // A3XAI marks groups
+            !isNil {_grp getVariable "A3XAI_Vehicle"} ||         // A3XAI vehicle patrols
+            !isNil {_veh getVariable "A3XAI_veh"} ||             // A3XAI vehicle marker
+            !isNil {_veh getVariable "A3XAI_customspawn"} ||     // Your custom_spawns.sqf
+            !isNil {_grp getVariable "A3XAI_spawned"}            // A3XAI spawn flag
         ) then {
             _isA3XAI = true;
         };

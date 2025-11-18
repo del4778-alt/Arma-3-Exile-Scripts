@@ -97,27 +97,34 @@ RECRUIT_fnc_ApplyCustomLoadout = {
     switch (_type) do {
         // AT (Anti-Tank) - DMR loadout with Viper gear
         case "I_Soldier_AT_F": {
+            // Equipment - ADD CONTAINERS FIRST!
+            _unit forceAddUniform "U_O_V_Soldier_Viper_F";
+            _unit addVest "V_PlateCarrierSpec_mtp";
+            _unit addBackpack "B_ViperHarness_ghex_Medic_F";
+            _unit addHeadgear "H_HelmetO_ViperSP_ghex_F";
+
+            // Magazines for DMR-03 (7.62mm) - NOW they have a place to go!
+            for "_i" from 1 to 8 do {
+                _unit addMagazine "20Rnd_762x51_Mag";
+            };
+
+            // Launcher magazines
+            for "_i" from 1 to 2 do {
+                _unit addMagazine "Titan_AT";
+            };
+
+            // Medical & grenades
+            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
+            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
+            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
+
             // Primary weapon: DMR-03 with suppressor
             _unit addWeapon "srifle_DMR_03_DMS_snds_F";
             _unit addPrimaryWeaponItem "optic_DMS";
             _unit addPrimaryWeaponItem "muzzle_snds_B";
 
-            // Magazines for DMR-03 (7.62mm)
-            for "_i" from 1 to 8 do {
-                _unit addMagazine "20Rnd_762x51_Mag";
-            };
-
             // Launcher: Titan AT
             _unit addWeapon "launch_I_Titan_short_F";
-            for "_i" from 1 to 2 do {
-                _unit addMagazine "Titan_AT";
-            };
-
-            // Equipment
-            _unit forceAddUniform "U_O_V_Soldier_Viper_F";
-            _unit addVest "V_PlateCarrierSpec_mtp";
-            _unit addBackpack "B_ViperHarness_ghex_Medic_F";
-            _unit addHeadgear "H_HelmetO_ViperSP_ghex_F";
 
             // Items
             _unit linkItem "ItemMap";
@@ -127,16 +134,32 @@ RECRUIT_fnc_ApplyCustomLoadout = {
             _unit linkItem "NVGoggles_OPFOR";
             _unit addWeapon "Rangefinder";
 
-            // Medical & grenades
-            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
-            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
-            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
-
             diag_log format ["[AI RECRUIT] ✓ Applied AT custom loadout to %1", name _unit];
         };
 
         // AA (Anti-Air) - MXM marksman with Viper gear
         case "I_Soldier_AA_F": {
+            // Equipment - ADD CONTAINERS FIRST!
+            _unit forceAddUniform "U_O_V_Soldier_Viper_hex_F";
+            _unit addVest "V_PlateCarrierSpec_blk";
+            _unit addBackpack "B_ViperHarness_blk_F";
+            _unit addHeadgear "H_HelmetO_ViperSP_hex_F";
+
+            // Magazines for MXM (6.5mm)
+            for "_i" from 1 to 10 do {
+                _unit addMagazine "30Rnd_65x39_caseless_khaki_mag";
+            };
+
+            // Launcher magazines
+            for "_i" from 1 to 2 do {
+                _unit addMagazine "Titan_AA";
+            };
+
+            // Medical & grenades
+            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
+            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
+            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
+
             // Primary weapon: MXM with attachments
             _unit addWeapon "arifle_MXM_khk_MOS_Pointer_Bipod_Snds_F";
             _unit addPrimaryWeaponItem "optic_Hamr";
@@ -144,22 +167,8 @@ RECRUIT_fnc_ApplyCustomLoadout = {
             _unit addPrimaryWeaponItem "bipod_01_F_khk";
             _unit addPrimaryWeaponItem "muzzle_snds_H_khk_F";
 
-            // Magazines for MXM (6.5mm)
-            for "_i" from 1 to 10 do {
-                _unit addMagazine "30Rnd_65x39_caseless_khaki_mag";
-            };
-
             // Launcher: Titan AA
             _unit addWeapon "launch_I_Titan_F";
-            for "_i" from 1 to 2 do {
-                _unit addMagazine "Titan_AA";
-            };
-
-            // Equipment
-            _unit forceAddUniform "U_O_V_Soldier_Viper_hex_F";
-            _unit addVest "V_PlateCarrierSpec_blk";
-            _unit addBackpack "B_ViperHarness_blk_F";
-            _unit addHeadgear "H_HelmetO_ViperSP_hex_F";
 
             // Items
             _unit linkItem "ItemMap";
@@ -168,38 +177,40 @@ RECRUIT_fnc_ApplyCustomLoadout = {
             _unit linkItem "ItemRadio";
             _unit linkItem "NVGoggles_OPFOR";
             _unit addWeapon "Rangefinder";
-
-            // Medical & grenades
-            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
-            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
-            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
 
             diag_log format ["[AI RECRUIT] ✓ Applied AA custom loadout to %1", name _unit];
         };
 
         // Sniper - .50 cal with APDS rounds
         case "I_Sniper_F": {
-            // Primary weapon: GM6 Lynx .50 cal
-            _unit addWeapon "srifle_GM6_camo_F";
-            _unit addPrimaryWeaponItem "optic_LRPS";
+            // Equipment - ADD CONTAINERS FIRST!
+            _unit forceAddUniform "U_O_V_Soldier_Viper_F";
+            _unit addVest "V_PlateCarrierSpec_mtp";
+            _unit addBackpack "B_ViperHarness_ghex_F";
+            _unit addHeadgear "H_HelmetO_ViperSP_ghex_F";
 
             // 🔥 APDS (Armor-Piercing Discarding Sabot) rounds instead of standard
             for "_i" from 1 to 10 do {
                 _unit addMagazine "5Rnd_127x108_APDS_Mag";
             };
 
-            // Secondary: Pistol
-            _unit addWeapon "hgun_Pistol_heavy_01_F";
-            _unit addHandgunItem "optic_MRD";
+            // Pistol magazines
             for "_i" from 1 to 3 do {
                 _unit addMagazine "11Rnd_45ACP_Mag";
             };
 
-            // Equipment
-            _unit forceAddUniform "U_O_V_Soldier_Viper_F";
-            _unit addVest "V_PlateCarrierSpec_mtp";
-            _unit addBackpack "B_ViperHarness_ghex_F";
-            _unit addHeadgear "H_HelmetO_ViperSP_ghex_F";
+            // Medical & grenades
+            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
+            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
+            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
+
+            // Primary weapon: GM6 Lynx .50 cal
+            _unit addWeapon "srifle_GM6_camo_F";
+            _unit addPrimaryWeaponItem "optic_LRPS";
+
+            // Secondary: Pistol
+            _unit addWeapon "hgun_Pistol_heavy_01_F";
+            _unit addHandgunItem "optic_MRD";
 
             // Items
             _unit linkItem "ItemMap";
@@ -208,11 +219,6 @@ RECRUIT_fnc_ApplyCustomLoadout = {
             _unit linkItem "ItemRadio";
             _unit linkItem "NVGoggles_OPFOR";
             _unit addWeapon "Rangefinder";
-
-            // Medical & grenades
-            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
-            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
-            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
 
             diag_log format ["[AI RECRUIT] ✓ Applied Sniper custom loadout (APDS rounds) to %1", name _unit];
         };

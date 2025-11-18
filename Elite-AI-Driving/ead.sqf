@@ -1,8 +1,18 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.4 LUDICROUS MODE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.5 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.5 VEHICLE COLLISION AVOIDANCE:
+        ✅ FIX: AI vehicles now detect and avoid other vehicles
+        ✅ NEW: Vehicle detection using nearestObjects (50m range)
+            - Scans ahead for LandVehicle, Air, Ship within 45° cone
+            - Cached check every 0.5 seconds (performance-friendly)
+            - Applies graduated braking (same as obstacles)
+        ✅ FIXES: Mod cars now see each other and avoid collisions
+        ✅ Works for: A3XAI patrols, convoy vehicles, mission AI, recruit AI
+        ✅ Detection range: 40m ahead, 50m search radius
 
     v9.5.4 VEHICLE MAINTENANCE (Auto-Repair, Auto-Refuel):
         ✅ NEW: Auto-repair system - fixes damage when > 30% damaged
@@ -664,12 +674,14 @@ EAD_fnc_obstacleLimit = {
     private _now = time;
     private _lastCheck = _veh getVariable ["EAD_fenceCheckTime", 0];
     private _fenceDist = _veh getVariable ["EAD_fenceDistance", 999];
+    private _vehicleDist = _veh getVariable ["EAD_vehicleDistance", 999];
 
     if ((_now - _lastCheck) > 0.5) then {
         private _vPos = getPosASL _veh;
         private _dir = getDir _veh;
         private _fwdPos = _vPos vectorAdd [(sin _dir) * 20, (cos _dir) * 20, 0];
 
+        // Check for static obstacles (fences, walls, signs)
         private _fences = nearestObjects [_fwdPos, [
             "Land_Wired_Fence_8m_F",
             "Land_StoneWall_01_s_d_F",
@@ -685,13 +697,40 @@ EAD_fnc_obstacleLimit = {
             _fenceDist = 999;
         };
 
+        // 🔥 v9.5.5: Check for other vehicles (collision avoidance)
+        // Look ahead 40m for vehicles in path
+        private _fwdPosVehicles = _vPos vectorAdd [(sin _dir) * 40, (cos _dir) * 40, 0];
+        private _nearbyVehicles = nearestObjects [_fwdPosVehicles, ["LandVehicle", "Air", "Ship"], 50];
+
+        // Filter out self and find closest vehicle in path
+        _vehicleDist = 999;
+        {
+            if (_x != _veh && alive _x) then {
+                private _distToVeh = _veh distance _x;
+                private _angleToVeh = _vPos getDir (getPosASL _x);
+                private _angleDiff = abs (_angleToVeh - _dir);
+                if (_angleDiff > 180) then {_angleDiff = 360 - _angleDiff};
+
+                // Only count vehicles within 45° cone ahead
+                if (_angleDiff < 45 && _distToVeh < _vehicleDist) then {
+                    _vehicleDist = _distToVeh;
+                };
+            };
+        } forEach _nearbyVehicles;
+
         _veh setVariable ["EAD_fenceCheckTime", _now];
         _veh setVariable ["EAD_fenceDistance", _fenceDist];
+        _veh setVariable ["EAD_vehicleDistance", _vehicleDist];
     };
 
-    // Apply fence braking if closer than raycast detection
+    // Apply fence/vehicle braking if closer than raycast detection
     if (_fenceDist < _m) then {
         _m = _fenceDist;
+    };
+
+    // 🔥 v9.5.5: Apply vehicle collision avoidance
+    if (_vehicleDist < _m) then {
+        _m = _vehicleDist;
     };
 
     // 🔥 LUDICROUS: Graduated braking with 150m detection
@@ -1314,7 +1353,8 @@ EAD_fnc_runDriver = {
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
         "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled",
         "EAD_bridgeEnterTime","EAD_fenceCheckTime","EAD_fenceDistance",
-        "EAD_A3XAI_mode","EAD_lastRepairCheck","EAD_lastRefuelCheck"
+        "EAD_A3XAI_mode","EAD_lastRepairCheck","EAD_lastRefuelCheck",
+        "EAD_vehicleDistance"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;

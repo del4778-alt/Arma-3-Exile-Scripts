@@ -1,23 +1,27 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.20 - ELITE DRIVING FIX
-    ✅ Fixed: Driver stops after combat (EAD re-registration)
-    ✅ Fixed: FSM interference with Elite Driving
-    ✅ Fixed: Passengers jumping out immediately
-    ✅ Fixed: Bridge freezing (stuck detection)
-    ✅ Fixed: Movement commands conflicting with autopilot
-    
-    CHANGES IN v7.20:
-    - FSM now PAUSES completely when player is in vehicle as driver
+    ELITE AI RECRUIT SYSTEM v7.21 - EQUIPMENT FIX
+    ✅ Fixed: Recruits missing helmets and ammunition
+    ✅ Added: Custom loadout system with Viper gear
+    ✅ Added: Full equipment for AT, AA, and Sniper roles
+
+    CHANGES IN v7.21:
+    - Added RECRUIT_fnc_ApplyCustomLoadout function
+    - AT: DMR-03 with 8 magazines, Titan AT launcher, Viper helmet
+    - AA: MXM with 10 magazines, Titan AA launcher, Viper helmet
+    - Sniper: GM6 Lynx .50 cal with 10 APDS magazines, Viper helmet
+    - All recruits now get: Helmet, NVGs, Rangefinder, FirstAidKits, Grenades
+
+    PREVIOUS FIXES (v7.20):
+    - FSM pauses when player is in vehicle as driver
     - Elite Driving re-registers automatically after combat
-    - Passenger lock only applies to specific seats, not entire vehicle
-    - Driver gets stuck recovery with automatic dismount/remount
-    - Regroup command forces FSM reset
+    - Passenger lock only applies to specific seats
+    - Driver stuck recovery with automatic dismount/remount
 */
 
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.20 (Elite Driving Fix)...";
+diag_log "[AI RECRUIT] Starting v7.21 (Equipment Fix)...";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -66,6 +70,148 @@ FSM_STATE_HEAL = "HEAL";
 
 diag_log "[AI RECRUIT] FSM Brain: 4-state simplified system initialized";
 diag_log "[AI RECRUIT] States: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
+
+// ====================================================================================
+// Custom loadout configuration per AI type
+// ====================================================================================
+RECRUIT_fnc_ApplyCustomLoadout = {
+    params ["_unit", "_type"];
+
+    // Strip default loadout
+    removeAllWeapons _unit;
+    removeAllItems _unit;
+    removeAllAssignedItems _unit;
+    removeUniform _unit;
+    removeVest _unit;
+    removeBackpack _unit;
+    removeHeadgear _unit;
+    removeGoggles _unit;
+
+    // Apply type-specific loadout
+    switch (_type) do {
+        // AT (Anti-Tank) - DMR loadout with Viper gear
+        case "I_Soldier_AT_F": {
+            // Equipment FIRST (so magazines have somewhere to go)
+            _unit forceAddUniform "U_O_V_Soldier_Viper_F";
+            _unit addVest "V_PlateCarrierSpec_mtp";
+            _unit addBackpack "B_ViperHarness_ghex_Medic_F";
+            _unit addHeadgear "H_HelmetO_ViperSP_ghex_F";
+
+            // Items
+            _unit linkItem "ItemMap";
+            _unit linkItem "ItemCompass";
+            _unit linkItem "ItemWatch";
+            _unit linkItem "ItemRadio";
+            _unit linkItem "NVGoggles_OPFOR";
+            _unit addWeapon "Rangefinder";
+
+            // Magazines SECOND (now they can go into vest/uniform/backpack)
+            for "_i" from 1 to 8 do {
+                _unit addMagazine "20Rnd_762x51_Mag";
+            };
+            for "_i" from 1 to 2 do {
+                _unit addMagazine "Titan_AT";
+            };
+
+            // Medical & grenades
+            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
+            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
+            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
+
+            // Weapons LAST (they auto-load from available magazines)
+            _unit addWeapon "srifle_DMR_03_DMS_snds_F";
+            _unit addPrimaryWeaponItem "optic_DMS";
+            _unit addPrimaryWeaponItem "muzzle_snds_B";
+
+            // Launcher
+            _unit addWeapon "launch_I_Titan_short_F";
+
+            diag_log format ["[AI RECRUIT] ✓ Applied AT custom loadout to %1", name _unit];
+        };
+
+        // AA (Anti-Air) - MXM marksman with Viper gear
+        case "I_Soldier_AA_F": {
+            // Equipment FIRST (so magazines have somewhere to go)
+            _unit forceAddUniform "U_O_V_Soldier_Viper_hex_F";
+            _unit addVest "V_PlateCarrierSpec_blk";
+            _unit addBackpack "B_ViperHarness_blk_F";
+            _unit addHeadgear "H_HelmetO_ViperSP_hex_F";
+
+            // Items
+            _unit linkItem "ItemMap";
+            _unit linkItem "ItemCompass";
+            _unit linkItem "ItemWatch";
+            _unit linkItem "ItemRadio";
+            _unit linkItem "NVGoggles_OPFOR";
+            _unit addWeapon "Rangefinder";
+
+            // Magazines SECOND (now they can go into vest/uniform/backpack)
+            for "_i" from 1 to 10 do {
+                _unit addMagazine "30Rnd_65x39_caseless_khaki_mag";
+            };
+            for "_i" from 1 to 2 do {
+                _unit addMagazine "Titan_AA";
+            };
+
+            // Medical & grenades
+            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
+            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
+            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
+
+            // Weapons LAST (they auto-load from available magazines)
+            _unit addWeapon "arifle_MXM_khk_MOS_Pointer_Bipod_Snds_F";
+            _unit addPrimaryWeaponItem "optic_Hamr";
+            _unit addPrimaryWeaponItem "acc_pointer_IR";
+            _unit addPrimaryWeaponItem "bipod_01_F_khk";
+            _unit addPrimaryWeaponItem "muzzle_snds_H_khk_F";
+
+            // Launcher
+            _unit addWeapon "launch_I_Titan_F";
+
+            diag_log format ["[AI RECRUIT] ✓ Applied AA custom loadout to %1", name _unit];
+        };
+
+        // Sniper - .50 cal with APDS rounds
+        case "I_Sniper_F": {
+            // Equipment FIRST (so magazines have somewhere to go)
+            _unit forceAddUniform "U_O_V_Soldier_Viper_F";
+            _unit addVest "V_PlateCarrierSpec_mtp";
+            _unit addBackpack "B_ViperHarness_ghex_F";
+            _unit addHeadgear "H_HelmetO_ViperSP_ghex_F";
+
+            // Items
+            _unit linkItem "ItemMap";
+            _unit linkItem "ItemCompass";
+            _unit linkItem "ItemWatch";
+            _unit linkItem "ItemRadio";
+            _unit linkItem "NVGoggles_OPFOR";
+            _unit addWeapon "Rangefinder";
+
+            // Magazines SECOND (now they can go into vest/uniform/backpack)
+            for "_i" from 1 to 10 do {
+                _unit addMagazine "5Rnd_127x108_APDS_Mag";
+            };
+            for "_i" from 1 to 3 do {
+                _unit addMagazine "11Rnd_45ACP_Mag";
+            };
+
+            // Medical & grenades
+            for "_i" from 1 to 5 do {_unit addItem "FirstAidKit"};
+            for "_i" from 1 to 2 do {_unit addMagazine "HandGrenade"};
+            for "_i" from 1 to 2 do {_unit addMagazine "SmokeShell"};
+
+            // Weapons LAST (they auto-load from available magazines)
+            _unit addWeapon "srifle_GM6_camo_F";
+            _unit addPrimaryWeaponItem "optic_LRPS";
+
+            // Secondary pistol
+            _unit addWeapon "hgun_Pistol_heavy_01_F";
+            _unit addHandgunItem "optic_MRD";
+
+            diag_log format ["[AI RECRUIT] ✓ Applied Sniper custom loadout (APDS rounds) to %1", name _unit];
+        };
+    };
+};
 
 // ====================================================================================
 // FSM: Analyze threat situation
@@ -632,6 +778,9 @@ fn_spawnAI = {
     _unit setVariable ["OwnerUID", getPlayerUID _player, true];
     _unit setVariable ["OwnerName", name _player, true];
     _unit setVariable ["AIType", _type, true];
+
+    // Apply custom loadout (Viper gear, helmets, ammunition)
+    [_unit, _type] call RECRUIT_fnc_ApplyCustomLoadout;
 
     // ✅ ZOMBIE RESURRECTION PROTECTION
     _unit setVariable ["NoRessurect", true, true];
@@ -1297,9 +1446,17 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.20 - ELITE DRIVING FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.21 - EQUIPMENT FIX";
 diag_log "";
-diag_log "  ✅ MAJOR FIXES:";
+diag_log "  ✅ v7.21 NEW:";
+diag_log "    - Fixed missing helmets and ammunition";
+diag_log "    - Custom loadout system with Viper gear";
+diag_log "    - AT: DMR-03 + 8 mags + Titan AT + Viper helmet";
+diag_log "    - AA: MXM + 10 mags + Titan AA + Viper helmet";
+diag_log "    - Sniper: GM6 .50cal + 10 APDS mags + Viper helmet";
+diag_log "    - All: NVGs, Rangefinder, 5x FirstAidKit, Grenades";
+diag_log "";
+diag_log "  ✅ MAJOR FIXES (v7.20):";
 diag_log "    - Driver stops after combat → EAD auto re-registers";
 diag_log "    - FSM interference → Paused when player drives";
 diag_log "    - Passengers jumping out → Per-seat cargo lock";

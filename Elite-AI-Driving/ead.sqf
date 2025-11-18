@@ -1,8 +1,32 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.3 LUDICROUS MODE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.5 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.5 VEHICLE COLLISION AVOIDANCE:
+        ✅ FIX: AI vehicles now detect and avoid other vehicles
+        ✅ NEW: Vehicle detection using nearestObjects (50m range)
+            - Scans ahead for LandVehicle, Air, Ship within 45° cone
+            - Cached check every 0.5 seconds (performance-friendly)
+            - Applies graduated braking (same as obstacles)
+        ✅ FIXES: Mod cars now see each other and avoid collisions
+        ✅ Works for: A3XAI patrols, convoy vehicles, mission AI, recruit AI
+        ✅ Detection range: 40m ahead, 50m search radius
+
+    v9.5.4 VEHICLE MAINTENANCE (Auto-Repair, Auto-Refuel):
+        ✅ NEW: Auto-repair system - fixes damage when > 30% damaged
+            - Repairs all hit points (wheels, engine, body, etc.)
+            - Configurable threshold (default: 0.7 = 70% health)
+            - Cached checks every 10 seconds (configurable)
+            - Prevents flat tires from stopping patrols
+        ✅ NEW: Auto-refuel system - refuels when < 30% fuel
+            - Full refuel to 100%
+            - Configurable threshold (default: 0.3 = 30% fuel)
+            - Cached checks every 15 seconds (configurable)
+            - Enables long patrol routes without fuel stops
+        ✅ CONFIG: Both systems can be disabled independently
+        ✅ Works for all AI vehicles (A3XAI + normal EAD control)
 
     v9.5.3 A3XAI FIX - ENHANCEMENT MODE:
         ✅ FIX: A3XAI vehicles spinning like a top (EAD was fighting A3XAI pathfinding)
@@ -121,6 +145,14 @@ EAD_CFG = createHashMapFromArray [
     ["HIGHWAY_BASE", 220],              // 🔥 LUDICROUS: Increased from 170
     ["CITY_BASE", 120],                 // 🔥 LUDICROUS: Increased from 100
     ["OFFROAD_MULT", 0.75],
+
+    // 🔥 v9.5.4: Vehicle maintenance (auto-repair, auto-refuel)
+    ["AUTO_REPAIR_ENABLED", true],      // Enable auto-repair for AI vehicles
+    ["AUTO_REFUEL_ENABLED", true],      // Enable auto-refuel for AI vehicles
+    ["REPAIR_CHECK_INTERVAL", 10],      // Check damage every 10 seconds
+    ["REFUEL_CHECK_INTERVAL", 15],      // Check fuel every 15 seconds
+    ["REPAIR_THRESHOLD", 0.7],          // Repair when damage > 30% (0.7 = 70% health remaining)
+    ["REFUEL_THRESHOLD", 0.3],          // Refuel when fuel < 30%
 
     // Distances
     ["DIST_MAIN", 50],
@@ -642,12 +674,14 @@ EAD_fnc_obstacleLimit = {
     private _now = time;
     private _lastCheck = _veh getVariable ["EAD_fenceCheckTime", 0];
     private _fenceDist = _veh getVariable ["EAD_fenceDistance", 999];
+    private _vehicleDist = _veh getVariable ["EAD_vehicleDistance", 999];
 
     if ((_now - _lastCheck) > 0.5) then {
         private _vPos = getPosASL _veh;
         private _dir = getDir _veh;
         private _fwdPos = _vPos vectorAdd [(sin _dir) * 20, (cos _dir) * 20, 0];
 
+        // Check for static obstacles (fences, walls, signs)
         private _fences = nearestObjects [_fwdPos, [
             "Land_Wired_Fence_8m_F",
             "Land_StoneWall_01_s_d_F",
@@ -663,13 +697,40 @@ EAD_fnc_obstacleLimit = {
             _fenceDist = 999;
         };
 
+        // 🔥 v9.5.5: Check for other vehicles (collision avoidance)
+        // Look ahead 40m for vehicles in path
+        private _fwdPosVehicles = _vPos vectorAdd [(sin _dir) * 40, (cos _dir) * 40, 0];
+        private _nearbyVehicles = nearestObjects [_fwdPosVehicles, ["LandVehicle", "Air", "Ship"], 50];
+
+        // Filter out self and find closest vehicle in path
+        _vehicleDist = 999;
+        {
+            if (_x != _veh && alive _x) then {
+                private _distToVeh = _veh distance _x;
+                private _angleToVeh = _vPos getDir (getPosASL _x);
+                private _angleDiff = abs (_angleToVeh - _dir);
+                if (_angleDiff > 180) then {_angleDiff = 360 - _angleDiff};
+
+                // Only count vehicles within 45° cone ahead
+                if (_angleDiff < 45 && _distToVeh < _vehicleDist) then {
+                    _vehicleDist = _distToVeh;
+                };
+            };
+        } forEach _nearbyVehicles;
+
         _veh setVariable ["EAD_fenceCheckTime", _now];
         _veh setVariable ["EAD_fenceDistance", _fenceDist];
+        _veh setVariable ["EAD_vehicleDistance", _vehicleDist];
     };
 
-    // Apply fence braking if closer than raycast detection
+    // Apply fence/vehicle braking if closer than raycast detection
     if (_fenceDist < _m) then {
         _m = _fenceDist;
+    };
+
+    // 🔥 v9.5.5: Apply vehicle collision avoidance
+    if (_vehicleDist < _m) then {
+        _m = _vehicleDist;
     };
 
     // 🔥 LUDICROUS: Graduated braking with 150m detection
@@ -1075,6 +1136,70 @@ EAD_fnc_debugDraw = {
 };
 
 /* =====================================================================================
+    SECTION 7.5 — VEHICLE MAINTENANCE (AUTO-REPAIR, AUTO-REFUEL)
+===================================================================================== */
+
+EAD_fnc_autoRepair = {
+    params ["_veh"];
+
+    if (!(EAD_CFG get "AUTO_REPAIR_ENABLED")) exitWith {};
+
+    private _now = time;
+    private _lastRepair = _veh getVariable ["EAD_lastRepairCheck", 0];
+
+    // Check every N seconds (configurable)
+    if ((_now - _lastRepair) < (EAD_CFG get "REPAIR_CHECK_INTERVAL")) exitWith {};
+
+    _veh setVariable ["EAD_lastRepairCheck", _now];
+
+    // Check overall damage (0 = perfect, 1 = destroyed)
+    private _damage = damage _veh;
+    private _threshold = EAD_CFG get "REPAIR_THRESHOLD";
+
+    // If damage > threshold, repair vehicle
+    if (_damage > (1 - _threshold)) then {
+        // Full repair
+        _veh setDamage 0;
+
+        // Repair all hit points (wheels, engine, etc)
+        {
+            _veh setHitPointDamage [_x, 0];
+        } forEach getAllHitPointsDamage _veh select 0;
+
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] Auto-repaired %1 (was %2%% damaged)", typeOf _veh, round (_damage * 100)];
+        };
+    };
+};
+
+EAD_fnc_autoRefuel = {
+    params ["_veh"];
+
+    if (!(EAD_CFG get "AUTO_REFUEL_ENABLED")) exitWith {};
+
+    private _now = time;
+    private _lastRefuel = _veh getVariable ["EAD_lastRefuelCheck", 0];
+
+    // Check every N seconds (configurable)
+    if ((_now - _lastRefuel) < (EAD_CFG get "REFUEL_CHECK_INTERVAL")) exitWith {};
+
+    _veh setVariable ["EAD_lastRefuelCheck", _now];
+
+    // Check fuel level (0 = empty, 1 = full)
+    private _fuel = fuel _veh;
+    private _threshold = EAD_CFG get "REFUEL_THRESHOLD";
+
+    // If fuel < threshold, refuel vehicle
+    if (_fuel < _threshold) then {
+        _veh setFuel 1;
+
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] Auto-refueled %1 (was at %2%% fuel)", typeOf _veh, round (_fuel * 100)];
+        };
+    };
+};
+
+/* =====================================================================================
     SECTION 8 — DRIVER LOOP + REGISTRATION + CLEANUP
 ===================================================================================== */
 
@@ -1193,6 +1318,10 @@ EAD_fnc_runDriver = {
             [_veh,_scan,_spd,_profile] call EAD_fnc_vectorDrive;
         };
 
+        // 🔥 v9.5.4: Vehicle maintenance (auto-repair, auto-refuel)
+        [_veh] call EAD_fnc_autoRepair;
+        [_veh] call EAD_fnc_autoRefuel;
+
         private _dt = diag_tickTime - _t0;
 
         private _avg = EAD_Stats get "avgTickTime";
@@ -1224,7 +1353,8 @@ EAD_fnc_runDriver = {
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
         "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled",
         "EAD_bridgeEnterTime","EAD_fenceCheckTime","EAD_fenceDistance",
-        "EAD_A3XAI_mode"
+        "EAD_A3XAI_mode","EAD_lastRepairCheck","EAD_lastRefuelCheck",
+        "EAD_vehicleDistance"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;

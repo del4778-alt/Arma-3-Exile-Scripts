@@ -1190,20 +1190,50 @@ EAD_fnc_autoRepair = {
     private _overallDamage = damage _veh;
     private _needsRepair = false;
 
+    // Debug: Always log damage status
+    if (EAD_CFG get "DEBUG_ENABLED") then {
+        diag_log format ["[EAD] Auto-repair check for %1 - Overall damage: %2%%, Threshold: %3%%",
+            typeOf _veh, round (_overallDamage * 100), round (_threshold * 100)];
+    };
+
     // Check overall damage first
     if (_overallDamage > (1 - _threshold)) then {
         _needsRepair = true;
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] Repair triggered by overall damage: %1%% > %2%%",
+                round (_overallDamage * 100), round ((1 - _threshold) * 100)];
+        };
     };
 
     // Check individual hit points (especially wheels which don't always show in overall damage)
     if (!_needsRepair) then {
         private _hitPointData = getAllHitPointsDamage _veh;
         if (count _hitPointData > 0) then {
+            private _hitPointNames = _hitPointData select 0;
             private _hitPointDamages = _hitPointData select 2;
+
+            // Debug: Log all hit points
+            if (EAD_CFG get "DEBUG_ENABLED") then {
+                diag_log format ["[EAD] Checking %1 hit points:", count _hitPointNames];
+                for "_i" from 0 to ((count _hitPointNames) - 1) do {
+                    private _hpName = _hitPointNames select _i;
+                    private _hpDamage = _hitPointDamages select _i;
+                    if (_hpDamage > 0.01) then {
+                        diag_log format ["  - %1: %2%% damaged", _hpName, round (_hpDamage * 100)];
+                    };
+                };
+            };
+
             {
                 // If any hit point is damaged beyond threshold, repair
                 if (_x > (1 - _threshold)) exitWith {
                     _needsRepair = true;
+                    if (EAD_CFG get "DEBUG_ENABLED") then {
+                        private _idx = _forEachIndex;
+                        private _hpName = _hitPointNames select _idx;
+                        diag_log format ["[EAD] Repair triggered by hit point '%1': %2%% > %3%%",
+                            _hpName, round (_x * 100), round ((1 - _threshold) * 100)];
+                    };
                 };
             } forEach _hitPointDamages;
         };
@@ -1211,6 +1241,10 @@ EAD_fnc_autoRepair = {
 
     // Perform repair if needed
     if (_needsRepair) then {
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] REPAIRING %1...", typeOf _veh];
+        };
+
         _veh setDamage 0;
 
         // Repair all hit points
@@ -1219,6 +1253,9 @@ EAD_fnc_autoRepair = {
             private _hitPointNames = _hitPointData select 0;
             {
                 _veh setHitPointDamage [_x, 0];
+                if (EAD_CFG get "DEBUG_ENABLED") then {
+                    diag_log format ["  - Repaired: %1", _x];
+                };
             } forEach _hitPointNames;
         };
 

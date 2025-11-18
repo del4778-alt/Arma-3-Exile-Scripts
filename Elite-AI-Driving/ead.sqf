@@ -1214,9 +1214,13 @@ EAD_fnc_autoRepair = {
         _veh setDamage 0;
 
         // Repair all hit points
-        {
-            _veh setHitPointDamage [_x, 0];
-        } forEach getAllHitPointsDamage _veh select 0;
+        private _hitPointData = getAllHitPointsDamage _veh;
+        if (count _hitPointData > 0) then {
+            private _hitPointNames = _hitPointData select 0;
+            {
+                _veh setHitPointDamage [_x, 0];
+            } forEach _hitPointNames;
+        };
 
         if (EAD_CFG get "DEBUG_ENABLED") then {
             diag_log format ["[EAD] Auto-repaired %1 (was %2%% overall damaged)", typeOf _veh, round (_overallDamage * 100)];

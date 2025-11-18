@@ -552,13 +552,15 @@ EAD_fnc_speedBrain = {
     // ✅ STRICT: Heavy penalty for offroad to keep AI on pavement
     if (!_isRoad) then {_base = _base * 0.35};  // Reduced from 0.55 to prevent offroad shortcuts
 
-    if (_dense) then {_base = _base * 0.85};
+    // 🔥 v9.5.2: Reduced dense penalty (was 0.85, now 0.92) for faster city/forest roads
+    if (_dense) then {_base = _base * 0.92};
 
     // ✅ v8.7: Use top-down road scan to enforce road adherence
     // If road ahead confidence is low, reduce speed significantly
-    if (_roadAheadConfidence < 0.8) then {
-        // Less than 80% road ahead - approaching road edge or offroad
-        _base = _base * (0.5 + (_roadAheadConfidence * 0.5)); // 50-100% speed based on confidence
+    // 🔥 v9.5.2: More lenient threshold (0.7 instead of 0.8) for faster asphalt roads
+    if (_roadAheadConfidence < 0.7) then {
+        // Less than 70% road ahead - approaching road edge or offroad
+        _base = _base * (0.6 + (_roadAheadConfidence * 0.4)); // 60-100% speed based on confidence
     };
 
     // 🔥 LUDICROUS: Graduated curve penalties
@@ -620,6 +622,40 @@ EAD_fnc_obstacleLimit = {
         _s get "FR2"
     ];
 
+    // 🔥 v9.5.2: Check for thin objects raycasts miss (fences, walls, signs)
+    private _now = time;
+    private _lastCheck = _veh getVariable ["EAD_fenceCheckTime", 0];
+    private _fenceDist = _veh getVariable ["EAD_fenceDistance", 999];
+
+    if ((_now - _lastCheck) > 0.5) then {
+        private _vPos = getPosASL _veh;
+        private _dir = getDir _veh;
+        private _fwdPos = _vPos vectorAdd [(sin _dir) * 20, (cos _dir) * 20, 0];
+
+        private _fences = nearestObjects [_fwdPos, [
+            "Land_Wired_Fence_8m_F",
+            "Land_StoneWall_01_s_d_F",
+            "Land_StoneWall_01_s_10m_F",
+            "Land_Net_Fence_8m_F",
+            "RoadBarrier_F",
+            "RoadCone_F"
+        ], 25];
+
+        if (count _fences > 0) then {
+            _fenceDist = _veh distance (_fences select 0);
+        } else {
+            _fenceDist = 999;
+        };
+
+        _veh setVariable ["EAD_fenceCheckTime", _now];
+        _veh setVariable ["EAD_fenceDistance", _fenceDist];
+    };
+
+    // Apply fence braking if closer than raycast detection
+    if (_fenceDist < _m) then {
+        _m = _fenceDist;
+    };
+
     // 🔥 LUDICROUS: Graduated braking with 150m detection
     if (_m < 60) then {_cur = _cur * 0.85};
     if (_m < 45) then {_cur = _cur * 0.75};
@@ -644,7 +680,24 @@ EAD_fnc_applyBridgeMode = {
     private _b = [_veh] call EAD_fnc_isBridge;
 
     _veh setVariable ["EAD_onBridge", _b];
-    if (_b) then {_spd = _spd * 0.90};
+
+    // 🔥 v9.5.2: BOOST speed on bridges (floor it, go straight, 3 seconds)
+    if (_b) then {
+        private _bridgeEnterTime = _veh getVariable ["EAD_bridgeEnterTime", -999];
+
+        if (_bridgeEnterTime < 0 || (time - _bridgeEnterTime) > 5) then {
+            _veh setVariable ["EAD_bridgeEnterTime", time];
+        };
+
+        // For first 3 seconds on bridge, boost speed significantly
+        if ((time - _bridgeEnterTime) < 3) then {
+            _spd = _spd * 1.3; // +30% speed boost
+        } else {
+            _spd = _spd * 1.1; // +10% after initial boost
+        };
+    } else {
+        _veh setVariable ["EAD_bridgeEnterTime", -999]; // Reset when off bridge
+    };
 
     _spd
 };
@@ -861,47 +914,76 @@ EAD_fnc_vectorDrive = {
     params ["_veh","_s","_tSpd","_profile"];
 
     private _dir = getDir _veh;
+    private _onBridge = _veh getVariable ["EAD_onBridge", false];
 
-    // 🔥 LUDICROUS: Updated ray labels for 31-ray system
-    private _center = ((_s get "CL45") - (_s get "CR45")) * 0.004;
-    _center = _center + (((_s get "CL75") - (_s get "CR75")) * 0.0015);
+    // 🔥 v9.5.2: On bridges, force straight driving (ignore side obstacles = water detection)
+    if (_onBridge) then {
+        // Bridge mode: minimal steering, just forward momentum
+        private _path = [_s,_dir] call EAD_fnc_pathBias;
+        private _pathAdj = _path * 0.008; // Reduced from 0.018 for straighter driving
 
-    private _path = [_s,_dir] call EAD_fnc_pathBias;
-    private _pathAdj = _path * 0.018;
+        private _bias = _pathAdj max -0.08 min 0.08; // Very limited steering on bridges
 
-    private _drift = [_veh] call EAD_fnc_driftBias;
+        private _newDir = _dir + (_bias * 25); // Reduced from 55 for gentler turns
+        _veh setDir _newDir;
 
-    private _near = 0;
-    if ((_s get "L90") < 8) then {_near = _near + 0.03};
-    if ((_s get "R90") < 8) then {_near = _near - 0.03};
+        private _ms = _tSpd / 3.6;
+        private _vel = velocity _veh;
+        private _vert = _vel#2;
+        if (abs _vert > 5) then {_vert = _vert * 0.8};
 
-    // ✅ NEW: Add waypoint steering to guide vehicle toward A3XAI objectives
-    private _wpSteer = [_veh] call EAD_fnc_waypointBias;
+        private _newVel = [sin _newDir, cos _newDir, 0] vectorMultiply _ms;
+        _newVel set [2, _vert max -10];
 
-    private _bias = _center + _pathAdj + _drift + _near + _wpSteer;
-    _bias = _bias max -0.25 min 0.25;
+        if ((isTouchingGround _veh) && ((getPosATL _veh) select 2) < 1.5) then {
+            _veh setVelocity _newVel;
+        };
+        _veh limitSpeed _tSpd;
 
-    private _newDir = _dir + (_bias * 55);
-    _veh setDir _newDir;
+        // Skip debug for bridge mode
+    } else {
+        // Normal driving mode (off bridge)
+        // 🔥 LUDICROUS: Updated ray labels for 31-ray system
+        private _center = ((_s get "CL45") - (_s get "CR45")) * 0.004;
+        _center = _center + (((_s get "CL75") - (_s get "CR75")) * 0.0015);
 
-    private _ms = _tSpd / 3.6;
-    private _vel = velocity _veh;
+        private _path = [_s,_dir] call EAD_fnc_pathBias;
+        private _pathAdj = _path * 0.018;
 
-    private _vert = _vel#2;
-    if (abs _vert > 5) then {_vert = _vert * 0.8};
+        private _drift = [_veh] call EAD_fnc_driftBias;
 
-    private _newVel = [sin _newDir, cos _newDir, 0] vectorMultiply _ms;
-    _newVel set [2, _vert max -10];
+        private _near = 0;
+        if ((_s get "L90") < 8) then {_near = _near + 0.03};
+        if ((_s get "R90") < 8) then {_near = _near - 0.03};
 
-    // ✅ v9.0: Only apply velocity changes when on ground (prevents mid-air physics issues)
-    // Combined check: isTouchingGround (may be unreliable) + height check for accuracy
-    if ((isTouchingGround _veh) && ((getPosATL _veh) select 2) < 1.5) then {
-        _veh setVelocity _newVel;
-    };
-    _veh limitSpeed _tSpd;
+        // ✅ NEW: Add waypoint steering to guide vehicle toward A3XAI objectives
+        private _wpSteer = [_veh] call EAD_fnc_waypointBias;
 
-    if (EAD_CFG get "DEBUG_ENABLED") then {
-        [_veh,_s,_tSpd,_profile] call EAD_fnc_debugDraw;
+        private _bias = _center + _pathAdj + _drift + _near + _wpSteer;
+        _bias = _bias max -0.25 min 0.25;
+
+        private _newDir = _dir + (_bias * 55);
+        _veh setDir _newDir;
+
+        private _ms = _tSpd / 3.6;
+        private _vel = velocity _veh;
+
+        private _vert = _vel#2;
+        if (abs _vert > 5) then {_vert = _vert * 0.8};
+
+        private _newVel = [sin _newDir, cos _newDir, 0] vectorMultiply _ms;
+        _newVel set [2, _vert max -10];
+
+        // ✅ v9.0: Only apply velocity changes when on ground (prevents mid-air physics issues)
+        // Combined check: isTouchingGround (may be unreliable) + height check for accuracy
+        if ((isTouchingGround _veh) && ((getPosATL _veh) select 2) < 1.5) then {
+            _veh setVelocity _newVel;
+        };
+        _veh limitSpeed _tSpd;
+
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            [_veh,_s,_tSpd,_profile] call EAD_fnc_debugDraw;
+        };
     };
 };
 
@@ -1085,7 +1167,8 @@ EAD_fnc_runDriver = {
         "EAD_active","EAD_stuckTime","EAD_reverseUntil","EAD_profile",
         "EAD_onBridge","EAD_altT","EAD_altPos","EAD_altLastSpeed",
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
-        "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled"
+        "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled",
+        "EAD_bridgeEnterTime","EAD_fenceCheckTime","EAD_fenceDistance"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;
@@ -1111,6 +1194,13 @@ EAD_fnc_registerDriver = {
     };
 
     if (_veh getVariable ["EAD_active",false]) exitWith {};
+
+    // 🔥 v9.5.2: Clear stuck/reverse state when driver changes (fixes dismount/remount pathing bug)
+    _veh setVariable ["EAD_stuckTime", 0];
+    _veh setVariable ["EAD_reverseUntil", 0];
+    _veh setVariable ["EAD_lastReverseEnd", 0];
+    _veh setVariable ["EAD_bridgeEnterTime", -999];
+    _veh setVariable ["EAD_fenceCheckTime", 0];
 
     _veh setVariable ["EAD_active",true];
 

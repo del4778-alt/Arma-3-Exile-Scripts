@@ -830,8 +830,9 @@ EAD_fnc_vectorDrive = {
 
     private _dir = getDir _veh;
 
-    private _center = ((_s get "L") - (_s get "R")) * 0.004;
-    _center = _center + (((_s get "CL") - (_s get "CR")) * 0.0015);
+    // 🔥 LUDICROUS: Updated ray labels for 31-ray system
+    private _center = ((_s get "CL45") - (_s get "CR45")) * 0.004;
+    _center = _center + (((_s get "CL75") - (_s get "CR75")) * 0.0015);
 
     private _path = [_s,_dir] call EAD_fnc_pathBias;
     private _pathAdj = _path * 0.018;
@@ -839,8 +840,8 @@ EAD_fnc_vectorDrive = {
     private _drift = [_veh] call EAD_fnc_driftBias;
 
     private _near = 0;
-    if ((_s get "NL") < 8) then {_near = _near + 0.03};
-    if ((_s get "NR") < 8) then {_near = _near - 0.03};
+    if ((_s get "L90") < 8) then {_near = _near + 0.03};
+    if ((_s get "R90") < 8) then {_near = _near - 0.03};
 
     // ✅ NEW: Add waypoint steering to guide vehicle toward A3XAI objectives
     private _wpSteer = [_veh] call EAD_fnc_waypointBias;
@@ -882,18 +883,23 @@ EAD_fnc_debugDraw = {
     private _dir = getDir _veh;
 
     if (EAD_CFG get "DEBUG_DRAW_RAYS") then {
+        // 🔥 LUDICROUS: Key rays for debugging (subset of 31 total rays)
         private _rayData = [
-            ["F0",0,_s get "F0",(EAD_CFG get "DIST_MAIN")],
-            ["FL1",12,_s get "FL1",(EAD_CFG get "DIST_MAIN")],
-            ["FR1",-12,_s get "FR1",(EAD_CFG get "DIST_MAIN")],
-            ["FL2",25,_s get "FL2",(EAD_CFG get "DIST_WIDE")],
-            ["FR2",-25,_s get "FR2",(EAD_CFG get "DIST_WIDE")],
-            ["L",45,_s get "L",(EAD_CFG get "DIST_SIDE")],
-            ["R",-45,_s get "R",(EAD_CFG get "DIST_SIDE")],
-            ["CL",70,_s get "CL",(EAD_CFG get "DIST_CORNER")],
-            ["CR",-70,_s get "CR",(EAD_CFG get "DIST_CORNER")],
-            ["NL",90,_s get "NL",(EAD_CFG get "DIST_NEAR")],
-            ["NR",-90,_s get "NR",(EAD_CFG get "DIST_NEAR")]
+            ["F0",0,_s get "F0",150],
+            ["FL1",6,_s get "FL1",130],
+            ["FR1",-6,_s get "FR1",130],
+            ["FL2",12,_s get "FL2",120],
+            ["FR2",-12,_s get "FR2",120],
+            ["FL20",20,_s get "FL20",110],
+            ["FR20",-20,_s get "FR20",110],
+            ["FL30",30,_s get "FL30",100],
+            ["FR30",-30,_s get "FR30",100],
+            ["CL45",45,_s get "CL45",85],
+            ["CR45",-45,_s get "CR45",85],
+            ["CL65",65,_s get "CL65",75],
+            ["CR65",-65,_s get "CR65",75],
+            ["L90",90,_s get "L90",60],
+            ["R90",-90,_s get "R90",60]
         ];
 
         {

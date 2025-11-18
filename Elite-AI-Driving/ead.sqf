@@ -1,8 +1,14 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.1 LUDICROUS MODE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.2 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.2 CRITICAL FIXES (Fences, Bridges, Dismount Bug, City Speed):
+        ✅ FIX: Wire fence/sign detection via nearestObjects (fences no longer invisible)
+        ✅ FIX: Bridge mode - force straight driving + speed boost (+30% for 3s)
+        ✅ FIX: Dismount/remount pathing bug - clear stuck state on driver change
+        ✅ FIX: City speed boost - reduced penalties (dense 0.92, road confidence 0.7)
 
     v9.5.1 CRITICAL FIX:
         ✅ FIX: Updated ray labels for LUDICROUS MODE 31-ray system

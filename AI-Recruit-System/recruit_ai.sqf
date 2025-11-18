@@ -358,10 +358,11 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _playerGroup setFormation "LINE";  // Spread out in combat
             _unit setUnitPos "AUTO";
 
-            // 🔥 v7.32: Force engagement - make sure they actually shoot
-            private _target = currentTarget _unit;
+            // 🔥 v7.32: Force engagement using assignedTarget
+            private _target = assignedTarget _unit;
             if (!isNull _target) then {
-                _unit doFire _target;
+                _unit doWatch _target;
+                _unit doTarget _target;
             };
         };
 

@@ -1,8 +1,18 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.2 LUDICROUS MODE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.3 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.3 A3XAI FIX - ENHANCEMENT MODE:
+        ✅ FIX: A3XAI vehicles spinning like a top (EAD was fighting A3XAI pathfinding)
+        ✅ NEW: A3XAI detection - checks for A3XAI group/vehicle variables
+        ✅ NEW: Enhancement mode for A3XAI vehicles:
+            - Keeps PATH AI enabled (A3XAI controls steering/waypoints)
+            - EAD only provides: limitSpeed (obstacle/physics-based speed limits)
+            - No setDir/setVelocity steering override
+            - Result: A3XAI handles pathfinding, EAD prevents crashes at speed
+        ✅ Detection: Checks A3XAI_group, A3XAI_Vehicle, A3XAI_veh variables
 
     v9.5.2 CRITICAL FIXES (Fences, Bridges, Dismount Bug, City Speed):
         ✅ FIX: Wire fence/sign detection via nearestObjects (fences no longer invisible)
@@ -1074,6 +1084,30 @@ EAD_fnc_runDriver = {
     // ✅ v9.0: Record start time for timeout protection
     _veh setVariable ["EAD_startTime", time];
 
+    // 🔥 v9.5.3: Detect A3XAI vehicle (check for A3XAI-specific variables)
+    // IMPORTANT: This is VARIABLE-BASED detection, NOT side-based!
+    // Other mission AI on EAST/WEST/etc will get full EAD control
+    private _grp = group _unit;
+    private _isA3XAI = false;
+
+    // A3XAI detection: Check for A3XAI-specific variables only
+    if (!isNil "_grp") then {
+        if (
+            !isNil {_grp getVariable "A3XAI_group"} ||           // A3XAI marks groups
+            !isNil {_grp getVariable "A3XAI_Vehicle"} ||         // A3XAI vehicle patrols
+            !isNil {_veh getVariable "A3XAI_veh"} ||             // A3XAI vehicle marker
+            !isNil {_veh getVariable "A3XAI_customspawn"} ||     // Your custom_spawns.sqf
+            !isNil {_grp getVariable "A3XAI_spawned"}            // A3XAI spawn flag
+        ) then {
+            _isA3XAI = true;
+            _veh setVariable ["EAD_A3XAI_mode", true];
+
+            if (EAD_CFG get "DEBUG_ENABLED") then {
+                diag_log format ["[EAD] A3XAI vehicle detected: %1 - Using ENHANCEMENT mode (no steering override)", typeOf _veh];
+            };
+        };
+    };
+
     // locality protector
     private _localEH = _veh addEventHandler ["Local", {
         params ["_veh","_isLocal"];
@@ -1142,7 +1176,22 @@ EAD_fnc_runDriver = {
         // ✅ v9.0: Safety clamp on target speed (prevent negative or excessive speeds)
         _spd = (_spd max 0) min 250;  // 🔥 LUDICROUS: Raised to 250 km/h
 
-        [_veh,_scan,_spd,_profile] call EAD_fnc_vectorDrive;
+        // 🔥 v9.5.3: A3XAI ENHANCEMENT MODE
+        // For A3XAI vehicles: ONLY apply speed limit, don't override steering
+        // This prevents spinning/fighting with A3XAI's waypoint system
+        if (_isA3XAI) then {
+            // Enhancement mode: Just limit speed, A3XAI handles steering
+            _veh limitSpeed _spd;
+
+            // Optional: Set waypoint speed for smoother A3XAI behavior
+            private _wp = currentWaypoint _grp;
+            if (_wp >= 0) then {
+                [_grp, _wp] setWaypointSpeed "NORMAL";
+            };
+        } else {
+            // Normal mode: Full EAD control (steering + speed)
+            [_veh,_scan,_spd,_profile] call EAD_fnc_vectorDrive;
+        };
 
         private _dt = diag_tickTime - _t0;
 
@@ -1174,7 +1223,8 @@ EAD_fnc_runDriver = {
         "EAD_onBridge","EAD_altT","EAD_altPos","EAD_altLastSpeed",
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
         "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled",
-        "EAD_bridgeEnterTime","EAD_fenceCheckTime","EAD_fenceDistance"
+        "EAD_bridgeEnterTime","EAD_fenceCheckTime","EAD_fenceDistance",
+        "EAD_A3XAI_mode"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;
@@ -1210,11 +1260,40 @@ EAD_fnc_registerDriver = {
 
     _veh setVariable ["EAD_active",true];
 
+    // 🔥 v9.5.3: A3XAI Detection - check for A3XAI group variables
+    // IMPORTANT: Variable-based detection, NOT side-based
+    // Other mission AI on same side will get full EAD control
+    private _grp = group _unit;
+    private _isA3XAI = false;
+
+    if (!isNil "_grp") then {
+        if (
+            !isNil {_grp getVariable "A3XAI_group"} ||           // A3XAI marks groups
+            !isNil {_grp getVariable "A3XAI_Vehicle"} ||         // A3XAI vehicle patrols
+            !isNil {_veh getVariable "A3XAI_veh"} ||             // A3XAI vehicle marker
+            !isNil {_veh getVariable "A3XAI_customspawn"} ||     // Your custom_spawns.sqf
+            !isNil {_grp getVariable "A3XAI_spawned"}            // A3XAI spawn flag
+        ) then {
+            _isA3XAI = true;
+        };
+    };
+
     // ✅ FIX: Disable AI pathfinding to prevent conflict with EAD's direct control
-    // This stops the AI from fighting against EAD's setDir/setVelocity commands
-    _unit disableAI "PATH";
-    _unit disableAI "AUTOTARGET";
-    _veh setVariable ["EAD_aiDisabled", true];
+    // 🔥 v9.5.3: EXCEPT for A3XAI vehicles - let A3XAI handle pathfinding, EAD only provides speed limits
+    if (!_isA3XAI) then {
+        // Non-A3XAI vehicles: Full EAD control (disable PATH)
+        _unit disableAI "PATH";
+        _unit disableAI "AUTOTARGET";
+        _veh setVariable ["EAD_aiDisabled", true];
+    } else {
+        // A3XAI vehicles: Enhancement mode only (keep PATH enabled)
+        _veh setVariable ["EAD_aiDisabled", false];
+        _veh setVariable ["EAD_A3XAI_mode", true];
+
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] A3XAI vehicle registered: %1 - PATH AI enabled (enhancement mode)", typeOf _veh];
+        };
+    };
 
     EAD_TrackedVehicles pushBackUnique _veh;
     EAD_Stats set ["totalVehicles", count EAD_TrackedVehicles];

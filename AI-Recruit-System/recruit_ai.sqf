@@ -359,7 +359,10 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _unit setUnitPos "AUTO";
 
             // 🔥 v7.32: Force engagement - make sure they actually shoot
-            _unit doFire currentTarget _unit;
+            private _target = currentTarget _unit;
+            if (!isNull _target) then {
+                _unit doFire _target;
+            };
         };
 
         case FSM_STATE_RETREAT: {

@@ -129,21 +129,11 @@ RMG_Ravage_nearestPlayerDist = {
     _d
 };
 
+// DISABLED - Let Exile handle AI cleanup instead of Ravage
+// This was causing aggressive deletion of AI units immediately after spawning
 RMG_Ravage_capCull = {
-    private _cap = ["globalAICap"] call RMG_Ravage_get;
-    private _units = allUnits select { !isPlayer _x && alive _x };
-    private _over = (count _units) - _cap;
-    if (_over <= 0) exitWith {};
-    private _center = if (count allPlayers > 0) then { getPosASL (allPlayers select 0) } else { [0,0,0] };
-    private _pairs = _units apply { [_x distance2D _center, _x] };
-    _pairs sort false;
-    private _culled = 0;
-    {
-        deleteVehicle (_x select 1);
-        _culled = _culled + 1;
-        if (_culled >= _over) exitWith {};
-    } forEach _pairs;
-    diag_log format ["[RMG:Ravage] Culled %1 entities over cap %2.", _culled, _cap];
+    // Disabled - no cleanup performed
+    // Let Exile's native cleanup system handle this instead
 };
 
 RMG_Ravage_spawnZed = {

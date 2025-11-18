@@ -1,8 +1,20 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.5 LUDICROUS MODE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.6 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.6 VEHICLE AVOIDANCE + AUTO-REPAIR FIXES:
+        ✅ FIX: Vehicle avoidance steering - AI now steers around parked vehicles
+            - Added steering bias calculation in vectorDrive
+            - Detects which side vehicle is on (left/right)
+            - Progressive steering strength based on distance (0-50m)
+            - Combines braking + steering for smooth avoidance
+        ✅ FIX: Auto-repair now checks individual hit points (especially wheels)
+            - Previous: Only checked overall damage (missed wheel-only damage)
+            - Now: Checks each hit point (wheels, engine, body) individually
+            - Repairs when ANY hit point exceeds threshold (not just overall)
+            - Result: Flat tires and individual component damage properly repaired
 
     v9.5.5 VEHICLE COLLISION AVOIDANCE:
         ✅ FIX: AI vehicles now detect and avoid other vehicles
@@ -704,6 +716,7 @@ EAD_fnc_obstacleLimit = {
 
         // Filter out self and find closest vehicle in path
         _vehicleDist = 999;
+        private _vehicleSide = 0; // Track which side vehicle is on (for steering avoidance)
         {
             if (_x != _veh && alive _x) then {
                 private _distToVeh = _veh distance _x;
@@ -714,6 +727,13 @@ EAD_fnc_obstacleLimit = {
                 // Only count vehicles within 45° cone ahead
                 if (_angleDiff < 45 && _distToVeh < _vehicleDist) then {
                     _vehicleDist = _distToVeh;
+
+                    // 🔥 v9.5.6: Calculate relative angle for steering avoidance
+                    // Positive = vehicle to right, Negative = vehicle to left
+                    private _relativeAngle = _angleToVeh - _dir;
+                    while {_relativeAngle > 180} do {_relativeAngle = _relativeAngle - 360};
+                    while {_relativeAngle < -180} do {_relativeAngle = _relativeAngle + 360};
+                    _vehicleSide = _relativeAngle;
                 };
             };
         } forEach _nearbyVehicles;
@@ -721,6 +741,7 @@ EAD_fnc_obstacleLimit = {
         _veh setVariable ["EAD_fenceCheckTime", _now];
         _veh setVariable ["EAD_fenceDistance", _fenceDist];
         _veh setVariable ["EAD_vehicleDistance", _vehicleDist];
+        _veh setVariable ["EAD_vehicleSide", _vehicleSide];
     };
 
     // Apply fence/vehicle braking if closer than raycast detection
@@ -1036,7 +1057,19 @@ EAD_fnc_vectorDrive = {
         // ✅ NEW: Add waypoint steering to guide vehicle toward A3XAI objectives
         private _wpSteer = [_veh] call EAD_fnc_waypointBias;
 
-        private _bias = _center + _pathAdj + _drift + _near + _wpSteer;
+        // 🔥 v9.5.6: Vehicle avoidance steering - steer away from parked vehicles
+        private _vehicleDist = _veh getVariable ["EAD_vehicleDistance", 999];
+        private _vehicleSteer = 0;
+        if (_vehicleDist < 50) then {
+            private _vehicleSide = _veh getVariable ["EAD_vehicleSide", 0];
+            // Steer away from vehicle (opposite direction)
+            // Positive vehicleSide = vehicle to right, so steer left (negative)
+            // Negative vehicleSide = vehicle to left, so steer right (positive)
+            private _urgency = (1 - (_vehicleDist / 50)) max 0;
+            _vehicleSteer = -(_vehicleSide / 180) * _urgency * 0.2; // Moderate steering strength
+        };
+
+        private _bias = _center + _pathAdj + _drift + _near + _wpSteer + _vehicleSteer;
         _bias = _bias max -0.25 min 0.25;
 
         private _newDir = _dir + (_bias * 55);
@@ -1152,22 +1185,41 @@ EAD_fnc_autoRepair = {
 
     _veh setVariable ["EAD_lastRepairCheck", _now];
 
-    // Check overall damage (0 = perfect, 1 = destroyed)
-    private _damage = damage _veh;
+    // Check overall damage AND individual hit points (wheels, engine, etc)
     private _threshold = EAD_CFG get "REPAIR_THRESHOLD";
+    private _overallDamage = damage _veh;
+    private _needsRepair = false;
 
-    // If damage > threshold, repair vehicle
-    if (_damage > (1 - _threshold)) then {
-        // Full repair
+    // Check overall damage first
+    if (_overallDamage > (1 - _threshold)) then {
+        _needsRepair = true;
+    };
+
+    // Check individual hit points (especially wheels which don't always show in overall damage)
+    if (!_needsRepair) then {
+        private _hitPointData = getAllHitPointsDamage _veh;
+        if (count _hitPointData > 0) then {
+            private _hitPointDamages = _hitPointData select 2;
+            {
+                // If any hit point is damaged beyond threshold, repair
+                if (_x > (1 - _threshold)) exitWith {
+                    _needsRepair = true;
+                };
+            } forEach _hitPointDamages;
+        };
+    };
+
+    // Perform repair if needed
+    if (_needsRepair) then {
         _veh setDamage 0;
 
-        // Repair all hit points (wheels, engine, etc)
+        // Repair all hit points
         {
             _veh setHitPointDamage [_x, 0];
         } forEach getAllHitPointsDamage _veh select 0;
 
         if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD] Auto-repaired %1 (was %2%% damaged)", typeOf _veh, round (_damage * 100)];
+            diag_log format ["[EAD] Auto-repaired %1 (was %2%% overall damaged)", typeOf _veh, round (_overallDamage * 100)];
         };
     };
 };

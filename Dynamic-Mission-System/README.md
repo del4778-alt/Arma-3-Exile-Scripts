@@ -206,6 +206,13 @@ Edit `MISSION_CONFIG` in `fn_dynamicMissions.sqf`:
 ["enableApex", true],                 // +8 weapons
 ```
 
+### Elite Driving Integration (NEW)
+```sqf
+["useEliteDrivingForConvoys", true],        // Let EAD control convoy vehicles
+["useEliteDrivingForReinforcements", false], // Manual waypoints for reinforcements
+```
+**Note:** When enabled, convoy vehicles/helicopters have `EAID_Ignore = false` and no manual waypoints are created, allowing Elite AI Driving to fully control vehicle movement.
+
 ### Cleanup
 ```sqf
 ["cleanupObjectTime", 3600],          // 1 hour for objects
@@ -300,6 +307,22 @@ Low FPS?
 
 ## 🔧 Advanced Features
 
+### Elite Driving Integration
+Full compatibility with Elite AI Driving (EAD) mod:
+
+**Convoy Vehicles:**
+- `useEliteDrivingForConvoys = true` (default): Vehicles controlled by EAD, no manual waypoints
+- `useEliteDrivingForConvoys = false`: Manual waypoints, traditional Arma AI driving
+
+**Reinforcement Helicopters:**
+- `useEliteDrivingForReinforcements = false` (default): Manual waypoints for reliable drops
+- `useEliteDrivingForReinforcements = true`: EAD controls helicopter flight
+
+**How it works:**
+- When EAD enabled: `EAID_Ignore = false` on vehicles, no waypoints created
+- When EAD disabled: `EAID_Ignore = true` on vehicles, manual waypoints created
+- Mission AI guards always have `EAID_Ignore = true` (they're stationary)
+
 ### AI Freezing
 Automatically freezes AI groups >3500m from players:
 - Saves server FPS
@@ -362,15 +385,38 @@ Override settings per map:
 
 ---
 
-## 🐛 Known Issues
+## 🐛 Known Issues & Compatibility
 
-1. **Reinforcement helicopters may not land** - Waypoint issue, troops will paradrop
-2. **Convoy vehicles may get stuck** - Arma pathfinding limitation
+1. **Reinforcement helicopters may not land** - Waypoint issue, troops will paradrop (enable EAD integration for better behavior)
+2. **Convoy vehicles may get stuck** - Enable `useEliteDrivingForConvoys = true` if you have Elite AI Driving installed for better pathfinding
 3. **Exile reward integration** - Commented out, needs server-side implementation
+
+### Elite AI Driving (EAD) Compatibility
+**Fully compatible!** The system now includes configurable EAD integration:
+- ✅ Convoys: Set `useEliteDrivingForConvoys = true` (default) for EAD control
+- ✅ Reinforcements: Set `useEliteDrivingForReinforcements = true` for EAD helicopter control
+- ✅ Works with or without EAD installed (graceful fallback to manual waypoints)
 
 ---
 
 ## 📝 Changelog
+
+### v2.0.1 (2025-01-18) - EAD Integration
+**Added:**
+- Elite AI Driving (EAD) integration with configurable control
+- `useEliteDrivingForConvoys` config option (default: true)
+- `useEliteDrivingForReinforcements` config option (default: false)
+- Conditional waypoint creation based on EAD settings
+- Debug logging for EAD status
+
+**Changed:**
+- Convoy vehicles now conditionally use EAD or manual waypoints
+- Reinforcement helicopters configurable for EAD control
+- `EAID_Ignore` now set dynamically based on config
+
+**Fixed:**
+- Full compatibility with Elite AI Driving mod
+- Graceful fallback when EAD not installed
 
 ### v2.0.0 (2025-01-18) - MAJOR UPDATE
 **Added:**

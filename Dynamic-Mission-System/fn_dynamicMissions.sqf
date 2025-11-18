@@ -116,6 +116,10 @@ MISSION_CONFIG = createHashMapFromArray [
     ["rescueWeight", 20],
     ["campWeight", 10],
 
+    // === ELITE DRIVING INTEGRATION (NEW) ===
+    ["useEliteDrivingForConvoys", true],      // Let EAD control convoy vehicles
+    ["useEliteDrivingForReinforcements", false], // Manual waypoints for reinforcements
+
     // === AI SYSTEM (5-Tier Enhanced) ===
     ["aiCountEasy", [3, 5]],
     ["aiCountMedium", [5, 8]],
@@ -870,10 +874,15 @@ MISSION_fnc_spawnReinforcements = {
         _heli setPos _heliPos;
         _heli setDir (random 360);
 
+        // EAD Integration: Configure helicopter for Elite Driving
+        private _useEADReinforcements = MISSION_CONFIG get "useEliteDrivingForReinforcements";
+        _heli setVariable ["EAID_Ignore", !_useEADReinforcements, true];
+
         // Spawn crew
         private _crewGroup = createGroup EAST;
         private _pilot = _crewGroup createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
         _pilot moveInDriver _heli;
+        _pilot setVariable ["EAID_Ignore", true, true]; // Pilots never controlled by EAD
 
         // Spawn reinforcement troops
         private _count = (MISSION_CONFIG get "reinforcementCount" select 0) + floor(random ((MISSION_CONFIG get "reinforcementCount" select 1) - (MISSION_CONFIG get "reinforcementCount" select 0)));
@@ -882,11 +891,18 @@ MISSION_fnc_spawnReinforcements = {
         for "_i" from 1 to _count do {
             private _unit = _troopGroup createUnit ["O_Soldier_F", [0,0,0], [], 0, "NONE"];
             _unit moveInCargo _heli;
+            _unit setVariable ["EAID_Ignore", true, true]; // Cargo troops ignored
         };
 
-        // Waypoint to drop zone
-        private _wp = _crewGroup addWaypoint [_pos, 0];
-        _wp setWaypointType "TR UNLOAD";
+        // Waypoint to drop zone (only if NOT using Elite Driving)
+        if (!_useEADReinforcements) then {
+            private _wp = _crewGroup addWaypoint [_pos, 0];
+            _wp setWaypointType "TR UNLOAD";
+
+            [format ["Reinforcement helicopter using manual waypoints (EAD disabled)"]] call MISSION_fnc_log;
+        } else {
+            [format ["Reinforcement helicopter ready for Elite Driving control"]] call MISSION_fnc_log;
+        };
 
         [format ["Reinforcements dispatched: %1 troops in helicopter", _count]] call MISSION_fnc_log;
         ["REINFORCEMENTS INCOMING! Enemy helicopter detected!"] remoteExec ["systemChat", 0];
@@ -1082,7 +1098,10 @@ MISSION_fnc_createConvoy = {
         _vehicle setVectorUp [0,0,1];
         _vehicle setVelocity [0,0,0];
         _vehicle setFuel 1;
-        _vehicle setVariable ["EAID_Ignore", false, true];
+
+        // EAD Integration: Set EAID_Ignore based on config
+        private _useEAD = MISSION_CONFIG get "useEliteDrivingForConvoys";
+        _vehicle setVariable ["EAID_Ignore", !_useEAD, true];
         _vehicle setVariable ["ConvoyVehicle", true, true];
 
         _vehicles pushBack _vehicle;
@@ -1118,11 +1137,17 @@ MISSION_fnc_createConvoy = {
             _allCrew pushBack _cargo;
         };
 
-        // Waypoint to destination
-        private _wp = _group addWaypoint [_destination, 0];
-        _wp setWaypointType "MOVE";
-        _wp setWaypointSpeed "LIMITED";
-        _wp setWaypointBehaviour "SAFE";
+        // Waypoint to destination (only if NOT using Elite Driving)
+        if (!_useEAD) then {
+            private _wp = _group addWaypoint [_destination, 0];
+            _wp setWaypointType "MOVE";
+            _wp setWaypointSpeed "LIMITED";
+            _wp setWaypointBehaviour "SAFE";
+
+            [format ["Manual waypoints created for convoy vehicle %1 (EAD disabled)", _i + 1]] call MISSION_fnc_log;
+        } else {
+            [format ["Convoy vehicle %1 ready for Elite Driving control", _i + 1]] call MISSION_fnc_log;
+        };
 
         _missionData set ["aiGroups", (_missionData getOrDefault ["aiGroups", []]) + [_group]];
     };

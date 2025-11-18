@@ -1,8 +1,22 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.3 LUDICROUS MODE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.4 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.4 VEHICLE MAINTENANCE (Auto-Repair, Auto-Refuel):
+        ✅ NEW: Auto-repair system - fixes damage when > 30% damaged
+            - Repairs all hit points (wheels, engine, body, etc.)
+            - Configurable threshold (default: 0.7 = 70% health)
+            - Cached checks every 10 seconds (configurable)
+            - Prevents flat tires from stopping patrols
+        ✅ NEW: Auto-refuel system - refuels when < 30% fuel
+            - Full refuel to 100%
+            - Configurable threshold (default: 0.3 = 30% fuel)
+            - Cached checks every 15 seconds (configurable)
+            - Enables long patrol routes without fuel stops
+        ✅ CONFIG: Both systems can be disabled independently
+        ✅ Works for all AI vehicles (A3XAI + normal EAD control)
 
     v9.5.3 A3XAI FIX - ENHANCEMENT MODE:
         ✅ FIX: A3XAI vehicles spinning like a top (EAD was fighting A3XAI pathfinding)
@@ -121,6 +135,14 @@ EAD_CFG = createHashMapFromArray [
     ["HIGHWAY_BASE", 220],              // 🔥 LUDICROUS: Increased from 170
     ["CITY_BASE", 120],                 // 🔥 LUDICROUS: Increased from 100
     ["OFFROAD_MULT", 0.75],
+
+    // 🔥 v9.5.4: Vehicle maintenance (auto-repair, auto-refuel)
+    ["AUTO_REPAIR_ENABLED", true],      // Enable auto-repair for AI vehicles
+    ["AUTO_REFUEL_ENABLED", true],      // Enable auto-refuel for AI vehicles
+    ["REPAIR_CHECK_INTERVAL", 10],      // Check damage every 10 seconds
+    ["REFUEL_CHECK_INTERVAL", 15],      // Check fuel every 15 seconds
+    ["REPAIR_THRESHOLD", 0.7],          // Repair when damage > 30% (0.7 = 70% health remaining)
+    ["REFUEL_THRESHOLD", 0.3],          // Refuel when fuel < 30%
 
     // Distances
     ["DIST_MAIN", 50],
@@ -1075,6 +1097,70 @@ EAD_fnc_debugDraw = {
 };
 
 /* =====================================================================================
+    SECTION 7.5 — VEHICLE MAINTENANCE (AUTO-REPAIR, AUTO-REFUEL)
+===================================================================================== */
+
+EAD_fnc_autoRepair = {
+    params ["_veh"];
+
+    if (!(EAD_CFG get "AUTO_REPAIR_ENABLED")) exitWith {};
+
+    private _now = time;
+    private _lastRepair = _veh getVariable ["EAD_lastRepairCheck", 0];
+
+    // Check every N seconds (configurable)
+    if ((_now - _lastRepair) < (EAD_CFG get "REPAIR_CHECK_INTERVAL")) exitWith {};
+
+    _veh setVariable ["EAD_lastRepairCheck", _now];
+
+    // Check overall damage (0 = perfect, 1 = destroyed)
+    private _damage = damage _veh;
+    private _threshold = EAD_CFG get "REPAIR_THRESHOLD";
+
+    // If damage > threshold, repair vehicle
+    if (_damage > (1 - _threshold)) then {
+        // Full repair
+        _veh setDamage 0;
+
+        // Repair all hit points (wheels, engine, etc)
+        {
+            _veh setHitPointDamage [_x, 0];
+        } forEach getAllHitPointsDamage _veh select 0;
+
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] Auto-repaired %1 (was %2%% damaged)", typeOf _veh, round (_damage * 100)];
+        };
+    };
+};
+
+EAD_fnc_autoRefuel = {
+    params ["_veh"];
+
+    if (!(EAD_CFG get "AUTO_REFUEL_ENABLED")) exitWith {};
+
+    private _now = time;
+    private _lastRefuel = _veh getVariable ["EAD_lastRefuelCheck", 0];
+
+    // Check every N seconds (configurable)
+    if ((_now - _lastRefuel) < (EAD_CFG get "REFUEL_CHECK_INTERVAL")) exitWith {};
+
+    _veh setVariable ["EAD_lastRefuelCheck", _now];
+
+    // Check fuel level (0 = empty, 1 = full)
+    private _fuel = fuel _veh;
+    private _threshold = EAD_CFG get "REFUEL_THRESHOLD";
+
+    // If fuel < threshold, refuel vehicle
+    if (_fuel < _threshold) then {
+        _veh setFuel 1;
+
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] Auto-refueled %1 (was at %2%% fuel)", typeOf _veh, round (_fuel * 100)];
+        };
+    };
+};
+
+/* =====================================================================================
     SECTION 8 — DRIVER LOOP + REGISTRATION + CLEANUP
 ===================================================================================== */
 
@@ -1193,6 +1279,10 @@ EAD_fnc_runDriver = {
             [_veh,_scan,_spd,_profile] call EAD_fnc_vectorDrive;
         };
 
+        // 🔥 v9.5.4: Vehicle maintenance (auto-repair, auto-refuel)
+        [_veh] call EAD_fnc_autoRepair;
+        [_veh] call EAD_fnc_autoRefuel;
+
         private _dt = diag_tickTime - _t0;
 
         private _avg = EAD_Stats get "avgTickTime";
@@ -1224,7 +1314,7 @@ EAD_fnc_runDriver = {
         "EAD_convoyList","EAD_convoyListTime","EAD_treeDense",
         "EAD_treeCheckTime","EAD_lastReverseEnd","EAD_aiDisabled",
         "EAD_bridgeEnterTime","EAD_fenceCheckTime","EAD_fenceDistance",
-        "EAD_A3XAI_mode"
+        "EAD_A3XAI_mode","EAD_lastRepairCheck","EAD_lastRefuelCheck"
     ];
 
     private _idx = EAD_TrackedVehicles find _veh;

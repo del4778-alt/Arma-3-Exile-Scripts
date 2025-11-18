@@ -1,8 +1,40 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.0
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5.1 LUDICROUS MODE
     AUTHOR: YOU + SYSTEM BUILT HERE
     SINGLE-FILE EDITION
     SAFE FOR EXILE + DEDICATED SERVER + HC + ANY FACTION
+
+    v9.5.1 CRITICAL FIX:
+        ✅ FIX: Updated ray labels for LUDICROUS MODE 31-ray system
+            - vectorDrive: CL45/CR45, CL75/CR75, L90/R90 (was L/R/CL/CR/NL/NR)
+            - Debug visualization: Updated to show 15 key rays from 31 total
+            - Resolves: Undefined variable _center runtime errors
+
+    v9.5 LUDICROUS MODE (31-ray × 4-height ultra-high-fidelity):
+        🔥 RAY SYSTEM UPGRADE:
+            - 31 rays × 4 heights = 124 raycasts per vehicle
+            - Coverage: 180° ultra-wide (±90° from heading)
+            - Heights: 0.2m, 1.0m, 2.5m, 4.0m (ground/bumper/hood/roof)
+            - Range: 150m forward center → 60m at ±90° (graduated)
+            - NEW: EAD_fnc_rayBatchLudicrous for 4-height processing
+        🔥 SPEED CONFIGURATION:
+            - Highway base: 170 → 220 km/h
+            - City base: 100 → 120 km/h
+            - Absolute limit: 200 → 250 km/h
+            - Physics cap: +40% buffer for high-speed stability
+        🔥 PHYSICS TUNING (Optimistic for 5.7GHz Ryzen 9):
+            - Surface friction: Asphalt 0.95, Concrete 0.93 (was 0.85)
+            - Slope penalties: Less aggressive (20° threshold vs 15°)
+            - Emergency brake: 20m @ 50 km/h (tighter, trusts 150m detection)
+            - Straight path bonus: +37.5% on long straights (140m+ clear)
+        🔥 PROGRESSIVE SAFETY:
+            - Curve braking: 4 graduated levels (20m, 40m, 70m, 100m)
+            - Obstacle braking: 5 graduated levels (60m, 45m, 30m, 20m, 10m)
+            - Offroad penalty: 0.35x (prevents shortcuts)
+        🔥 PERFORMANCE TARGET:
+            - 40-50ms CPU per vehicle @ 5.7GHz
+            - Capacity: 50-80 vehicles @ 60 FPS
+            - Real-time 124 raycasts with batch optimization
 
     v9.0 PHYSICS-BASED ENHANCEMENTS (Elite AI Driving v3.4 Integration):
         ✅ NEW: 4 physics calculation functions for terrain-aware driving
@@ -12,7 +44,7 @@
             - analyzeTerrainGradient: 5-point slope detection
         ✅ NEW: Physics terrain safety limit in main loop
             - Complements existing ray-based geometry detection
-            - Adds surface friction awareness (asphalt 0.85, mud 0.45, etc)
+            - Adds surface friction awareness (LUDICROUS: asphalt 0.95, concrete 0.93)
             - Adds slope awareness (uphill/downhill speed adjustments)
             - Uses 40m lookahead matching ray scan range
             - Only reduces speed (never increases) via min() operator
@@ -21,7 +53,7 @@
             - Ensures vectorDrive only applies when on surface
         ✅ NEW: Main loop safety enhancements
             - 10-minute timeout protection (prevents infinite loops)
-            - Speed clamping [0, 200] km/h (prevents calculation errors)
+            - Speed clamping [0, 250] km/h (LUDICROUS: raised from 200 km/h)
         ✅ INTEGRATION: Physics adds material properties, rays handle geometry
             - Division of labor: Friction/slope (physics) + Curves (EAD rays)
             - Conservative approach: All enhancements use safety caps
@@ -38,11 +70,11 @@
         ✅ High speeds require: straight + clear + paved + 80%+ road ahead
 
     v8.6 SPEED + ROAD SAFETY:
-        ✅ Increased highway speed: 170 km/h (was 145)
-        ✅ Increased city speed: 100 km/h (was 85)
+        ✅ Increased highway speed: 170 km/h (was 145) [LUDICROUS: now 220 km/h]
+        ✅ Increased city speed: 100 km/h (was 85) [LUDICROUS: now 120 km/h]
         ✅ High speeds ONLY on straight, clear, paved roads
         ✅ Straight path detection (forward rays within 10m variance, >40m clear)
-        ✅ Heavy offroad penalty (0.55x) to keep AI on pavement
+        ✅ Heavy offroad penalty (0.55x → 0.35x in v9.5) to keep AI on pavement
         ✅ Conservative obstacle detection (reverted) - no hitting stuff
         ✅ Reduced curve speed penalty (0.5 from 0.8)
         ✅ Cars reach 75%+ of max on ideal road conditions
@@ -57,7 +89,7 @@
 
     v8.4 OPTIMIZATION:
         ✅ Batch raycast processing (Arma 3 v2.20+)
-        ✅ 22 raycasts per vehicle → 1 batch call
+        ✅ 22 raycasts per vehicle → 1 batch call (LUDICROUS: now 124 raycasts)
         ✅ ~10-15x faster obstacle detection
         ✅ Reduced CPU load for multiple AI vehicles
 ===================================================================================== */

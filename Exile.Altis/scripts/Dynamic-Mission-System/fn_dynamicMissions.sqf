@@ -24,6 +24,19 @@
 */
 
 // ========================================
+// SERVER-ONLY CHECK
+// ========================================
+// CRITICAL: Only run on server! Clients attempting to spawn AI causes:
+// - Units spawning as CIVILIAN side instead of EAST
+// - Immediate unit deletion (no authority)
+// - "Server: Object not found" errors
+if (!isServer) exitWith {
+    diag_log "[MISSION] Dynamic Mission System: Client detected, skipping initialization";
+};
+
+diag_log "[MISSION] Dynamic Mission System: Server detected, initializing...";
+
+// ========================================
 // CONFIGURATION
 // ========================================
 

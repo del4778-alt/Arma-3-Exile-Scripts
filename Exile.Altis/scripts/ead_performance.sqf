@@ -17,19 +17,19 @@
 ===================================================================================== */
 
 EAD_CFG = createHashMapFromArray [
-    ["TICK", 0.08],                     // ✅ FASTER: 0.08 from 0.10
+    ["TICK", 0.07],                     // ✅ EVEN FASTER: 0.07 for 250+ km/h response
 
-    // ✅ AGGRESSIVE SPEED PROFILES
-    ["HIGHWAY_BASE", 180],              // ✅ UP FROM 145
-    ["CITY_BASE", 110],                 // ✅ UP FROM 85
+    // ✅ SUPERCAR SPEED PROFILES (250+ km/h)
+    ["HIGHWAY_BASE", 250],              // ✅ SUPERCAR SPEED (was 180)
+    ["CITY_BASE", 130],                 // ✅ UP FROM 110
     ["OFFROAD_MULT", 0.85],             // ✅ UP FROM 0.75
 
-    // ✅ EXTENDED DISTANCES FOR HIGH SPEED
-    ["DIST_MAIN", 80],                  // ✅ UP FROM 50 (farther lookahead)
-    ["DIST_WIDE", 55],                  // ✅ UP FROM 35
-    ["DIST_SIDE", 40],                  // ✅ UP FROM 28
-    ["DIST_CORNER", 30],                // ✅ UP FROM 20
-    ["DIST_NEAR", 18],                  // ✅ UP FROM 14
+    // ✅ EXTENDED DISTANCES FOR SUPERCAR SPEEDS (250+ km/h needs more lookahead)
+    ["DIST_MAIN", 120],                 // ✅ UP FROM 80 (critical for 250 km/h)
+    ["DIST_WIDE", 80],                  // ✅ UP FROM 55
+    ["DIST_SIDE", 60],                  // ✅ UP FROM 40
+    ["DIST_CORNER", 45],                // ✅ UP FROM 30
+    ["DIST_NEAR", 25],                  // ✅ UP FROM 18
 
     // ✅ APEX RACING
     ["APEX_ENABLED", true],
@@ -39,7 +39,7 @@ EAD_CFG = createHashMapFromArray [
     // ✅ SMART CURVE DETECTION
     ["CURVE_GENTLE_THRESHOLD", 65],     // > 65m side clearance = gentle curve
     ["CURVE_SHARP_THRESHOLD", 25],      // < 25m side clearance = sharp curve
-    ["CURVE_GENTLE_MULT", 0.95],        // Only 5% slowdown on gentle curves
+    ["CURVE_GENTLE_MULT", 0.98],        // Only 2% slowdown on gentle curves (was 5%)
     ["CURVE_SHARP_MULT", 0.65],         // 35% slowdown on sharp/90° curves
 
     // ✅ AGGRESSIVE BRIDGE MODE
@@ -81,30 +81,30 @@ EAD_fnc_getProfile = {
 
     if (_type isKindOf "Car") exitWith {
         createHashMapFromArray [
-            ["role","CAR"], ["highway",165],["city",95],["offroad",0.80],["brute",false]
+            ["role","CAR"], ["highway",250],["city",130],["offroad",0.85],["brute",false]
         ]
     };
 
     if (_type isKindOf "MRAP_01_base_F") exitWith {
         createHashMapFromArray [
-            ["role","MRAP"],["highway",140],["city",80],["offroad",0.85],["brute",true]
+            ["role","MRAP"],["highway",170],["city",100],["offroad",0.85],["brute",true]
         ]
     };
 
     if (_type isKindOf "Truck_F") exitWith {
         createHashMapFromArray [
-            ["role","TRUCK"],["highway",120],["city",70],["offroad",0.75],["brute",false]
+            ["role","TRUCK"],["highway",150],["city",85],["offroad",0.75],["brute",false]
         ]
     };
 
     if (_type isKindOf "Tank") exitWith {
         createHashMapFromArray [
-            ["role","TRACKED"],["highway",90],["city",55],["offroad",0.95],["brute",true]
+            ["role","TRACKED"],["highway",110],["city",65],["offroad",0.95],["brute",true]
         ]
     };
 
     createHashMapFromArray [
-        ["role","GENERIC"],["highway",140],["city",85],["offroad",0.80],["brute",false]
+        ["role","GENERIC"],["highway",180],["city",100],["offroad",0.80],["brute",false]
     ]
 };
 
@@ -405,13 +405,13 @@ EAD_fnc_speedBrain = {
 
     switch (_curveType) do {
         case "GENTLE": {
-            _base = _base * (EAD_CFG get "CURVE_GENTLE_MULT"); // 5% slowdown
+            _base = _base * (EAD_CFG get "CURVE_GENTLE_MULT"); // 2% slowdown
         };
         case "SHARP": {
             _base = _base * (EAD_CFG get "CURVE_SHARP_MULT"); // 35% slowdown
         };
         case "MEDIUM": {
-            _base = _base * 0.82; // 18% slowdown
+            _base = _base * 0.88; // 12% slowdown (was 18%)
         };
     };
 

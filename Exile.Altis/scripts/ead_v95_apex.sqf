@@ -406,7 +406,11 @@ EAD_fnc_predictiveCollision = {
     if !(EAD_CFG get "PREDICT_ENABLED") exitWith {[false, 0]};
 
     // Use Arma's built-in prediction
-    private _expectedPos = expectedDestination _veh;
+    // ✅ FIX: expectedDestination returns [position, time] - extract just the position
+    private _expectedData = expectedDestination _veh;
+    if (count _expectedData < 1) exitWith {[false, 0]};
+
+    private _expectedPos = _expectedData select 0;  // Extract position from [position, time]
     if (_expectedPos isEqualTo [0,0,0]) exitWith {[false, 0]};
 
     private _currentPos = getPosASL _veh;

@@ -268,6 +268,20 @@ addMissionEventHandler ["EntityKilled", {
             diag_log format ["[RMG:Ravage] Recruit AI death ignored: %1 (no zombie spawn)", name _killed];
         };
 
+        // ✅ A3XAI exclusion - Don't resurrect A3XAI units as zombies
+        // A3XAI spawns AI with specific variables/group ownership
+        private _isA3XAI = (_killed getVariable ["A3XAI_Ignore", false]) || {
+            !isNull (group _killed) && {(group _killed) getVariable ["A3XAI_Group", false]}
+        };
+
+        if (_debug) then {
+            diag_log format ["  - A3XAI Unit: %1", _isA3XAI];
+        };
+
+        if (_isA3XAI) exitWith {
+            diag_log format ["[RMG:Ravage] A3XAI unit death ignored: %1 (no zombie spawn)", name _killed];
+        };
+
         // ✅ v2.7: Check zombie resurrection limit (prevents infinite loops)
         // Use flag variable to control spawn logic
         private _allowSpawn = true;
@@ -382,6 +396,9 @@ addMissionEventHandler ["EntityKilled", {
                                     _i, typeOf _zombie, _parentResCount + 1];
                             };
                         };
+
+                        // Small delay between spawns to allow network sync (reduces "Object not found" spam)
+                        uiSleep 0.1;
                     };
                 } else {
                     // SINGLE SPAWN

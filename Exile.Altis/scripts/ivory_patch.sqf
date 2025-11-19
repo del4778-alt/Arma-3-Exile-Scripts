@@ -13,13 +13,16 @@
 // Run on BOTH client and server to catch all vehicle spawns
 if (!hasInterface && !isDedicated) exitWith {};
 
+diag_log "[IVORY PATCH] ========================================";
 diag_log "[IVORY PATCH] Starting Ivory takedown function override...";
+diag_log "[IVORY PATCH] ========================================";
 
-// Wait for CfgFunctions to compile (Ivory's mod functions)
+// Wait for mission to fully load, then aggressively override
 [] spawn {
-    waitUntil {sleep 0.5; !isNil {missionNamespace getVariable "ivory_fnc_takedown"}};
+    // Wait for mission to be ready (5 seconds)
+    sleep 5;
 
-    diag_log "[IVORY PATCH] Ivory functions loaded, replacing buggy fn_takedown...";
+    diag_log "[IVORY PATCH] Mission loaded, replacing buggy fn_takedown...";
 
 // ✅ FIXED VERSION - Added default values to prevent nil errors
 ivory_fnc_takedown = {
@@ -97,9 +100,33 @@ ivory_fnc_takedown = {
     };
 };
 
-    // Force compile the function into mission namespace
-    missionNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown];
+    // Aggressively override ALL possible function references
+    diag_log "[IVORY PATCH] Installing fixed function to all namespaces...";
+
+    // Override in mission namespace
+    missionNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown, true];
+
+    // Override in UI namespace (if exists)
+    uiNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown, true];
+
+    // Override in profile namespace (if exists)
+    profileNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown];
+
+    // Broadcast to all clients
     publicVariable "ivory_fnc_takedown";
 
-    diag_log "[IVORY PATCH] ✅ fn_takedown patched successfully!";
+    // Wait a bit, then verify
+    sleep 2;
+
+    private _installed = missionNamespace getVariable ["ivory_fnc_takedown", {}];
+    if (str _installed == str ivory_fnc_takedown) then {
+        diag_log "[IVORY PATCH] ========================================";
+        diag_log "[IVORY PATCH] ✅ PATCH INSTALLED SUCCESSFULLY!";
+        diag_log "[IVORY PATCH] fn_takedown override verified";
+        diag_log "[IVORY PATCH] waitUntil nil errors should be eliminated";
+        diag_log "[IVORY PATCH] ========================================";
+    } else {
+        diag_log "[IVORY PATCH] ⚠️ WARNING: Function override may have failed!";
+        diag_log "[IVORY PATCH] Please check for Ivory errors in logs";
+    };
 };

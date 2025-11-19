@@ -121,21 +121,12 @@ RMG_Ravage_nearestPlayerDist = {
     _d
 };
 
+// DISABLED - Let Exile handle AI cleanup instead of Ravage
+// This was causing aggressive deletion of AI units immediately after spawning
+// including A3XAI units being deleted mid-spawn (during gear assignment)
 RMG_Ravage_capCull = {
-    private _cap = ["globalAICap"] call RMG_Ravage_get;
-    private _units = allUnits select { !isPlayer _x && alive _x };
-    private _over = (count _units) - _cap;
-    if (_over <= 0) exitWith {};
-    private _center = if (count allPlayers > 0) then { getPosASL (allPlayers select 0) } else { [0,0,0] };
-    private _pairs = _units apply { [_x distance2D _center, _x] };
-    _pairs sort false;
-    private _culled = 0;
-    {
-        deleteVehicle (_x select 1);
-        _culled = _culled + 1;
-        if (_culled >= _over) exitWith {};
-    } forEach _pairs;
-    diag_log format ["[RMG:Ravage] Culled %1 entities over cap %2.", _culled, _cap];
+    // Disabled - no cleanup performed
+    // Let Exile's native cleanup system handle this instead
 };
 
 RMG_Ravage_spawnZed = {
@@ -258,13 +249,27 @@ addMissionEventHandler ["EntityKilled", {
         
         // ✅ Explicit recruit AI exclusion
         private _isRecruitAI = _killed getVariable ["ExileRecruited", false];
-        
+
         if (_debug) then {
             diag_log format ["  - ExileRecruited: %1", _isRecruitAI];
         };
-        
+
         if (_isRecruitAI) exitWith {
             diag_log format ["[RMG:Ravage] Recruit AI death ignored: %1 (no zombie spawn)", name _killed];
+        };
+
+        // ✅ A3XAI exclusion - Don't resurrect A3XAI units as zombies
+        // A3XAI spawns AI with specific variables/group ownership
+        private _isA3XAI = (_killed getVariable ["A3XAI_Ignore", false]) || {
+            !isNull (group _killed) && {(group _killed) getVariable ["A3XAI_Group", false]}
+        };
+
+        if (_debug) then {
+            diag_log format ["  - A3XAI Unit: %1", _isA3XAI];
+        };
+
+        if (_isA3XAI) exitWith {
+            diag_log format ["[RMG:Ravage] A3XAI unit death ignored: %1 (no zombie spawn)", name _killed];
         };
 
         // ✅ Don't resurrect zombies as zombies
@@ -328,9 +333,9 @@ addMissionEventHandler ["EntityKilled", {
                     private _minMax = ["hordeSizeRange"] call RMG_Ravage_get;
                     private _count = floor ( (_minMax select 0) + random ((_minMax select 1) - (_minMax select 0) + 1) );
                     private _rad = 8 max (_count * 0.7);
-                    
+
                     diag_log format ["[RMG:Ravage] ★★★ SPAWNING HORDE: %1 zombies from %2 (EAST AI death) ★★★", _count, _killedName];
-                    
+
                     for "_i" from 1 to _count do {
                         private _pick = selectRandom _pool;
                         private _theta = random 360;
@@ -338,9 +343,9 @@ addMissionEventHandler ["EntityKilled", {
                         private _p = [_pos select 0, _pos select 1, _pos select 2];
                         _p set [0, (_p select 0) + (sin _theta) * _r];
                         _p set [1, (_p select 1) + (cos _theta) * _r];
-                        
+
                         private _zombie = [_pick, _p] call RMG_Ravage_spawnZed;
-                        
+
                         if (_debug) then {
                             if (isNull _zombie) then {
                                 diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 FAILED", _i];
@@ -348,6 +353,9 @@ addMissionEventHandler ["EntityKilled", {
                                 diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 OK: %2", _i, typeOf _zombie];
                             };
                         };
+
+                        // Small delay between spawns to allow network sync (reduces "Object not found" spam)
+                        uiSleep 0.1;
                     };
                 } else {
                     // SINGLE SPAWN
@@ -467,14 +475,16 @@ if (["ambientEnabled"] call _get) then {
 };
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Exile integration complete - v2.6 DEBUG MODE";
+diag_log "[RMG:Ravage] Exile integration complete - v2.8";
 diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE";
+diag_log "[RMG:Ravage] - AI Cap Cleanup: DISABLED (let Exile handle)";
 diag_log "[RMG:Ravage] - Zombies: CIVILIAN side (zombie_bolter, zombie_walker, zombie_runner)";
 diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no resurrection)";
-diag_log "[RMG:Ravage] - Spawn sides: EAST only (A3XAI patrol AI)";
+diag_log "[RMG:Ravage] - A3XAI exclusion: ENABLED (no resurrection)";
+diag_log "[RMG:Ravage] - Spawn sides: EAST, WEST, RESISTANCE";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
 diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE";
 diag_log "[RMG:Ravage] - Faction hostility: ALL vs CIVILIAN zombies";
-diag_log "[RMG:Ravage] - DEBUG MODE: ENABLED (verbose logging)";
+diag_log format ["[RMG:Ravage] - DEBUG MODE: %1", if (["debugMode"] call RMG_Ravage_get) then {"ENABLED"} else {"DISABLED"}];
 diag_log "[RMG:Ravage] All systems operational.";
 diag_log "========================================";

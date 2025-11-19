@@ -601,8 +601,18 @@ RECRUIT_fnc_ForceEADReregister = {
     // Check if already active to avoid spam
     if (_veh getVariable ["EAD_active", false]) exitWith {};
 
-    // Clear Elite Driving state
+    // ✅ FIX: Check cooldown to prevent re-registration spam
+    private _lastReregister = _veh getVariable ["EAD_lastReregisterTime", -999];
+    if (time - _lastReregister < 10) exitWith {
+        // Still in cooldown period, skip re-registration
+    };
+
+    // ✅ FIX: Set flag IMMEDIATELY to prevent race conditions
+    _veh setVariable ["EAD_active", true];
+    _veh setVariable ["EAD_lastReregisterTime", time];
     _veh setVariable ["EAID_Ignore", false]; // Remove block flag
+
+    diag_log format ["[AI RECRUIT] Initiating EAD re-registration for %1", typeOf _veh];
 
     // Force immediate re-registration
     [_driver, _veh] spawn {
@@ -613,9 +623,14 @@ RECRUIT_fnc_ForceEADReregister = {
             // Call Elite Driving registration function
             if (!isNil "EAD_fnc_registerDriver") then {
                 [_driver, _veh] call EAD_fnc_registerDriver;
-                _veh setVariable ["EAD_active", true]; // Set active flag after registration
                 diag_log format ["[AI RECRUIT] ✓ Elite Driving re-registered for %1", typeOf _veh];
+            } else {
+                diag_log "[AI RECRUIT] ERROR: EAD_fnc_registerDriver not found!";
+                _veh setVariable ["EAD_active", false]; // Reset flag if registration failed
             };
+        } else {
+            diag_log format ["[AI RECRUIT] Re-registration cancelled - driver changed or died"];
+            _veh setVariable ["EAD_active", false]; // Reset flag if conditions changed
         };
     };
 };
@@ -643,10 +658,14 @@ RECRUIT_fnc_DriverStuckMonitor = {
                     _unit setVariable ["RECRUIT_driverStuckTime", time];
                     _unit setVariable ["RECRUIT_lastDriverPos", getPosATL _unit];
 
-                    // ✅ FIX: Check if EAD is still active, re-register if needed
-                    if !(_veh getVariable ["EAD_active", false]) then {
-                        diag_log format ["[AI RECRUIT] EAD inactive while player in vehicle %1 - re-registering", typeOf _veh];
-                        [_veh] call RECRUIT_fnc_ForceEADReregister;
+                    // ✅ FIX: Check if EAD is still active (with cooldown to prevent spam)
+                    private _lastEADCheck = _veh getVariable ["RECRUIT_lastEADCheck", 0];
+                    if (time - _lastEADCheck > 15) then {
+                        if !(_veh getVariable ["EAD_active", false]) then {
+                            diag_log format ["[AI RECRUIT] EAD inactive while player in vehicle %1 - re-registering", typeOf _veh];
+                            [_veh] call RECRUIT_fnc_ForceEADReregister;
+                        };
+                        _veh setVariable ["RECRUIT_lastEADCheck", time];
                     };
                 } else {
                     // ✅ FIX: Add grace period after getting into vehicle
@@ -757,14 +776,18 @@ RECRUIT_fnc_FSM_BrainLoop = {
             if (_roleType == "driver") then {
                 // ✅ DRIVER: FSM completely paused, Elite Driving handles everything
                 _unit setVariable ["FSM_CurrentState", "VEHICLE_DRIVER", false];
-                
+
                 // ✅ CRITICAL: Don't issue ANY movement commands to driver
                 // Elite Driving uses velocity-based control, any doMove/doFollow breaks it
-                
-                // Just verify EAD is active
-                if !(_veh getVariable ["EAD_active", false]) then {
-                    diag_log format ["[AI RECRUIT] WARNING: Driver in vehicle but EAD inactive - re-registering"];
-                    [_veh] call RECRUIT_fnc_ForceEADReregister;
+
+                // Just verify EAD is active (with cooldown to prevent spam)
+                private _lastEADCheck = _veh getVariable ["RECRUIT_lastEADCheck", 0];
+                if (time - _lastEADCheck > 15) then {
+                    if !(_veh getVariable ["EAD_active", false]) then {
+                        diag_log format ["[AI RECRUIT] WARNING: Driver in vehicle but EAD inactive - re-registering"];
+                        [_veh] call RECRUIT_fnc_ForceEADReregister;
+                    };
+                    _veh setVariable ["RECRUIT_lastEADCheck", time];
                 };
             };
             

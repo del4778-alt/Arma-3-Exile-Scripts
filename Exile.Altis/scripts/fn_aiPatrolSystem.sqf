@@ -705,15 +705,26 @@ DEFENDER_fnc_cleanup = {
 };
 
 // ============================================
-// FAILSAFE CLEANUP
+// FAILSAFE CLEANUP - Only cleans up PATROL AI units
 // ============================================
 
 [] spawn {
     while {true} do {
         sleep 600;
         if (PATROL_Active) then {
+            // Clean up null/empty groups
             PATROL_AllGroups = PATROL_AllGroups select {!isNull _x && {count units _x > 0}};
-            {if (!alive _x && {side _x == SIDE_RES}) then {deleteVehicle _x}} forEach allUnits;
+
+            // FIXED: Only delete dead units that belong to PATROL groups, not all RESISTANCE units
+            {
+                private _grp = _x;
+                {
+                    if (!alive _x) then {
+                        deleteVehicle _x;
+                    };
+                } forEach (units _grp);
+            } forEach PATROL_AllGroups;
+
             PATROL_LastCleanup = time;
         };
     };

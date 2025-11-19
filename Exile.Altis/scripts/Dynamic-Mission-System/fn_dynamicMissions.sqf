@@ -170,11 +170,29 @@ MISSION_fnc_createMarker = {
 MISSION_fnc_spawnAI = {
     params ["_pos", "_count", "_side"];
 
+    diag_log format ["[MISSION DEBUG] Creating group with side: %1", _side];
+
     private _group = createGroup [_side, true];  // ✅ FIX: Use deleteWhenEmpty flag
+
+    // ✅ FIX: Check if group was created with wrong side (happens when side group limit reached)
+    // Arma 3 has 144 group limit per side - if exceeded, createGroup returns CIVILIAN group
+    // Use WEST as fallback (WEST is hostile to RESISTANCE players, unlike RESISTANCE which would be friendly)
+    if (!isNull _group && {side _group != _side}) then {
+        diag_log format ["[MISSION DEBUG] ⚠️ WARNING: Requested %1 group but got %2! EAST side likely full (144 group limit)", _side, side _group];
+        diag_log "[MISSION DEBUG] Attempting to use WEST as fallback (hostile to RESISTANCE players)...";
+        deleteGroup _group;
+        _group = createGroup [WEST, true];
+        if (!isNull _group) then {
+            diag_log format ["[MISSION DEBUG] ✅ Created WEST group as fallback: %1", _group];
+        };
+    };
+
     if (isNull _group) exitWith {
         [format ["ERROR: Failed to create AI group at %1", _pos]] call MISSION_fnc_log;
         [grpNull, []]
     };
+
+    diag_log format ["[MISSION DEBUG] Group created: %1, Group side: %2", _group, side _group];
 
     private _units = [];
 
@@ -191,6 +209,8 @@ MISSION_fnc_spawnAI = {
         if (isNull _unit) then {
             [format ["WARNING: Failed to spawn unit #%1 at %2", _i, _unitPos]] call MISSION_fnc_log;
         } else {
+            diag_log format ["[MISSION DEBUG] Unit #%1 spawned: %2, Unit side: %3, Group: %4", _i, _unit, side _unit, group _unit];
+
             _unit setSkill (MISSION_CONFIG get "aiSkill");
             _unit setVariable ["EAID_Ignore", true, true];  // Elite Driving ignore
             _unit setVariable ["MissionAI", true, true];    // ✅ FIX: Mark as mission AI
@@ -580,9 +600,13 @@ MISSION_fnc_createRescue = {
     private _tent = "Land_cargo_house_slum_F" createVehicle _pos;
     _missionData set ["structures", [_tent]];
 
-    // Spawn hostages
+    // Spawn hostages as CIVILIAN with setCaptive
+    // setCaptive makes AI ignore them regardless of faction hostility
     private _hostageCount = 2 + floor(random 3);
     private _hostages = [];
+
+    diag_log format ["[MISSION DEBUG] Creating %1 hostages as CIVILIAN with setCaptive (ignored by AI)", _hostageCount];
+
     for "_i" from 1 to _hostageCount do {
         private _hostagePos = [
             (_pos select 0) + (random 5 - 2.5),
@@ -590,11 +614,16 @@ MISSION_fnc_createRescue = {
             0
         ];
 
+        // Create as CIVILIAN agent (not in a group, ignored by AI via setCaptive)
         private _hostage = createAgent ["C_man_1", _hostagePos, [], 0, "NONE"];
         _hostage setVariable ["IsHostage", true, true];
-        _hostage setCaptive true;
+        _hostage setVariable ["EAID_Ignore", true, true];  // Elite Driving ignore
+        _hostage setCaptive true;  // Critical: makes AI ignore this unit
         _hostage disableAI "MOVE";
         _hostage setUnitPos "DOWN";
+        removeAllWeapons _hostage;  // Ensure hostages are unarmed
+
+        diag_log format ["[MISSION DEBUG] Hostage #%1 created: %2, Side: %3, Captive: %4", _i, _hostage, side _hostage, captive _hostage];
 
         _hostages pushBack _hostage;
     };
@@ -857,6 +886,16 @@ MISSION_fnc_cleanupMission = {
 
     // Remove marker
     deleteMarker (_mission get "marker");
+
+    // ✅ Clean up hostages if this is a rescue mission (agents, not in groups)
+    if (_mission get "type" == "rescue") then {
+        private _hostages = _mission getOrDefault ["hostages", []];
+        {
+            if (!isNull _x) then {
+                deleteVehicle _x;
+            };
+        } forEach _hostages;
+    };
 
     // Mark as inactive
     _mission set ["active", false];

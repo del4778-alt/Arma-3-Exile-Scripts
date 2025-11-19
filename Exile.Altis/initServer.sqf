@@ -287,6 +287,10 @@ diag_log "[SERVER] ========================================";
 waitUntil {time > 0};
 sleep 5;
 
+// ✅ Disable A3XAI debug spam (must load early)
+[] execVM "scripts\a3xai_debug_disable.sqf";
+diag_log "[SERVER] - A3XAI debug disable patch loaded";
+
 // ✅ FIXED: Use mission-relative paths (no leading backslash)
 diag_log "[SERVER] Loading AI systems in correct order...";
 
@@ -313,6 +317,7 @@ diag_log "[SERVER] ========================================";
 diag_log "[SERVER] All AI systems initialized!";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] LOAD ORDER:";
+diag_log "[SERVER]   0. A3XAI Debug Disable (spam suppression)";
 diag_log "[SERVER]   1. Ravage (zombie resurrection)";
 diag_log "[SERVER]   2. Elite Driving (autopilot)";
 diag_log "[SERVER]   3. Patrol AI (EAID_Ignore set)";

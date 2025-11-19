@@ -798,11 +798,8 @@ EAD_fnc_vectorDrive = {
     private _bias = (_center + (_path * 0.018) + _drift + _near) max -0.25 min 0.25;
     private _newDir = _dir + (_bias * 55);
 
-    // Use Apex expansion turn speed if available
-    if (EAD_HasApex) then {
-        private _maxTurnSpeed = [_veh] call BIS_fnc_maxTurnSpeed;
-        if (!isNil "_maxTurnSpeed") then {_veh setVehicleTurnSpeed _maxTurnSpeed};
-    };
+    // ✅ FIX: Removed invalid setVehicleTurnSpeed command (doesn't exist in Arma 3)
+    // Turn speed is controlled via setDir and setVelocity below
 
     _veh setDir _newDir;
 

@@ -396,6 +396,9 @@ addMissionEventHandler ["EntityKilled", {
                                     _i, typeOf _zombie, _parentResCount + 1];
                             };
                         };
+
+                        // Small delay between spawns to allow network sync (reduces "Object not found" spam)
+                        uiSleep 0.1;
                     };
                 } else {
                     // SINGLE SPAWN

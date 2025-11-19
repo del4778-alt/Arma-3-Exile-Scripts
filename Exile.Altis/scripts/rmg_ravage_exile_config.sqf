@@ -333,9 +333,9 @@ addMissionEventHandler ["EntityKilled", {
                     private _minMax = ["hordeSizeRange"] call RMG_Ravage_get;
                     private _count = floor ( (_minMax select 0) + random ((_minMax select 1) - (_minMax select 0) + 1) );
                     private _rad = 8 max (_count * 0.7);
-                    
+
                     diag_log format ["[RMG:Ravage] ★★★ SPAWNING HORDE: %1 zombies from %2 (EAST AI death) ★★★", _count, _killedName];
-                    
+
                     for "_i" from 1 to _count do {
                         private _pick = selectRandom _pool;
                         private _theta = random 360;
@@ -343,9 +343,9 @@ addMissionEventHandler ["EntityKilled", {
                         private _p = [_pos select 0, _pos select 1, _pos select 2];
                         _p set [0, (_p select 0) + (sin _theta) * _r];
                         _p set [1, (_p select 1) + (cos _theta) * _r];
-                        
+
                         private _zombie = [_pick, _p] call RMG_Ravage_spawnZed;
-                        
+
                         if (_debug) then {
                             if (isNull _zombie) then {
                                 diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 FAILED", _i];
@@ -353,6 +353,9 @@ addMissionEventHandler ["EntityKilled", {
                                 diag_log format ["[RMG:Ravage:DEBUG] Horde zombie #%1 OK: %2", _i, typeOf _zombie];
                             };
                         };
+
+                        // Small delay between spawns to allow network sync (reduces "Object not found" spam)
+                        uiSleep 0.1;
                     };
                 } else {
                     // SINGLE SPAWN

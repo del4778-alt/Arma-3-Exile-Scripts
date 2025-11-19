@@ -313,8 +313,12 @@ sleep 1;
 [] execVM "scripts\recruit_ai.sqf";
 diag_log "[SERVER] - Recruit AI loaded";
 
+// 5. Vehicle tire protection
+[] execVM "scripts\vehicle_tire_protection.sqf";
+diag_log "[SERVER] - Vehicle tire protection loaded";
+
 diag_log "[SERVER] ========================================";
-diag_log "[SERVER] All AI systems initialized!";
+diag_log "[SERVER] All systems initialized!";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] LOAD ORDER:";
 diag_log "[SERVER]   0. A3XAI Debug Disable (spam suppression)";
@@ -322,4 +326,5 @@ diag_log "[SERVER]   1. Ravage (zombie resurrection)";
 diag_log "[SERVER]   2. Elite Driving (autopilot)";
 diag_log "[SERVER]   3. Patrol AI (EAID_Ignore set)";
 diag_log "[SERVER]   4. Recruit AI (drivers enabled)";
+diag_log "[SERVER]   5. Vehicle Tire Protection (auto-repair)";
 diag_log "[SERVER] ========================================";

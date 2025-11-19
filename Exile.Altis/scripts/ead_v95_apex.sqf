@@ -244,7 +244,8 @@ EAD_fnc_rayBatchAdvanced = {
         for "_h" from 0 to 3 do {
             private _result = _results select (_idx + _h);
 
-            if (count _result > 0) then {
+            // ✅ FIX: Check if result has enough elements (needs at least 3 for select 2)
+            if (count _result > 2) then {
                 private _heightOffset = [0.15, 0.6, 1.2, 1.8] select _h;
                 private _startPos = _vehPos vectorAdd [0, 0, _heightOffset];
                 private _hitDist = _startPos vectorDistance (_result#0#0);
@@ -410,10 +411,11 @@ EAD_fnc_predictiveCollision = {
 
     private _currentPos = getPosASL _veh;
 
-    // Check if path to predicted position is clear
+    // ✅ FIX: expectedDestination returns AGL position, convert to ASL for lineIntersectsSurfaces
+    // lineIntersectsSurfaces requires ASL positions
     private _intersects = lineIntersectsSurfaces [
         _currentPos vectorAdd [0,0,1],
-        ASLToAGL _expectedPos vectorAdd [0,0,1],
+        (AGLToASL _expectedPos) vectorAdd [0,0,1],
         _veh, objNull, true, 1, "GEOM", "FIRE"
     ];
 

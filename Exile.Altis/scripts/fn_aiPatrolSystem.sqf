@@ -10,18 +10,18 @@
         ✅ Distance checks optimized (distanceSqr)
         ✅ Player validation added
         ✅ Zombie resurrection protection
-        
+
     v8.1.2 BUGFIXES:
         - Fixed VCOMAI check scope issue
         - Fixed variable scope in spawn blocks
         - Fixed CBA dependency
         - Fixed distance check parentheses
-        
+
     v8.1 VCOMAI COMPATIBILITY:
         - Units registered with VCOMAI
         - Compatible with VCOMAI skill system
         - Uses VCOMAI group tracking if available
-        
+
     v8.0 BIS OPTIMIZATIONS:
         - BIS_fnc_log/logFormat for logging
         - BIS_fnc_relPos for positioning
@@ -105,14 +105,14 @@ DEFENDER_ENHANCED_MOVEMENT = true;
 if (isNil "PATROL_FactionsConfigured") then {
     PATROL_FactionsConfigured = true;
     publicVariable "PATROL_FactionsConfigured";
-    
+
     SIDE_RES setFriend [SIDE_W, 0];
     SIDE_W setFriend [SIDE_RES, 0];
     SIDE_RES setFriend [SIDE_E, 0];
     SIDE_E setFriend [SIDE_RES, 0];
     SIDE_E setFriend [SIDE_W, 0];
     SIDE_W setFriend [SIDE_E, 0];
-    
+
     ["Faction relations configured"] call BIS_fnc_log;
 };
 
@@ -131,11 +131,11 @@ DEFENDER_fnc_isValidTarget = {
     if (side _t != SIDE_W && side _t != SIDE_E) exitWith {false};
     if (side _t getFriend side _u >= 0.6) exitWith {false};
     if ((_t isKindOf "LandVehicle" || _t isKindOf "Air") && {count crew _t == 0}) exitWith {false};
-    
+
     // ✅ FIXED: Using distanceSqr (3x faster)
     private _maxDistSqr = DETECT_RAD * DETECT_RAD;
     if ((_u distanceSqr _t) > _maxDistSqr) exitWith {false};
-    
+
     (count lineIntersectsSurfaces [eyePos _u, eyePos _t, _u, _t, true, 1] == 0)
 };
 
@@ -166,7 +166,7 @@ DEFENDER_fnc_getAmmoPercent = {
 DEFENDER_fnc_findCover = {
     params ["_u", "_e"];
     if (!alive _u || (isNull _e && {!(_e isEqualType [])})) exitWith {[]};
-    
+
     private _uPos = getPosASL _u;
     private _ePos = if (_e isEqualType objNull) then {
         if (isNull _e) exitWith {[]};
@@ -176,26 +176,26 @@ DEFENDER_fnc_findCover = {
         _e
     };
     if (count _ePos < 2) exitWith {[]};
-    
+
     private _best = [];
     private _bestScore = -1e9;
-    
+
     for "_i" from 0 to 11 do {
         private _dist = [15, 50] call BIS_fnc_randomNum;
         private _testPos = [_u, _dist, _i * 30] call BIS_fnc_relPos;
         private _testASL = AGLToASL _testPos;
-        
+
         if (lineIntersects [_testASL, _ePos, _u, objNull]) then {
             // ✅ OPTIMIZED: Using distanceSqr
             private _distScore = 1000 - (sqrt (_u distanceSqr _testPos));
-            
+
             private _angleToE = [_u, ASLToAGL _ePos] call BIS_fnc_dirTo;
             private _angleToC = [_u, _testPos] call BIS_fnc_dirTo;
             private _angleDiff = abs (_angleToE - _angleToC);
             if (_angleDiff > 180) then {_angleDiff = 360 - _angleDiff};
             private _angleBonus = (abs (_angleDiff - 90)) / 90 * 200;
             private _score = _distScore + _angleBonus;
-            
+
             if (_score > _bestScore) then {
                 _bestScore = _score;
                 _best = _testPos;
@@ -212,7 +212,7 @@ DEFENDER_fnc_findCover = {
 DEFENDER_fnc_findMilBuildings = {
     params ["_pos", "_rad"];
     if (count _pos < 2) exitWith {[]};
-    
+
     private _milTypes = [
         "Land_TentHangar_V1_F","Land_Hangar_F","Land_Airport_Tower_F",
         "Land_Cargo_House_V1_F","Land_Cargo_House_V3_F","Land_Cargo_HQ_V1_F",
@@ -222,7 +222,7 @@ DEFENDER_fnc_findMilBuildings = {
         "Land_Cargo_Tower_V3_F","Land_MilOffices_V1_F","Land_Radar_F",
         "Land_Research_house_V1_F","Land_Research_HQ_F"
     ];
-    
+
     (nearestObjects [_pos, ["House", "Building"], _rad]) select {typeOf _x in _milTypes}
 };
 
@@ -242,7 +242,7 @@ DEFENDER_fnc_findExileZones = {
             };
         };
     } forEach allMapMarkers;
-    
+
     if (count _zones > 0 && PATROL_LastZoneCount != count _zones) then {
         ["Detected %1 ExileSpawnZone markers", count _zones] call BIS_fnc_logFormat;
         PATROL_LastZoneCount = count _zones;
@@ -257,7 +257,7 @@ DEFENDER_fnc_findExileZones = {
 DEFENDER_fnc_giveWeapons = {
     params ["_u"];
     if (!alive _u) exitWith {};
-    
+
     _u addWeapon "Exile_Weapon_AKS_Gold";
     for "_i" from 1 to 6 do {_u addMagazine "Exile_Magazine_30Rnd_762x39_AK"};
     _u addWeapon "Exile_Weapon_TaurusGold";
@@ -270,7 +270,7 @@ DEFENDER_fnc_giveWeapons = {
 DEFENDER_fnc_applyGear = {
     params ["_u"];
     if (!alive _u) exitWith {};
-    
+
     removeAllWeapons _u;
     removeAllItems _u;
     removeAllAssignedItems _u;
@@ -278,7 +278,7 @@ DEFENDER_fnc_applyGear = {
     removeVest _u;
     removeHeadgear _u;
     removeGoggles _u;
-    
+
     _u forceAddUniform "U_O_R_Gorka_01_black_F";
     _u addVest "V_Rangemaster_belt";
     _u addBackpack "B_CivilianBackpack_01_Everyday_IDAP_F";
@@ -288,7 +288,7 @@ DEFENDER_fnc_applyGear = {
     _u linkItem "ItemCompass";
     _u linkItem "ItemWatch";
     _u linkItem "ItemGPS";
-    
+
     [_u] call DEFENDER_fnc_giveWeapons;
 };
 
@@ -299,18 +299,18 @@ DEFENDER_fnc_applyGear = {
 DEFENDER_fnc_setSkills = {
     params ["_u", ["_lead", false]];
     if (!alive _u) exitWith {};
-    
+
     if (PATROL_VCOMAI_Active) then {
         _u setBehaviour "AWARE";
         _u setCombatMode "YELLOW";
         _u allowFleeing 0;
         _u setUnitPos "AUTO";
-        
+
         if (DEFENDER_ENHANCED_MOVEMENT) then {_u setAnimSpeedCoef 1.4};
-        
+
         _u setVariable ["BIS_noCoreConversations", true];
         _u disableConversation true;
-        
+
         ["Unit %1 registered with VCOMAI AI system", name _u] call BIS_fnc_logFormat;
     } else {
         _u setSkill ["aimingAccuracy", [0.75, 0.85] call BIS_fnc_randomNum];
@@ -322,9 +322,9 @@ DEFENDER_fnc_setSkills = {
         _u setSkill ["reloadSpeed", [0.8, 0.9] call BIS_fnc_randomNum];
         _u setSkill ["commanding", if (_lead) then {1.0} else {0.7}];
         _u setSkill ["general", [0.8, 0.9] call BIS_fnc_randomNum];
-        
+
         if (DEFENDER_ENHANCED_MOVEMENT) then {_u setAnimSpeedCoef 1.4};
-        
+
         _u setBehaviour "AWARE";
         _u setCombatMode "YELLOW";
         _u allowFleeing 0;
@@ -350,13 +350,13 @@ DEFENDER_fnc_setSkills = {
 DEFENDER_fnc_combatAI = {
     params ["_u", "_defPos"];
     if (!alive _u) exitWith {};
-    
+
     if (PATROL_VCOMAI_Active) then {
         private _lastAmmo = 0;
         while {alive _u} do {
             sleep 30;
             if (!(_u call DEFENDER_fnc_isUnitValid)) exitWith {};
-            
+
             if (time > _lastAmmo + 30) then {
                 _lastAmmo = time;
                 if (([_u] call DEFENDER_fnc_getAmmoPercent) < 20) then {
@@ -367,17 +367,17 @@ DEFENDER_fnc_combatAI = {
     } else {
         private _lastCover = 0;
         private _lastAmmo = 0;
-        
+
         while {alive _u} do {
             sleep (4 + ([0, 2] call BIS_fnc_randomNum));
             if (!(_u call DEFENDER_fnc_isUnitValid)) exitWith {};
-            
+
             private _enemy = objNull;
             private _minD = DETECT_RAD;
-            
+
             // ✅ OPTIMIZED: Using distanceSqr
             private _minDSqr = DETECT_RAD * DETECT_RAD;
-            
+
             {
                 if (!isNull _x && {[_u, _x] call DEFENDER_fnc_isValidTarget}) then {
                     private _dSqr = _u distanceSqr _x;
@@ -388,19 +388,19 @@ DEFENDER_fnc_combatAI = {
                     };
                 };
             } forEach (_u nearEntities [["CAManBase", "LandVehicle", "Air"], DETECT_RAD]);
-            
+
             if (!isNull _enemy && {alive _enemy}) then {
                 private _g = group _u;
                 _g setBehaviour "COMBAT";
                 _g setCombatMode "RED";
                 _g setSpeedMode "FULL";
-                
+
                 if (_minD < 40 && _minD > 10 && ([0, 1] call BIS_fnc_randomNum) < GREN_CHANCE && {"HandGrenade" in magazines _u}) then {
                     _u doTarget _enemy;
                     sleep 0.3;
                     _u doFire _enemy;
                 };
-                
+
                 if (time > _lastCover + 15 && ([0, 1] call BIS_fnc_randomNum) < 0.5) then {
                     _lastCover = time;
                     private _cPos = [_u, _enemy] call DEFENDER_fnc_findCover;
@@ -409,7 +409,7 @@ DEFENDER_fnc_combatAI = {
                         _u setUnitPos "MIDDLE";
                     };
                 };
-                
+
                 if (time > _lastAmmo + 30) then {
                     _lastAmmo = time;
                     if (([_u] call DEFENDER_fnc_getAmmoPercent) < 20) then {
@@ -430,39 +430,39 @@ DEFENDER_fnc_combatAI = {
 DEFENDER_fnc_spawnZones = {
     params ["_zones"];
     PATROL_Active = true;
-    
+
     {
         _x params ["_marker", "_unitsPerGrp", "_respawn", "_cache", "_maxAttempts"];
         private _pos = getMarkerPos _marker;
         private _name = markerText _marker;
         if (_name == "") then {_name = _marker};
-        
+
         private _h = [_marker, _name, _pos, _unitsPerGrp, _respawn, _cache, _maxAttempts] spawn {
             params ["_marker", "_name", "_pos", "_unitsPerGrp", "_respawn", "_cache", "_maxAttempts"];
             private _attempts = 0;
-            
+
             while {_attempts < _maxAttempts && PATROL_Active} do {
                 private _grp = createGroup [SIDE_RES, true];
                 _grp setGroupOwner 2;
                 sleep 0.2;
                 PATROL_AllGroups pushBack _grp;
-                
+
                 for "_i" from 1 to _unitsPerGrp do {
                     private _sPos = [_pos, 10, 40, 5, 0, 60, 0] call BIS_fnc_findSafePos;
                     private _u = _grp createUnit [UNIT_TYPE, _sPos, [], 0, "FORM"];
                     waitUntil {sleep 0.1; !isNull _u};
-                    
+
                     [_u] call DEFENDER_fnc_applyGear;
                     [_u, _i == 1] call DEFENDER_fnc_setSkills;
-                    
+
                     // ✅ ZOMBIE RESURRECTION PROTECTION
                     _u setVariable ["NoRessurect", true, true];
                     _u setVariable ["RVG_ZedIgnore", true, true];
                     _u setVariable ["RYANZOMBIES_ignore", true, true];
-                    
+
                     // ✅ ELITE DRIVING EXCLUSION (patrol AI should NOT drive)
                     _u setVariable ["EAID_Ignore", true, true];
-                    
+
                     // VCOMAI Integration
                     if (PATROL_VCOMAI_Active) then {
                         // ✅ FIXED: Double-null check
@@ -470,14 +470,14 @@ DEFENDER_fnc_spawnZones = {
                             VCM_NOAI pushBackUnique _u;
                             publicVariable "VCM_NOAI";
                         };
-                        
+
                         _u setVariable ["VCM_CUSTOMAI", true, true];
-                        
+
                         if (!isNil "VCM_fnc_INITAI" && {!isNil {VCM_fnc_INITAI}}) then {
                             [_u] call VCM_fnc_INITAI;
                         };
                     };
-                    
+
                     private _eh = _u addEventHandler ["FiredNear", {
                         params ["_u", "_f", "_d"];
                         if (!isNull _f && {side _f != side _u && _d < AUDIO_RAD && {[_u, _f] call DEFENDER_fnc_isValidTarget}}) then {
@@ -488,13 +488,13 @@ DEFENDER_fnc_spawnZones = {
                     _u setVariable [VAR_AUDIO, _eh];
                     [_u, _pos] spawn DEFENDER_fnc_combatAI;
                 };
-                
+
                 _grp setFormation "WEDGE";
                 _grp setSpeedMode "LIMITED";
                 _grp enableAttack true;
                 _grp setCombatMode "YELLOW";
                 _grp setBehaviour "SAFE";
-                
+
                 if (PATROL_VCOMAI_Active) then {
                     if (!isNil "VCM_SERVERAI" && {!isNil {VCM_SERVERAI}}) then {
                         VCM_SERVERAI pushBackUnique _grp;
@@ -503,7 +503,7 @@ DEFENDER_fnc_spawnZones = {
                     _grp setVariable ["VCM_CUSTOMGROUP", true, true];
                     ["%1: Group registered with VCOMAI", _name] call BIS_fnc_logFormat;
                 };
-                
+
                 // Waypoints
                 private _buildings = [_pos, MIL_RAD] call DEFENDER_fnc_findMilBuildings;
                 if (count _buildings > 0) then {
@@ -533,16 +533,16 @@ DEFENDER_fnc_spawnZones = {
                     (_grp addWaypoint [_pos, 0]) setWaypointType "CYCLE";
                     ["%1: Fallback circular patrol", _name] call BIS_fnc_logFormat;
                 };
-                
+
                 ["%1: Spawned %2 units", _name, _unitsPerGrp] call BIS_fnc_logFormat;
                 _attempts = _attempts + 1;
-                
+
                 // Monitor loop
                 private _deathTime = -1;
                 while {PATROL_Active} do {
                     sleep 30;
                     if (isNull _grp || {count units _grp == 0}) exitWith {};
-                    
+
                     if ({alive _x} count units _grp == 0) then {
                         if (_deathTime < 0) then {
                             _deathTime = time;
@@ -559,24 +559,24 @@ DEFENDER_fnc_spawnZones = {
                             PATROL_AllGroups = PATROL_AllGroups - [_grp];
                         };
                     } else {_deathTime = -1};
-                    
+
                     // ✅ OPTIMIZED: Cache check with player validation
                     if (time > PATROL_playerCheckTime) then {
                         // ✅ FIXED: Validate players (not parachuting, etc.)
                         PATROL_nearbyPlayers = allPlayers select {
-                            !isNull _x && 
-                            {alive _x} && 
+                            !isNull _x &&
+                            {alive _x} &&
                             {!isNull objectParent _x || (getPosATL _x select 2) < 3}
                         };
                         PATROL_playerCheckTime = time + 15;
                     };
-                    
+
                     // ✅ OPTIMIZED: Using distanceSqr
                     private _cacheSqr = _cache * _cache;
                     private _players = PATROL_nearbyPlayers select {
                         !isNull _x && {(_x distanceSqr _pos) < _cacheSqr}
                     };
-                    
+
                     if (count _players == 0) exitWith {
                         {
                             if (!isNil {_x getVariable VAR_AUDIO}) then {
@@ -589,7 +589,7 @@ DEFENDER_fnc_spawnZones = {
                         ["%1: Cached (no players)", _name] call BIS_fnc_logFormat;
                     };
                 };
-                
+
                 if (!PATROL_Active) exitWith {
                     {
                         if (!isNil {_x getVariable VAR_AUDIO}) then {
@@ -605,7 +605,7 @@ DEFENDER_fnc_spawnZones = {
         };
         PATROL_ZoneHandles pushBack _h;
     } forEach _zones;
-    
+
     ["System active - %1 zones", count PATROL_ZoneHandles] call BIS_fnc_logFormat;
 };
 
@@ -616,11 +616,11 @@ DEFENDER_fnc_spawnZones = {
 DEFENDER_fnc_cleanup = {
     params [["_reason", ""]];
     if (_reason != "") then {["Cleanup: %1", _reason] call BIS_fnc_logFormat};
-    
+
     PATROL_Active = false;
     {if (!isNil "_x" && {!isNull _x}) then {terminate _x}} forEach PATROL_ZoneHandles;
     PATROL_ZoneHandles = [];
-    
+
     private _count = 0;
     {
         if (!isNull _x) then {
@@ -650,7 +650,7 @@ DEFENDER_fnc_cleanup = {
         } else {
             private _zones = [] call DEFENDER_fnc_findExileZones;
             private _detRad = EXILE_PATROL_CONFIG select 4;
-            
+
             if (count _zones > 0) then {
                 // ✅ OPTIMIZED: Using distanceSqr + player validation
                 private _detRadSqr = _detRad * _detRad;
@@ -658,17 +658,17 @@ DEFENDER_fnc_cleanup = {
                     _x params ["_m", "_t", "_p"];
                     // ✅ FIXED: Validate players properly
                     count (allPlayers select {
-                        !isNull _x && 
-                        {alive _x} && 
+                        !isNull _x &&
+                        {alive _x} &&
                         {!isNull objectParent _x || (getPosATL _x select 2) < 3} &&
                         {(_x distanceSqr _p) < _detRadSqr}
                     }) > 0
                 };
-                
+
                 if (count _active > 0 && !PATROL_Active) then {
                     private _spawn = _active apply {
                         _x params ["_m", "_t", "_p"];
-                        [_m, EXILE_PATROL_CONFIG select 0, EXILE_PATROL_CONFIG select 1, 
+                        [_m, EXILE_PATROL_CONFIG select 0, EXILE_PATROL_CONFIG select 1,
                          EXILE_PATROL_CONFIG select 2, EXILE_PATROL_CONFIG select 3]
                     };
                     if (count _spawn > 0) then {
@@ -736,7 +736,7 @@ DEFENDER_fnc_cleanup = {
 
 [] spawn {
     sleep 3;
-    
+
     ["========================================"] call BIS_fnc_log;
     ["AI PATROL v8.2 - ALL FIXES APPLIED"] call BIS_fnc_log;
     ["----------------------------------------"] call BIS_fnc_log;

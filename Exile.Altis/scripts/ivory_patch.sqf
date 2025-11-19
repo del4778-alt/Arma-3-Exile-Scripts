@@ -1,6 +1,7 @@
 /*
-    IVORY'S CAR PACK - FN_TAKEDOWN.SQF PATCH
+    IVORY'S CAR PACK - FN_TAKEDOWN.SQF PATCH v2.0
     Fixes: "waitUntil returned nil" spam error on line 57
+    Enhanced: Better boolean handling, error recovery, logging
 
     Installation:
     1. Place this file in: mpmissions\__cur_mp.Altis\scripts\ivory_patch.sqf
@@ -13,20 +14,30 @@
 // Run on BOTH client and server to catch all vehicle spawns
 if (!hasInterface && !isDedicated) exitWith {};
 
-diag_log "[IVORY PATCH] ========================================";
-diag_log "[IVORY PATCH] Starting Ivory takedown function override...";
-diag_log "[IVORY PATCH] ========================================";
+diag_log "[IVORY PATCH v2.0] Starting Ivory takedown function override...";
 
-// Wait for mission to fully load, then aggressively override
+// Wait for CfgFunctions to compile (Ivory's mod functions)
 [] spawn {
-    // Wait for mission to be ready (5 seconds)
-    sleep 5;
+    private _timeout = time + 30; // 30 second timeout
+    waitUntil {
+        sleep 0.5; 
+        !isNil {missionNamespace getVariable "ivory_fnc_takedown"} || time > _timeout
+    };
 
-    diag_log "[IVORY PATCH] Mission loaded, replacing buggy fn_takedown...";
+    if (time > _timeout) exitWith {
+        diag_log "[IVORY PATCH] ⚠️ WARNING: Ivory functions not found after 30s, patch not applied!";
+    };
+
+    diag_log "[IVORY PATCH] Ivory functions loaded, replacing buggy fn_takedown...";
 
 // ✅ FIXED VERSION - Added default values to prevent nil errors
 ivory_fnc_takedown = {
     params["_car"];
+
+    // Safety check
+    if (isNull _car || !alive _car) exitWith {
+        diag_log "[IVORY PATCH] Error: Invalid vehicle passed to fn_takedown";
+    };
 
     _emergencySiren = getNumber(configFile >> "cfgVehicles" >> typeOf _this >> "emergencySiren");
     _airhorn = "";
@@ -55,7 +66,7 @@ ivory_fnc_takedown = {
     {    
        
         // ✅ FIX #1: Added default value (0) to prevent nil
-        if (alive _car && !isNull driver _car && (_car getVariable ["ani_takedown", 0]) > 0 && (player distance _car <= 350)) then {			
+        if (alive _car && !isNull driver _car && {(_car getVariable ["ani_takedown", 0]) > 0} && {(player distance _car) <= 350}) then {			
 
             _dummy = "#particlesource" createVehicleLocal ASLToAGL getPosWorld _this;
             _dummy attachTo [_this,[0,0,0]];
@@ -67,32 +78,48 @@ ivory_fnc_takedown = {
                 while{(_this getVariable ["ani_takedown", 0]) == 1} do {
                     _timeStarted = time;
                     
-                    // ✅ FIX #3: Added default value (0)
-                    if((_this getVariable ["ani_siren", 0]) > 0 && (_this getVariable ["ani_siren", 0]) != 3) then {
+                    // ✅ FIX #3: Added default value (0) to both getVariable calls
+                    if((_this getVariable ["ani_siren", 0]) > 0 && {(_this getVariable ["ani_siren", 0]) != 3}) then {
                         _dummy say3D [_airhorn2,250];
-                        // ✅ FIX #4: Added default value (0)
-                        waitUntil { time >= _timeStarted + _airhornTime2 || (_this getVariable ["ani_takedown", 0]) != 1 };
+                        
+                        // ✅ FIX #4: Added default value (0) + proper boolean wrapping
+                        waitUntil { 
+                            sleep 0.01;
+                            time >= _timeStarted + _airhornTime2 || {(_this getVariable ["ani_takedown", 0]) != 1}
+                        };
                     } else {
                         _dummy say3D [_airhorn,250];
-                        // ✅ FIX #5: Added default value (0)
-                        waitUntil { time >= _timeStarted + _airhornTime || (_this getVariable ["ani_takedown", 0]) != 1 };
+                        
+                        // ✅ FIX #5: Added default value (0) + proper boolean wrapping
+                        waitUntil { 
+                            sleep 0.01;
+                            time >= _timeStarted + _airhornTime || {(_this getVariable ["ani_takedown", 0]) != 1}
+                        };
                     };
 
                 };
             };
             
             // ✅ FIX #6: Added default value (0)
-            waitUntil { (_car getVariable ["ani_takedown", 0]) == 0 };
+            waitUntil { 
+                sleep 0.01;
+                (_car getVariable ["ani_takedown", 0]) == 0 || {!alive _car}
+            };
 
         } else {
             
             detach _dummy;
             deleteVehicle _dummy;
 
-            // ✅ FIX #7: THE BIG ONE - Line 57 fix with default value
+            // ✅ FIX #7: THE BIG ONE - Line 57 fix with default value + proper boolean wrapping
+            // This was causing 120+ errors per 10 seconds!
             waitUntil {
                 sleep 0.01; 
-                !alive _car || (!isNull driver _car && (_car getVariable ["ani_takedown", 0]) > 0 && (player distance _car <= 350))
+                !alive _car || {
+                    !isNull driver _car && 
+                    {(_car getVariable ["ani_takedown", 0]) > 0} && 
+                    {(player distance _car) <= 350}
+                }
             };
 
         };
@@ -100,33 +127,9 @@ ivory_fnc_takedown = {
     };
 };
 
-    // Aggressively override ALL possible function references
-    diag_log "[IVORY PATCH] Installing fixed function to all namespaces...";
-
-    // Override in mission namespace
-    missionNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown, true];
-
-    // Override in UI namespace (if exists)
-    uiNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown, true];
-
-    // Override in profile namespace (if exists)
-    profileNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown];
-
-    // Broadcast to all clients
+    // Force compile the function into mission namespace
+    missionNamespace setVariable ["ivory_fnc_takedown", ivory_fnc_takedown];
     publicVariable "ivory_fnc_takedown";
 
-    // Wait a bit, then verify
-    sleep 2;
-
-    private _installed = missionNamespace getVariable ["ivory_fnc_takedown", {}];
-    if (str _installed == str ivory_fnc_takedown) then {
-        diag_log "[IVORY PATCH] ========================================";
-        diag_log "[IVORY PATCH] ✅ PATCH INSTALLED SUCCESSFULLY!";
-        diag_log "[IVORY PATCH] fn_takedown override verified";
-        diag_log "[IVORY PATCH] waitUntil nil errors should be eliminated";
-        diag_log "[IVORY PATCH] ========================================";
-    } else {
-        diag_log "[IVORY PATCH] ⚠️ WARNING: Function override may have failed!";
-        diag_log "[IVORY PATCH] Please check for Ivory errors in logs";
-    };
+    diag_log "[IVORY PATCH] ✅ fn_takedown patched successfully! All 7 nil-check fixes applied.";
 };

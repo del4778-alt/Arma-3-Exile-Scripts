@@ -79,6 +79,12 @@ class CfgRemoteExec
         mode = 1;
         jip = 0;
 
+        // ======================================
+        // CORE FUNCTIONS (Required for scripts)
+        // ======================================
+        class call { allowedTargets = 3; jip = 0; };   // 3 = Both server and clients
+        class spawn { allowedTargets = 3; jip = 0; };  // 3 = Both server and clients
+
         class ExileServer_system_network_dispatchIncomingMessage
         {
             allowedTargets = 2;

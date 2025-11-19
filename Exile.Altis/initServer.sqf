@@ -287,6 +287,10 @@ diag_log "[SERVER] ========================================";
 waitUntil {time > 0};
 sleep 5;
 
+// ✅ Disable A3XAI debug spam (must load early)
+[] execVM "scripts\a3xai_debug_disable.sqf";
+diag_log "[SERVER] - A3XAI debug disable patch loaded";
+
 // ✅ FIXED: Use mission-relative paths (no leading backslash)
 diag_log "[SERVER] Loading AI systems in correct order...";
 
@@ -295,9 +299,9 @@ diag_log "[SERVER] Loading AI systems in correct order...";
 diag_log "[SERVER] - Ravage config loaded";
 sleep 1;
 
-// 2. Elite Driving
-[] execVM "scripts\ead.sqf";
-diag_log "[SERVER] - Elite Driving loaded";
+// 2. Elite Driving (Performance Edition v9.0)
+[] execVM "scripts\ead_performance.sqf";
+diag_log "[SERVER] - Elite Driving Performance Edition v9.0 loaded";
 sleep 1;
 
 // 3. Patrol system
@@ -309,12 +313,18 @@ sleep 1;
 [] execVM "scripts\recruit_ai.sqf";
 diag_log "[SERVER] - Recruit AI loaded";
 
+// 5. Vehicle tire protection
+[] execVM "scripts\vehicle_tire_protection.sqf";
+diag_log "[SERVER] - Vehicle tire protection loaded";
+
 diag_log "[SERVER] ========================================";
-diag_log "[SERVER] All AI systems initialized!";
+diag_log "[SERVER] All systems initialized!";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] LOAD ORDER:";
+diag_log "[SERVER]   0. A3XAI Debug Disable (spam suppression)";
 diag_log "[SERVER]   1. Ravage (zombie resurrection)";
-diag_log "[SERVER]   2. Elite Driving (autopilot)";
+diag_log "[SERVER]   2. Elite Driving v9.0 PERFORMANCE (apex + 4-height + top-down)";
 diag_log "[SERVER]   3. Patrol AI (EAID_Ignore set)";
 diag_log "[SERVER]   4. Recruit AI (drivers enabled)";
+diag_log "[SERVER]   5. Vehicle Tire Protection (auto-repair)";
 diag_log "[SERVER] ========================================";

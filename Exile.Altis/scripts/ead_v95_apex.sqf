@@ -108,11 +108,9 @@ EAD_HasApex = isClass (configFile >> "CfgPatches" >> "expansion");
 EAD_fnc_isA3XAIVehicle = {
     params ["_veh", "_driver"];
 
-    // Layer 1: Check EAID_Ignore flag (set by other scripts)
+    // Layer 1: Check EAID_Ignore flag (set by other scripts including A3XAI settling period)
     if (_veh getVariable ["EAID_Ignore", false]) exitWith {
-        if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD 9.5] A3XAI EXCLUDED (EAID_Ignore): %1", typeOf _veh];
-        };
+        diag_log format ["[EAD 9.5 A3XAI SAFE] EXCLUDED (EAID_Ignore): %1", typeOf _veh];
         true
     };
 
@@ -120,29 +118,52 @@ EAD_fnc_isA3XAIVehicle = {
     if (!isNull _driver) then {
         private _group = group _driver;
 
-        // A3XAI sets these variables on units/groups
-        if (
-            _driver getVariable ["A3XAI_AIUnit", false] ||
-            _driver getVariable ["UPSMON_Grp", false] ||
-            _group getVariable ["A3XAI_dynGroup", false] ||
-            _group getVariable ["A3XAI_staticGroup", false]
-        ) exitWith {
-            if (EAD_CFG get "DEBUG_ENABLED") then {
-                diag_log format ["[EAD 9.5] A3XAI EXCLUDED (unit vars): %1", typeOf _veh];
-            };
+        // A3XAI sets these variables on units/groups (comprehensive list)
+        private _a3xaiVars = [
+            // Unit variables
+            _driver getVariable ["A3XAI_AIUnit", false],           // Main A3XAI unit marker
+            _driver getVariable ["A3XAI_vehicleCrewUnit", false],  // Vehicle crew marker
+            _driver getVariable ["UPSMON_Grp", false],             // UPSMON compatibility
+            _driver getVariable ["A3XAI_paraUnit", false],         // Paratrooper unit
+
+            // Group variables
+            _group getVariable ["A3XAI_dynGroup", false],          // Dynamic spawn group
+            _group getVariable ["A3XAI_staticGroup", false],       // Static spawn group
+            _group getVariable ["A3XAI_randGroup", false],         // Random patrol group
+            _group getVariable ["A3XAI_customGroup", false],       // Custom spawn group
+            _group getVariable ["A3XAI_airGroup", false],          // Air patrol group
+            _group getVariable ["A3XAI_vehGroup", false]           // Vehicle patrol group
+        ];
+
+        if (true in _a3xaiVars) exitWith {
+            diag_log format ["[EAD 9.5 A3XAI SAFE] EXCLUDED (unit/group vars): %1", typeOf _veh];
             true
         };
     };
 
-    // Layer 3: Check vehicle for A3XAI ownership markers
-    if (
-        _veh getVariable ["A3XAI_VehOwned", false] ||
-        _veh getVariable ["A3XAI_Vehicle", false]
-    ) exitWith {
-        if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD 9.5] A3XAI EXCLUDED (veh vars): %1", typeOf _veh];
-        };
+    // Layer 3: Check vehicle for A3XAI ownership markers (comprehensive list)
+    private _a3xaiVehVars = [
+        _veh getVariable ["A3XAI_VehOwned", false],        // A3XAI owns this vehicle
+        _veh getVariable ["A3XAI_Vehicle", false],         // Generic A3XAI vehicle marker
+        _veh getVariable ["A3XAI_airVeh", false],          // A3XAI air vehicle
+        _veh getVariable ["A3XAI_landVeh", false],         // A3XAI land vehicle
+        _veh getVariable ["A3XAI_staticVeh", false]        // A3XAI static spawn vehicle
+    ];
+
+    if (true in _a3xaiVehVars) exitWith {
+        diag_log format ["[EAD 9.5 A3XAI SAFE] EXCLUDED (vehicle vars): %1", typeOf _veh];
         true
+    };
+
+    // Layer 4: Check if group leader has A3XAI marker (backup check)
+    if (!isNull _driver) then {
+        private _leader = leader group _driver;
+        if (!isNull _leader && _leader != _driver) then {
+            if (_leader getVariable ["A3XAI_AIUnit", false]) exitWith {
+                diag_log format ["[EAD 9.5 A3XAI SAFE] EXCLUDED (group leader is A3XAI): %1", typeOf _veh];
+                true
+            };
+        };
     };
 
     // Not an A3XAI vehicle - safe to enhance
@@ -1009,19 +1030,40 @@ EAD_fnc_registerDriver = {
 
 diag_log "======================================================";
 diag_log "[EAD 9.5 APEX EDITION] INITIALIZED";
-diag_log "[EAD 9.5] ✅ 250 km/h supercar speeds (realistic)";
-diag_log "[EAD 9.5] ✅ 4-height forward raycasting";
-diag_log "[EAD 9.5] ✅ Top-down obstacle detection";
-diag_log "[EAD 9.5] ✅ Apex curve cutting + racing line";
-diag_log "[EAD 9.5] ✅ Aggressive bridge mode (4s no-brake)";
-diag_log "[EAD 9.5] 🆕 Predictive collision detection";
-diag_log "[EAD 9.5] 🆕 Combat evasive serpentine maneuvers";
-diag_log "[EAD 9.5] 🆕 Dynamic LOD raycasting (performance)";
-diag_log "[EAD 9.5] 🆕 Enhanced stuck recovery (3 methods)";
-diag_log "[EAD 9.5] 🆕 Obstacle type detection";
-diag_log "[EAD 9.5] 🆕 COMPLETE A3XAI EXCLUSION (multi-layer)";
-diag_log "[EAD 9.5] ❌ A3XAI vehicles NEVER touched (fixes spinning)";
-diag_log "[EAD 9.5] ✅ Only enhances: Recruit AI, Patrol AI, Mission AI";
+diag_log "======================================================";
+diag_log "";
+diag_log "PERFORMANCE FEATURES:";
+diag_log "  ✅ 250 km/h supercar speeds (realistic for Ivory supercars)";
+diag_log "  ✅ 4-height forward raycasting (ground/low/mid/eye)";
+diag_log "  ✅ Top-down obstacle detection (bridges, tree canopy)";
+diag_log "  ✅ Apex curve cutting + racing line (35° cut, 15% boost)";
+diag_log "  ✅ Aggressive bridge mode (4 second no-brake crossing)";
+diag_log "";
+diag_log "NEW v9.5 ENHANCEMENTS:";
+diag_log "  🆕 Predictive collision detection (3s lookahead)";
+diag_log "  🆕 Combat evasive serpentine maneuvers (when under fire)";
+diag_log "  🆕 Dynamic LOD raycasting (performance optimization)";
+diag_log "  🆕 Enhanced stuck recovery (3 methods: reverse/jump/turn)";
+diag_log "  🆕 Obstacle type detection (infantry/vehicle/static)";
+diag_log "";
+diag_log "A3XAI COMPATIBILITY (COMPLETE EXCLUSION):";
+diag_log "  ✅ 4-LAYER A3XAI DETECTION SYSTEM";
+diag_log "  ✅ Layer 1: EAID_Ignore flag check";
+diag_log "  ✅ Layer 2: Unit/Group variable check (10 variables)";
+diag_log "  ✅ Layer 3: Vehicle marker check (5 variables)";
+diag_log "  ✅ Layer 4: Group leader backup check";
+diag_log "  ❌ A3XAI vehicles NEVER touched (fixes spinning/circling)";
+diag_log "  ✅ All A3XAI exclusions logged in server RPT";
+diag_log "";
+diag_log "ENHANCED SYSTEMS:";
+diag_log "  ✅ Recruit AI (your hired AI drivers)";
+diag_log "  ✅ Patrol AI (server-side patrol spawns)";
+diag_log "  ✅ Mission AI (dynamic mission spawns)";
+diag_log "  ❌ A3XAI (completely untouched - no interference)";
+diag_log "";
+diag_log "======================================================";
+diag_log "[EAD 9.5] Ready to enhance AI driving!";
+diag_log "[EAD 9.5] Watch for A3XAI exclusion logs to verify safety";
 diag_log "======================================================";
 
 /* =====================================================================================

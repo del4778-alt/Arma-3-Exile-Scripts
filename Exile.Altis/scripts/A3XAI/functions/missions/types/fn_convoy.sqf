@@ -142,7 +142,7 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     if (A3XAI_EAD_available && A3XAI_EAD_enabled) then {
         private _driver = driver _vehicle;
         if (!isNull _driver) then {
-            private _result = [EAD_fnc_registerDriver, [_driver], "EAD_convoy"] call A3XAI_fnc_safeCall;
+            private _result = [EAD_fnc_registerDriver, [_driver, _vehicle], "EAD_convoy"] call A3XAI_fnc_safeCall;
             if (!isNil "_result") then {
                 _vehicle setVariable ["EAD_enabled", true];
                 _vehicle setVariable ["EAD_convoy", true];

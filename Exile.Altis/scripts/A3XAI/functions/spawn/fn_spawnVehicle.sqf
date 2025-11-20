@@ -53,12 +53,12 @@ _vehicle lock 2;
 private _group = createGroup [EAST, true];
 
 // ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
-if (!isNull _group && {side _group != EAST}) then {
+if (!isNull _group && {side _group != EAST}) exitWith {
     deleteGroup _group;
     deleteVehicle _vehicle;
     [1, format ["Cannot spawn vehicle: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
     createHashMap
-} exitWith {};
+};
 
 private _crewCount = switch (true) do {
     case (_vehicleClass isKindOf "Car"): {3};
@@ -122,7 +122,7 @@ if (count _waypoints > 0) then {
 if (A3XAI_EAD_available && A3XAI_EAD_enabled) then {
     private _driver = driver _vehicle;
     if (!isNull _driver) then {
-        private _result = [EAD_fnc_registerDriver, [_driver], "EAD_driver"] call A3XAI_fnc_safeCall;
+        private _result = [EAD_fnc_registerDriver, [_driver, _vehicle], "EAD_driver"] call A3XAI_fnc_safeCall;
         if (!isNil "_result") then {
             _vehicle setVariable ["EAD_enabled", true];
             [4, "EAD enabled for vehicle patrol driver"] call A3XAI_fnc_log;

@@ -32,11 +32,11 @@ private _group = createGroup [EAST, true];
 
 // ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
 // Arma 3 has 144 group limit per side - if exceeded, createGroup returns CIVILIAN group
-if (!isNull _group && {side _group != EAST}) then {
+if (!isNull _group && {side _group != EAST}) exitWith {
     deleteGroup _group;
     [1, format ["Cannot spawn infantry: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
     createHashMap
-} exitWith {};
+};
 
 // Spawn units
 for "_i" from 0 to (_unitCount - 1) do {

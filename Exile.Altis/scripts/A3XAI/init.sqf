@@ -24,8 +24,8 @@ diag_log "==============================================";
 // Load configuration from description.ext CfgA3XAI
 A3XAI_configLoaded = false;
 
-if (isClass (configFile >> "CfgA3XAI")) then {
-    private _cfg = configFile >> "CfgA3XAI";
+if (isClass (missionConfigFile >> "CfgA3XAI")) then {
+    private _cfg = missionConfigFile >> "CfgA3XAI";
 
     // Load all configuration values
     if (isNumber (_cfg >> "A3XAI_enabled")) then {A3XAI_enabled = getNumber (_cfg >> "A3XAI_enabled") > 0};
@@ -72,8 +72,9 @@ if (isClass (configFile >> "CfgA3XAI")) then {
 // Core system (use config values if loaded, otherwise defaults)
 if (isNil "A3XAI_enabled") then {A3XAI_enabled = true};
 A3XAI_version = "1.0.0 Elite Edition";
-if (isNil "A3XAI_debugMode") then {A3XAI_debugMode = (A3XAI_logLevel > 2)};  // Auto-enable if log level high
+if (isNil "A3XAI_debugLevel") then {A3XAI_debugLevel = 4};
 if (isNil "A3XAI_logLevel") then {A3XAI_logLevel = 4};
+if (isNil "A3XAI_debugMode") then {A3XAI_debugMode = (A3XAI_logLevel > 2)};  // Auto-enable if log level high
 
 // Performance settings
 if (isNil "A3XAI_gridSize") then {A3XAI_gridSize = 1000};

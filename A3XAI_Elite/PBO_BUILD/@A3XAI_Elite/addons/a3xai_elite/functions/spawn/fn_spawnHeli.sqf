@@ -1,0 +1,113 @@
+/*
+    A3XAI Elite - Spawn Helicopter Patrol
+    Spawns an air patrol helicopter
+
+    Parameters:
+        0: ARRAY - Spawn position [x,y,z]
+        1: STRING - Difficulty level (default: "medium")
+        2: STRING - Helicopter class (optional, auto-selected if nil)
+
+    Returns:
+        HASHMAP - Spawn data or empty hashmap on failure
+*/
+
+params ["_pos", ["_difficulty", "medium"], ["_heliClass", ""]];
+
+// Validate spawn
+private _canSpawn = [_pos] call A3XAI_fnc_canSpawn;
+if (!(_canSpawn select 0)) exitWith {
+    [4, format ["Cannot spawn helicopter: %1", _canSpawn select 1]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+// Set altitude
+private _spawnPos = [_pos select 0, _pos select 1, 100 + random 100];
+
+// Select helicopter class if not provided
+if (_heliClass == "") then {
+    _heliClass = switch (_difficulty) do {
+        case "easy": {"I_Heli_light_03_F"};
+        case "medium": {"I_Heli_light_03_dynamicLoadout_F"};
+        case "hard": {"B_Heli_Attack_01_F"};
+        case "extreme": {"O_Heli_Attack_02_F"};
+        default {"I_Heli_light_03_F"};
+    };
+};
+
+// Spawn helicopter
+private _heli = createVehicle [_heliClass, _spawnPos, [], 0, "FLY"];
+_heli setDir (random 360);
+_heli setFuel 1;
+_heli lock 2;
+_heli flyInHeight (100 + random 50);
+
+// Create crew
+private _group = createGroup [EAST, true];
+private _crewCount = 3; // Pilot + copilot + gunner
+
+for "_i" from 0 to (_crewCount - 1) do {
+    private _unit = _group createUnit ["I_helipilot_F", _spawnPos, [], 0, "NONE"];
+
+    [_unit, _difficulty] call A3XAI_fnc_initAI;
+    [_unit, _difficulty] call A3XAI_fnc_setAISkill;
+    [_unit, _difficulty] call A3XAI_fnc_equipAI;
+    [_unit] call A3XAI_fnc_addAIEventHandlers;
+
+    if (_i == 0) then {
+        _unit assignAsDriver _heli;
+        _unit moveInDriver _heli;
+    } else {
+        _unit assignAsGunner _heli;
+        _unit moveInAny _heli;
+    };
+};
+
+// Set group behavior
+[_group, "air"] call A3XAI_fnc_setGroupBehavior;
+
+// Create patrol waypoints
+private _patrolRadius = 2000;
+for "_i" from 0 to 5 do {
+    private _wpPos = _spawnPos getPos [_patrolRadius, 60 * _i];
+    _wpPos set [2, 100 + random 100]; // Altitude
+
+    private _wp = _group addWaypoint [_wpPos, 0];
+    _wp setWaypointType "MOVE";
+    _wp setWaypointSpeed "NORMAL";
+    _wp setWaypointBehaviour "COMBAT";
+    _wp setWaypointCombatMode "RED";
+};
+
+private _wp = _group addWaypoint [_spawnPos, 0];
+_wp setWaypointType "CYCLE";
+
+// Initialize vehicle
+[_heli] call A3XAI_fnc_initVehicle;
+[_heli] call A3XAI_fnc_addVehicleEventHandlers;
+
+// Track
+A3XAI_activeGroups pushBack _group;
+A3XAI_activeVehicles pushBack _heli;
+
+// Create spawn data
+private _spawnData = createHashMapFromArray [
+    ["type", "air"],
+    ["position", _spawnPos],
+    ["groups", [_group]],
+    ["vehicles", [_heli]],
+    ["difficulty", _difficulty],
+    ["vehicleClass", _heliClass],
+    ["spawnTime", time],
+    ["persistent", false]
+];
+
+[_spawnData] call A3XAI_fnc_registerSpawn;
+
+// HC offload
+if (A3XAI_HCConnected && count A3XAI_HCClients > 0) then {
+    [_group] call A3XAI_fnc_offloadGroup;
+};
+
+[4, format ["Spawned helicopter patrol (%1, %2) at %3", _heliClass, _difficulty, _spawnPos]] call A3XAI_fnc_log;
+
+_spawnData

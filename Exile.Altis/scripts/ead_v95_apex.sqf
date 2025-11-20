@@ -38,23 +38,23 @@ EAD_CFG = createHashMapFromArray [
     ["CITY_BASE", 130],
     ["OFFROAD_MULT", 0.85],
 
-    // ✅ EXTENDED DISTANCES FOR 250 KM/H
-    ["DIST_MAIN", 120],
-    ["DIST_WIDE", 80],
-    ["DIST_SIDE", 60],
-    ["DIST_CORNER", 45],
-    ["DIST_NEAR", 25],
+    // ✅ EXTENDED DISTANCES FOR HIGH SPEED - INCREASED FOR BETTER OBSTACLE AVOIDANCE
+    ["DIST_MAIN", 150],                 // Increased from 120m to 150m (more lookahead at 200+ km/h)
+    ["DIST_WIDE", 100],                 // Increased from 80m to 100m
+    ["DIST_SIDE", 80],                  // Increased from 60m to 80m (avoid side fences/signs)
+    ["DIST_CORNER", 60],                // Increased from 45m to 60m
+    ["DIST_NEAR", 30],                  // Increased from 25m to 30m
 
     // ✅ APEX RACING
     ["APEX_ENABLED", true],
     ["APEX_CUT_ANGLE", 35],
     ["APEX_SPEED_BOOST", 1.15],
 
-    // ✅ SMART CURVE DETECTION
-    ["CURVE_GENTLE_THRESHOLD", 65],
-    ["CURVE_SHARP_THRESHOLD", 25],
-    ["CURVE_GENTLE_MULT", 0.98],
-    ["CURVE_SHARP_MULT", 0.65],
+    // ✅ SMART CURVE DETECTION - ADJUSTED FOR HIGHER SPEED MAINTENANCE
+    ["CURVE_GENTLE_THRESHOLD", 75],     // Increased from 65 (less sensitive, maintains speed better)
+    ["CURVE_SHARP_THRESHOLD", 30],      // Increased from 25 (only sharp curves slow down)
+    ["CURVE_GENTLE_MULT", 1.00],        // Changed from 0.98 (no slowdown on gentle curves)
+    ["CURVE_SHARP_MULT", 0.75],         // Increased from 0.65 (less aggressive braking on sharp turns)
 
     // ✅ AGGRESSIVE BRIDGE MODE
     ["BRIDGE_SIDE_OFFSET", 5],
@@ -533,14 +533,17 @@ EAD_fnc_obstacleLimit = {
     private _f0ObsType = _s get "F0_OBS";
     if (_f0ObsType == "INFANTRY" && _m > 15) exitWith {_cur};
 
-    if (_m < 25) then {_cur = _cur * 0.65};
-    if (_m < 18) then {_cur = _cur * 0.60};
-    if (_m < 10) then {_cur = _cur * 0.40};
+    // ✅ IMPROVED: Less aggressive obstacle braking for high-speed travel
+    // With 150m forward scanning, we have more time to react
+    if (_m < 35) then {_cur = _cur * 0.80};  // 80% at 35m (was 65% at 25m)
+    if (_m < 25) then {_cur = _cur * 0.70};  // 70% at 25m (was 60% at 18m)
+    if (_m < 15) then {_cur = _cur * 0.50};  // 50% at 15m (was 40% at 10m)
+    if (_m < 8) then {_cur = _cur * 0.30};   // 30% at 8m (emergency braking)
 
     // 🆕 Predictive collision avoidance (from v10.2)
     private _predictResult = [_veh, _cur] call EAD_fnc_predictiveCollision;
-    if ((_predictResult select 0) && (_predictResult select 1) < 30) then {
-        _cur = _cur * 0.5;
+    if ((_predictResult select 0) && (_predictResult select 1) < 40) then {
+        _cur = _cur * 0.6;  // Changed from 0.5 to 0.6 (less harsh)
     };
 
     _cur
@@ -801,8 +804,22 @@ EAD_fnc_vectorDrive = {
     if ((_s get "NL") < 8) then {_near = _near + 0.03};
     if ((_s get "NR") < 8) then {_near = _near - 0.03};
 
+    // ✅ IMPROVED: Enhanced steering for tight turns
+    // Detect tight turn situation (large difference between L/R rays)
+    private _turnSharpness = abs((_s get "L") - (_s get "R"));
+    private _steeringMultiplier = 55;
+
+    // Increase steering angle for very tight turns (90-degree corners)
+    if (_turnSharpness > 60) then {
+        _steeringMultiplier = 75;  // More aggressive steering for 90-degree turns
+    } else {
+        if (_turnSharpness > 40) then {
+            _steeringMultiplier = 65;  // Moderate increase for sharp turns
+        };
+    };
+
     private _bias = (_center + (_path * 0.018) + _drift + _near) max -0.25 min 0.25;
-    private _newDir = _dir + (_bias * 55);
+    private _newDir = _dir + (_bias * _steeringMultiplier);
 
     // ✅ FIX: Removed invalid setVehicleTurnSpeed command (doesn't exist in Arma 3)
     // Turn speed is controlled via setDir and setVelocity below

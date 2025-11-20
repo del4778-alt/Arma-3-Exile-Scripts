@@ -39,8 +39,8 @@ if (isClass (configFile >> "A3XAI_Elite_Config")) then {
 // Core system
 A3XAI_enabled = true;
 A3XAI_version = "1.0.0 Elite Edition";
-A3XAI_debugMode = false;
-A3XAI_logLevel = 2; // 0=none, 1=error, 2=warn, 3=info, 4=debug
+A3XAI_debugMode = true;  // CHANGED: Enable debug to see initialization
+A3XAI_logLevel = 4;      // CHANGED: Max debug level (0=none, 1=error, 2=warn, 3=info, 4=debug)
 
 // Performance settings
 if (isNil "A3XAI_gridSize") then {A3XAI_gridSize = 1000};

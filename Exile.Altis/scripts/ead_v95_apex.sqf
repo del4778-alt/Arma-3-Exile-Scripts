@@ -106,52 +106,50 @@ EAD_HasApex = isClass (configFile >> "CfgPatches" >> "expansion");
     SECTION 2 — A3XAI COMPLETE EXCLUSION SYSTEM
 ===================================================================================== */
 
-// 🆕 Multi-layer A3XAI detection - NEVER touch A3XAI vehicles
+// 🆕 Multi-layer exclusion system - EXCLUDES old A3XAI, ENHANCES new A3XAI Elite
 EAD_fnc_isA3XAIVehicle = {
     params ["_veh", "_driver"];
 
-    // Layer 1: Check EAID_Ignore flag (set by other scripts)
+    // Layer 1: Check EAID_Ignore flag (manual exclusions)
     if (_veh getVariable ["EAID_Ignore", false]) exitWith {
         if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD 9.5] A3XAI EXCLUDED (EAID_Ignore): %1", typeOf _veh];
+            diag_log format ["[EAD 9.5] EXCLUDED (EAID_Ignore): %1", typeOf _veh];
         };
         true
     };
 
-    // Layer 2: Check driver for A3XAI variables
+    // Layer 2: Check driver for OLD A3XAI variables (exclude old A3XAI only)
+    // NOTE: A3XAI Elite Edition uses different variables and is NOT excluded here
     if (!isNull _driver) then {
         private _group = group _driver;
 
-        // A3XAI Elite Edition sets these variables (lowercase) on units/groups
-        // Also check old A3XAI variables for compatibility
+        // OLD A3XAI detection (still exclude these for backwards compatibility)
         if (
-            _driver getVariable ["A3XAI_unit", false] ||          // A3XAI Elite Edition (NEW)
-            _driver getVariable ["A3XAI_AIUnit", false] ||        // Old A3XAI (compatibility)
-            _driver getVariable ["UPSMON_Grp", false] ||
-            _group getVariable ["A3XAI_group", false] ||          // A3XAI Elite Edition (NEW)
-            _group getVariable ["A3XAI_dynGroup", false] ||       // Old A3XAI (compatibility)
-            _group getVariable ["A3XAI_staticGroup", false]       // Old A3XAI (compatibility)
+            _driver getVariable ["A3XAI_AIUnit", false] ||        // Old A3XAI
+            _driver getVariable ["UPSMON_Grp", false] ||          // UPSMON AI
+            _group getVariable ["A3XAI_dynGroup", false] ||       // Old A3XAI
+            _group getVariable ["A3XAI_staticGroup", false]       // Old A3XAI
         ) exitWith {
             if (EAD_CFG get "DEBUG_ENABLED") then {
-                diag_log format ["[EAD 9.5] A3XAI EXCLUDED (unit vars): %1", typeOf _veh];
+                diag_log format ["[EAD 9.5] OLD A3XAI EXCLUDED (unit vars): %1", typeOf _veh];
             };
             true
         };
     };
 
-    // Layer 3: Check vehicle for A3XAI ownership markers
+    // Layer 3: Check vehicle for OLD A3XAI ownership markers
+    // NOTE: A3XAI Elite uses lowercase "A3XAI_vehicle" which is NOT checked here
     if (
-        _veh getVariable ["A3XAI_vehicle", false] ||             // A3XAI Elite Edition (NEW - lowercase)
-        _veh getVariable ["A3XAI_VehOwned", false] ||            // Old A3XAI (compatibility)
-        _veh getVariable ["A3XAI_Vehicle", false]                // Old A3XAI (compatibility)
+        _veh getVariable ["A3XAI_VehOwned", false] ||            // Old A3XAI
+        _veh getVariable ["A3XAI_Vehicle", false]                // Old A3XAI (capital V)
     ) exitWith {
         if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD 9.5] A3XAI EXCLUDED (veh vars): %1", typeOf _veh];
+            diag_log format ["[EAD 9.5] OLD A3XAI EXCLUDED (veh vars): %1", typeOf _veh];
         };
         true
     };
 
-    // Not an A3XAI vehicle - safe to enhance
+    // NOT excluded - safe to enhance (includes A3XAI Elite Edition!)
     false
 };
 
@@ -1084,9 +1082,9 @@ diag_log "[EAD 9.5] 🆕 Combat evasive serpentine maneuvers";
 diag_log "[EAD 9.5] 🆕 Dynamic LOD raycasting (performance)";
 diag_log "[EAD 9.5] 🆕 Enhanced stuck recovery (3 methods)";
 diag_log "[EAD 9.5] 🆕 Obstacle type detection";
-diag_log "[EAD 9.5] 🆕 COMPLETE A3XAI EXCLUSION (multi-layer)";
-diag_log "[EAD 9.5] ❌ A3XAI vehicles NEVER touched (fixes spinning)";
-diag_log "[EAD 9.5] ✅ Only enhances: Recruit AI, Patrol AI, Mission AI";
+diag_log "[EAD 9.5] 🆕 OLD A3XAI EXCLUSION (backwards compatibility)";
+diag_log "[EAD 9.5] ✅ A3XAI ELITE EDITION ENHANCED (new mission folder version)";
+diag_log "[EAD 9.5] ✅ Enhances: A3XAI Elite, Recruit AI, Patrol AI, Mission AI";
 diag_log "======================================================";
 
 /* =====================================================================================

@@ -14,14 +14,14 @@ class CfgPatches {
         name = "A3XAI Elite Edition";
 
         // Auto-execute init on server start
-        init = "call compile preprocessFileLineNumbers '\A3XAI_Elite\init.sqf'";
+        init = "call compile preprocessFileLineNumbers '\a3xai\init.sqf'";
     };
 };
 
 class CfgFunctions {
     class A3XAI {
         class Core {
-            file = "\A3XAI_Elite\functions\core";
+            file = "\a3xai\functions\core";
             class safeCall {};
             class validateLootTables {};
             class initFallbackLoot {};
@@ -35,7 +35,7 @@ class CfgFunctions {
         };
 
         class Spawn {
-            file = "\A3XAI_Elite\functions\spawn";
+            file = "\a3xai\functions\spawn";
             class canSpawn {};
             class registerSpawn {};
             class removeSpawn {};
@@ -46,7 +46,7 @@ class CfgFunctions {
         };
 
         class AI {
-            file = "\A3XAI_Elite\functions\ai";
+            file = "\a3xai\functions\ai";
             class initAI {};
             class setAISkill {};
             class equipAI {};
@@ -55,7 +55,7 @@ class CfgFunctions {
         };
 
         class Vehicle {
-            file = "\A3XAI_Elite\functions\vehicle";
+            file = "\a3xai\functions\vehicle";
             class initVehicle {};
             class addVehicleEventHandlers {};
             class isVehicleStuck {};
@@ -66,7 +66,7 @@ class CfgFunctions {
         };
 
         class Mission {
-            file = "\A3XAI_Elite\functions\missions";
+            file = "\a3xai\functions\missions";
             class selectMission {};
             class spawnMission {};
             class spawnLoot {};
@@ -75,7 +75,7 @@ class CfgFunctions {
         };
 
         class MissionTypes {
-            file = "\A3XAI_Elite\functions\missions\types";
+            file = "\a3xai\functions\missions\types";
             class convoy {};
             class crash {};
             class camp {};
@@ -84,14 +84,14 @@ class CfgFunctions {
         };
 
         class HC {
-            file = "\A3XAI_Elite\functions\hc";
+            file = "\a3xai\functions\hc";
             class initHC {};
             class offloadGroup {};
             class balanceHC {};
         };
 
         class Utility {
-            file = "\A3XAI_Elite\functions\utility";
+            file = "\a3xai\functions\utility";
             class setTimeout {};
             class generateDefensePositions {};
         };

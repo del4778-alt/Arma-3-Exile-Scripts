@@ -138,13 +138,16 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     [_vehicle] call A3XAI_fnc_initVehicle;
     [_vehicle] call A3XAI_fnc_addVehicleEventHandlers;
 
-    // EAD integration
+    // EAD integration - register driver for elite driving
     if (A3XAI_EAD_available && A3XAI_EAD_enabled) then {
-        private _result = [EAD_fnc_initVehicle, [_vehicle], "EAD_convoy"] call A3XAI_fnc_safeCall;
-        if (!isNil "_result") then {
-            _vehicle setVariable ["EAD_enabled", true];
-            _vehicle setVariable ["EAD_convoy", true];
-            _vehicle setVariable ["EAD_convoyIndex", _i];
+        private _driver = driver _vehicle;
+        if (!isNull _driver) then {
+            private _result = [EAD_fnc_registerDriver, [_driver], "EAD_convoy"] call A3XAI_fnc_safeCall;
+            if (!isNil "_result") then {
+                _vehicle setVariable ["EAD_enabled", true];
+                _vehicle setVariable ["EAD_convoy", true];
+                _vehicle setVariable ["EAD_convoyIndex", _i];
+            };
         };
     };
 

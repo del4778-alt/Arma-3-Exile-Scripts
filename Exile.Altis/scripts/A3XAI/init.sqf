@@ -21,26 +21,59 @@ diag_log "==============================================";
 // LOAD EXTERNAL CONFIGURATION
 // ============================================
 
-// Check for external config file
+// Load configuration from description.ext CfgA3XAI
 A3XAI_configLoaded = false;
 
-if (isClass (configFile >> "A3XAI_Elite_Config")) then {
-    call compile preprocessFileLineNumbers "A3XAI_Elite_config.sqf";
+if (isClass (configFile >> "CfgA3XAI")) then {
+    private _cfg = configFile >> "CfgA3XAI";
+
+    // Load all configuration values
+    if (isNumber (_cfg >> "A3XAI_enabled")) then {A3XAI_enabled = getNumber (_cfg >> "A3XAI_enabled") > 0};
+    if (isNumber (_cfg >> "A3XAI_debugLevel")) then {A3XAI_debugLevel = getNumber (_cfg >> "A3XAI_debugLevel")};
+    if (isNumber (_cfg >> "A3XAI_logLevel")) then {A3XAI_logLevel = getNumber (_cfg >> "A3XAI_logLevel")};
+    if (isNumber (_cfg >> "A3XAI_gridSize")) then {A3XAI_gridSize = getNumber (_cfg >> "A3XAI_gridSize")};
+    if (isNumber (_cfg >> "A3XAI_maxAIGlobal")) then {A3XAI_maxAIGlobal = getNumber (_cfg >> "A3XAI_maxAIGlobal")};
+    if (isNumber (_cfg >> "A3XAI_minServerFPS")) then {A3XAI_minServerFPS = getNumber (_cfg >> "A3XAI_minServerFPS")};
+    if (isNumber (_cfg >> "A3XAI_spawnDistanceMin")) then {A3XAI_spawnDistanceMin = getNumber (_cfg >> "A3XAI_spawnDistanceMin")};
+    if (isNumber (_cfg >> "A3XAI_spawnDistanceMax")) then {A3XAI_spawnDistanceMax = getNumber (_cfg >> "A3XAI_spawnDistanceMax")};
+    if (isNumber (_cfg >> "A3XAI_spawnCooldownTime")) then {A3XAI_spawnCooldownTime = getNumber (_cfg >> "A3XAI_spawnCooldownTime")};
+    if (isNumber (_cfg >> "A3XAI_lootDespawnTime")) then {A3XAI_lootDespawnTime = getNumber (_cfg >> "A3XAI_lootDespawnTime")};
+    if (isNumber (_cfg >> "A3XAI_enableMissionMarkers")) then {A3XAI_enableMissionMarkers = getNumber (_cfg >> "A3XAI_enableMissionMarkers") > 0};
+    if (isNumber (_cfg >> "A3XAI_enableMissionNotifications")) then {A3XAI_enableMissionNotifications = getNumber (_cfg >> "A3XAI_enableMissionNotifications") > 0};
+    if (isNumber (_cfg >> "A3XAI_missionCooldownEnabled")) then {A3XAI_missionCooldownEnabled = getNumber (_cfg >> "A3XAI_missionCooldownEnabled") > 0};
+    if (isNumber (_cfg >> "A3XAI_missionCooldownTime")) then {A3XAI_missionCooldownTime = getNumber (_cfg >> "A3XAI_missionCooldownTime")};
+    if (isNumber (_cfg >> "A3XAI_missionCleanupDelay")) then {A3XAI_missionCleanupDelay = getNumber (_cfg >> "A3XAI_missionCleanupDelay")};
+    if (isNumber (_cfg >> "A3XAI_roadMinWidth")) then {A3XAI_roadMinWidth = getNumber (_cfg >> "A3XAI_roadMinWidth")};
+    if (isNumber (_cfg >> "A3XAI_maxRecoveryAttempts")) then {A3XAI_maxRecoveryAttempts = getNumber (_cfg >> "A3XAI_maxRecoveryAttempts")};
+    if (isNumber (_cfg >> "A3XAI_vehicleRespawnTime")) then {A3XAI_vehicleRespawnTime = getNumber (_cfg >> "A3XAI_vehicleRespawnTime")};
+    if (isNumber (_cfg >> "A3XAI_EAD_enabled")) then {A3XAI_EAD_enabled = getNumber (_cfg >> "A3XAI_EAD_enabled") > 0};
+    if (isNumber (_cfg >> "A3XAI_waterMinDepth")) then {A3XAI_waterMinDepth = getNumber (_cfg >> "A3XAI_waterMinDepth")};
+    if (isNumber (_cfg >> "A3XAI_showHunterMarkers")) then {A3XAI_showHunterMarkers = getNumber (_cfg >> "A3XAI_showHunterMarkers") > 0};
+    if (isNumber (_cfg >> "A3XAI_hunterTargetClosest")) then {A3XAI_hunterTargetClosest = getNumber (_cfg >> "A3XAI_hunterTargetClosest") > 0};
+    if (isNumber (_cfg >> "A3XAI_hostagesJoinRescuer")) then {A3XAI_hostagesJoinRescuer = getNumber (_cfg >> "A3XAI_hostagesJoinRescuer") > 0};
+
+    // Load blacklist zones
+    if (isArray (_cfg >> "A3XAI_blacklistZones")) then {
+        A3XAI_blacklistZones = getArray (_cfg >> "A3XAI_blacklistZones");
+    };
+
     A3XAI_configLoaded = true;
-    diag_log "[A3XAI] External configuration loaded";
+    diag_log "[A3XAI] Configuration loaded from CfgA3XAI (description.ext)";
+    diag_log format ["[A3XAI] - Debug Level: %1 | Log Level: %2", A3XAI_debugLevel, A3XAI_logLevel];
+    diag_log format ["[A3XAI] - Grid Size: %1m | Max AI: %2", A3XAI_gridSize, A3XAI_maxAIGlobal];
 } else {
-    diag_log "[A3XAI] WARNING: No external configuration found, using defaults";
+    diag_log "[A3XAI] WARNING: CfgA3XAI not found in description.ext, using defaults";
 };
 
 // ============================================
 // INITIALIZE GLOBAL VARIABLES
 // ============================================
 
-// Core system
-A3XAI_enabled = true;
+// Core system (use config values if loaded, otherwise defaults)
+if (isNil "A3XAI_enabled") then {A3XAI_enabled = true};
 A3XAI_version = "1.0.0 Elite Edition";
-A3XAI_debugMode = true;  // CHANGED: Enable debug to see initialization
-A3XAI_logLevel = 4;      // CHANGED: Max debug level (0=none, 1=error, 2=warn, 3=info, 4=debug)
+if (isNil "A3XAI_debugMode") then {A3XAI_debugMode = (A3XAI_logLevel > 2)};  // Auto-enable if log level high
+if (isNil "A3XAI_logLevel") then {A3XAI_logLevel = 4};
 
 // Performance settings
 if (isNil "A3XAI_gridSize") then {A3XAI_gridSize = 1000};
@@ -107,19 +140,23 @@ diag_log "[A3XAI] Global variables initialized";
 // DETECT DEPENDENCIES
 // ============================================
 
-// Check for Elite AI Driving
-if (!isNil "EAD_fnc_initVehicle") then {
-    A3XAI_EAD_available = true;
-    diag_log "[A3XAI] Elite AI Driving (EAD) detected - Enhanced vehicle AI enabled";
-} else {
-    diag_log "[A3XAI] EAD not found - Using basic waypoint system for vehicles";
-};
-
 // Check for Exile
 if (isClass (configFile >> "CfgPatches" >> "exile_server")) then {
     diag_log "[A3XAI] Exile server detected";
 } else {
     diag_log "[A3XAI] WARNING: Exile server not detected - some features may not work";
+};
+
+// Check for Elite AI Driving (delayed check since EAD loads after A3XAI)
+[] spawn {
+    sleep 5; // Wait for other systems to initialize
+
+    if (!isNil "EAD_fnc_initVehicle") then {
+        A3XAI_EAD_available = true;
+        diag_log "[A3XAI] Elite AI Driving (EAD) detected - Enhanced vehicle AI enabled";
+    } else {
+        diag_log "[A3XAI] EAD not found - Using basic waypoint system for vehicles";
+    };
 };
 
 // ============================================

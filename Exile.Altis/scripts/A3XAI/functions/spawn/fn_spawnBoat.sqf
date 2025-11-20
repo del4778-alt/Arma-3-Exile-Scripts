@@ -47,12 +47,12 @@ _boat lock 2;
 private _group = createGroup [EAST, true];
 
 // ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
-if (!isNull _group && {side _group != EAST}) then {
+if (!isNull _group && {side _group != EAST}) exitWith {
     deleteGroup _group;
     deleteVehicle _boat;
     [1, format ["Cannot spawn boat: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
     createHashMap
-} exitWith {};
+};
 
 private _crewCount = 3; // Driver + gunner + passenger
 

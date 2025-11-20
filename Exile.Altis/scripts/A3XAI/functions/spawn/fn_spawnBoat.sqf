@@ -29,11 +29,11 @@ if !([_pos, "water"] call A3XAI_fnc_isValidSpawnPos) exitWith {
 // Select boat class if not provided
 if (_boatClass == "") then {
     _boatClass = switch (_difficulty) do {
-        case "easy": {"I_Boat_Transport_01_F"};
-        case "medium": {"I_Boat_Armed_01_minigun_F"};
-        case "hard": {"B_Boat_Armed_01_minigun_F"};
+        case "easy": {"O_Boat_Transport_01_F"};  // FIX: Changed from I_Boat (INDEPENDENT) to O_Boat (EAST)
+        case "medium": {"O_Boat_Armed_01_hmg_F"};  // FIX: EAST armed boat
+        case "hard": {"O_Boat_Armed_01_hmg_F"};  // FIX: Changed from B_Boat (WEST) to O_Boat (EAST)
         case "extreme": {"O_Boat_Armed_01_hmg_F"};
-        default {"I_Boat_Armed_01_minigun_F"};
+        default {"O_Boat_Armed_01_hmg_F"};  // FIX: EAST default
     };
 };
 
@@ -45,6 +45,15 @@ _boat lock 2;
 
 // Create crew
 private _group = createGroup [EAST, true];
+
+// ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
+if (!isNull _group && {side _group != EAST}) then {
+    deleteGroup _group;
+    deleteVehicle _boat;
+    [1, format ["Cannot spawn boat: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    createHashMap
+} exitWith {};
+
 private _crewCount = 3; // Driver + gunner + passenger
 
 for "_i" from 0 to (_crewCount - 1) do {

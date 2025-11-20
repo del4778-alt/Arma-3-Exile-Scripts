@@ -36,9 +36,9 @@ if (count _roadPos == 0) then {
 if (_vehicleClass == "") then {
     _vehicleClass = switch (_difficulty) do {
         case "easy": {selectRandom ["Exile_Car_Offroad_Armed_Guerilla01", "Exile_Car_Offroad_Armed_Guerilla02"]};
-        case "medium": {selectRandom ["I_MRAP_03_hmg_F", "I_MRAP_03_gmg_F"]};
-        case "hard": {selectRandom ["I_APC_Wheeled_03_cannon_F", "I_APC_tracked_03_cannon_F"]};
-        case "extreme": {selectRandom ["I_APC_Wheeled_03_cannon_F", "I_MBT_03_cannon_F"]};
+        case "medium": {selectRandom ["O_MRAP_02_hmg_F", "O_MRAP_02_gmg_F"]};  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST Ifrit)
+        case "hard": {selectRandom ["O_APC_Wheeled_02_rcws_F", "O_APC_Tracked_02_cannon_F"]};  // FIX: EAST Marid/BTR-K
+        case "extreme": {selectRandom ["O_APC_Wheeled_02_rcws_F", "O_MBT_02_cannon_F"]};  // FIX: EAST T-100
         default {"Exile_Car_Offroad_Armed_Guerilla01"};
     };
 };
@@ -51,6 +51,15 @@ _vehicle lock 2;
 
 // Create crew
 private _group = createGroup [EAST, true];
+
+// ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
+if (!isNull _group && {side _group != EAST}) then {
+    deleteGroup _group;
+    deleteVehicle _vehicle;
+    [1, format ["Cannot spawn vehicle: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    createHashMap
+} exitWith {};
+
 private _crewCount = switch (true) do {
     case (_vehicleClass isKindOf "Car"): {3};
     case (_vehicleClass isKindOf "APC"): {4};
@@ -109,12 +118,15 @@ if (count _waypoints > 0) then {
 [_vehicle] call A3XAI_fnc_initVehicle;
 [_vehicle] call A3XAI_fnc_addVehicleEventHandlers;
 
-// EAD integration
+// EAD integration - register driver for elite driving
 if (A3XAI_EAD_available && A3XAI_EAD_enabled) then {
-    private _result = [EAD_fnc_initVehicle, [_vehicle], "EAD_vehicle"] call A3XAI_fnc_safeCall;
-    if (!isNil "_result") then {
-        _vehicle setVariable ["EAD_enabled", true];
-        [4, "EAD enabled for vehicle patrol"] call A3XAI_fnc_log;
+    private _driver = driver _vehicle;
+    if (!isNull _driver) then {
+        private _result = [EAD_fnc_registerDriver, [_driver], "EAD_driver"] call A3XAI_fnc_safeCall;
+        if (!isNil "_result") then {
+            _vehicle setVariable ["EAD_enabled", true];
+            [4, "EAD enabled for vehicle patrol driver"] call A3XAI_fnc_log;
+        };
     };
 };
 

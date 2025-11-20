@@ -70,7 +70,7 @@ private _group = createGroup [EAST, true];
 for "_i" from 0 to (_guardCount - 1) do {
     private _guardPos = _rescuePos getPos [12 + random 8, random 360];
 
-    private _unitType = "I_Soldier_F";
+    private _unitType = "O_Soldier_F";  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
     private _unit = _group createUnit [_unitType, _guardPos, [], 0, "NONE"];
 
     // Initialize AI
@@ -169,7 +169,7 @@ for "_i" from 0 to (_hostageCount - 1) do {
 
 // Spawn extraction vehicle
 private _extractVehPos = _rescuePos getPos [50, random 360];
-private _extractVeh = "I_Heli_light_03_unarmed_F" createVehicle _extractVehPos;
+private _extractVeh = "O_Heli_Light_02_unarmed_F" createVehicle _extractVehPos;  // FIX: Changed from I_Heli (INDEPENDENT) to O_Heli (EAST)
 _extractVeh setFuel 0; // No fuel until guards dead
 _extractVeh setDamage 0.3; // Damaged, needs repair
 _extractVeh lock 2; // Locked until rescued

@@ -37,7 +37,7 @@ private _missionData = createHashMapFromArray [
 ];
 
 // Select crashed helicopter type
-private _crashTypes = ["B_Heli_Transport_01_F", "B_Heli_Light_01_F", "I_Heli_light_03_F", "I_Heli_Transport_02_F"];
+private _crashTypes = ["O_Heli_Transport_04_covered_F", "O_Heli_Light_02_unarmed_F", "O_Heli_Light_02_unarmed_F", "O_Heli_Transport_04_covered_F"];  // FIX: All EAST helis (removed WEST/INDEPENDENT)
 private _crashHeli = selectRandom _crashTypes;
 
 // Find suitable crash position (open area, slight elevation)
@@ -86,7 +86,7 @@ for "_i" from 0 to (_defenderCount - 1) do {
         _crashPos getPos [30 + random 20, random 360]
     };
 
-    private _unitType = "I_Soldier_F";
+    private _unitType = "O_Soldier_F";  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
     private _unit = _group createUnit [_unitType, _defPos, [], 0, "NONE"];
 
     // Initialize AI

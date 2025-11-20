@@ -36,9 +36,9 @@ if (count _roadPos == 0) then {
 if (_vehicleClass == "") then {
     _vehicleClass = switch (_difficulty) do {
         case "easy": {selectRandom ["Exile_Car_Offroad_Armed_Guerilla01", "Exile_Car_Offroad_Armed_Guerilla02"]};
-        case "medium": {selectRandom ["I_MRAP_03_hmg_F", "I_MRAP_03_gmg_F"]};
-        case "hard": {selectRandom ["I_APC_Wheeled_03_cannon_F", "I_APC_tracked_03_cannon_F"]};
-        case "extreme": {selectRandom ["I_APC_Wheeled_03_cannon_F", "I_MBT_03_cannon_F"]};
+        case "medium": {selectRandom ["O_MRAP_02_hmg_F", "O_MRAP_02_gmg_F"]};  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST Ifrit)
+        case "hard": {selectRandom ["O_APC_Wheeled_02_rcws_F", "O_APC_Tracked_02_cannon_F"]};  // FIX: EAST Marid/BTR-K
+        case "extreme": {selectRandom ["O_APC_Wheeled_02_rcws_F", "O_MBT_02_cannon_F"]};  // FIX: EAST T-100
         default {"Exile_Car_Offroad_Armed_Guerilla01"};
     };
 };

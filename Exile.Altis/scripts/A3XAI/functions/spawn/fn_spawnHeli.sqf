@@ -26,11 +26,11 @@ private _spawnPos = [_pos select 0, _pos select 1, 100 + random 100];
 // Select helicopter class if not provided
 if (_heliClass == "") then {
     _heliClass = switch (_difficulty) do {
-        case "easy": {"I_Heli_light_03_F"};
-        case "medium": {"I_Heli_light_03_dynamicLoadout_F"};
-        case "hard": {"B_Heli_Attack_01_F"};
+        case "easy": {"O_Heli_Light_02_unarmed_F"};  // FIX: Changed from I_Heli (INDEPENDENT) to O_Heli (EAST)
+        case "medium": {"O_Heli_Light_02_dynamicLoadout_F"};  // FIX: EAST Orca armed
+        case "hard": {"O_Heli_Attack_02_black_F"};  // FIX: Changed from B_Heli (WEST) to O_Heli (EAST)
         case "extreme": {"O_Heli_Attack_02_F"};
-        default {"I_Heli_light_03_F"};
+        default {"O_Heli_Light_02_unarmed_F"};  // FIX: EAST default
     };
 };
 
@@ -46,7 +46,7 @@ private _group = createGroup [EAST, true];
 private _crewCount = 3; // Pilot + copilot + gunner
 
 for "_i" from 0 to (_crewCount - 1) do {
-    private _unit = _group createUnit ["I_helipilot_F", _spawnPos, [], 0, "NONE"];
+    private _unit = _group createUnit ["O_helipilot_F", _spawnPos, [], 0, "NONE"];  // FIX: Changed from I_helipilot_F (INDEPENDENT) to O_helipilot_F (EAST)
 
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;

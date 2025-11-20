@@ -76,7 +76,7 @@ _group setVariable ["A3XAI_hunterTarget", _targetPlayer];
 for "_i" from 0 to (_squadSize - 1) do {
     private _spawnPos = _pos getPos [5 + random 5, random 360];
 
-    private _unitType = "I_Soldier_F";
+    private _unitType = "O_Soldier_F";  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
     private _unit = _group createUnit [_unitType, _spawnPos, [], 0, "NONE"];
 
     // Initialize AI with hunter-specific settings

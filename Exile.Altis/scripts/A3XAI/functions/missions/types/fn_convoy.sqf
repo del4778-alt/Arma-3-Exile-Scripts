@@ -31,9 +31,9 @@ if (count _roads < 5) exitWith {
 // Select convoy vehicles based on difficulty
 private _vehicleClasses = switch (_difficulty) do {
     case "easy": {["Exile_Car_Offroad_Armed_Guerilla01", "Exile_Car_Offroad_Armed_Guerilla02"]};
-    case "medium": {["I_MRAP_03_hmg_F", "I_MRAP_03_gmg_F"]};
-    case "hard": {["I_APC_Wheeled_03_cannon_F", "I_APC_tracked_03_cannon_F"]};
-    case "extreme": {["I_APC_Wheeled_03_cannon_F", "I_MBT_03_cannon_F"]};
+    case "medium": {["O_MRAP_02_hmg_F", "O_MRAP_02_gmg_F"]};  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST)
+    case "hard": {["O_APC_Wheeled_02_rcws_F", "O_APC_Tracked_02_cannon_F"]};  // FIX: EAST APCs
+    case "extreme": {["O_APC_Wheeled_02_rcws_F", "O_MBT_02_cannon_F"]};  // FIX: EAST MBT
     default {["Exile_Car_Offroad_Armed_Guerilla01"]};
 };
 
@@ -99,7 +99,7 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     };
 
     for "_j" from 0 to (_crewCount - 1) do {
-        private _unitType = "I_Soldier_F";
+        private _unitType = "O_Soldier_F";  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
         private _unit = _group createUnit [_unitType, _roadPos, [], 0, "NONE"];
 
         // Initialize AI

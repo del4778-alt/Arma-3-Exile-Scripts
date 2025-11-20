@@ -93,7 +93,7 @@ private _group = createGroup [EAST, true];
 for "_i" from 0 to (_defenderCount - 1) do {
     private _defPos = _campPos getPos [15 + random 10, random 360];
 
-    private _unitType = "I_Soldier_F";
+    private _unitType = "O_Soldier_F";  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
     private _unit = _group createUnit [_unitType, _defPos, [], 0, "NONE"];
 
     // Initialize AI
@@ -126,7 +126,7 @@ if (_difficulty in ["hard", "extreme"]) then {
 
     for "_i" from 0 to (_vehCount - 1) do {
         private _vehPos = _campPos getPos [40 + random 10, (360 / _vehCount) * _i];
-        private _vehClass = selectRandom ["Exile_Car_Offroad_Armed_Guerilla01", "I_MRAP_03_hmg_F"];
+        private _vehClass = selectRandom ["Exile_Car_Offroad_Armed_Guerilla01", "O_MRAP_02_hmg_F"];  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST)
 
         private _vehicle = createVehicle [_vehClass, _vehPos, [], 0, "NONE"];
         _vehicle setDir (random 360);

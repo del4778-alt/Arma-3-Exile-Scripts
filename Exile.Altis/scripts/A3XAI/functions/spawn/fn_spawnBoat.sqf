@@ -29,11 +29,11 @@ if !([_pos, "water"] call A3XAI_fnc_isValidSpawnPos) exitWith {
 // Select boat class if not provided
 if (_boatClass == "") then {
     _boatClass = switch (_difficulty) do {
-        case "easy": {"I_Boat_Transport_01_F"};
-        case "medium": {"I_Boat_Armed_01_minigun_F"};
-        case "hard": {"B_Boat_Armed_01_minigun_F"};
+        case "easy": {"O_Boat_Transport_01_F"};  // FIX: Changed from I_Boat (INDEPENDENT) to O_Boat (EAST)
+        case "medium": {"O_Boat_Armed_01_hmg_F"};  // FIX: EAST armed boat
+        case "hard": {"O_Boat_Armed_01_hmg_F"};  // FIX: Changed from B_Boat (WEST) to O_Boat (EAST)
         case "extreme": {"O_Boat_Armed_01_hmg_F"};
-        default {"I_Boat_Armed_01_minigun_F"};
+        default {"O_Boat_Armed_01_hmg_F"};  // FIX: EAST default
     };
 };
 

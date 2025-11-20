@@ -1572,6 +1572,10 @@ fn_setupPlayerHandlers = {
 
             // Only handle if player is still in vehicle
             if (vehicle _player == _veh) then {
+                // ✅ FLAG VEHICLE AS RECRUIT_AI - Required for EAD registration
+                _veh setVariable ["RECRUIT_AI_VEHICLE", true, true];
+                diag_log format ["[AI RECRUIT] Flagged %1 as RECRUIT_AI_VEHICLE", typeOf _veh];
+
                 [_player, _veh] call RECRUIT_fnc_HandleVehicleSeats;
 
                 // ✅ FIX: Wait for AI to get in, then ensure EAD is active

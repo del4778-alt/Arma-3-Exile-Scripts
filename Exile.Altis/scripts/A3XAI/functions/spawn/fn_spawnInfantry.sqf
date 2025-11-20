@@ -33,7 +33,7 @@ private _group = createGroup [EAST, true];
 // Spawn units
 for "_i" from 0 to (_unitCount - 1) do {
     private _unitPos = _pos getPos [3 + random 4, random 360];
-    private _unit = _group createUnit ["I_Soldier_F", _unitPos, [], 0, "NONE"];
+    private _unit = _group createUnit ["O_Soldier_F", _unitPos, [], 0, "NONE"];  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
 
     // Initialize AI
     [_unit, _difficulty] call A3XAI_fnc_initAI;

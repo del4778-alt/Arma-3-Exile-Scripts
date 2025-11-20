@@ -48,7 +48,7 @@ private _group = createGroup [EAST, true];
 private _crewCount = 3; // Driver + gunner + passenger
 
 for "_i" from 0 to (_crewCount - 1) do {
-    private _unit = _group createUnit ["I_Soldier_F", _pos, [], 0, "NONE"];
+    private _unit = _group createUnit ["O_Soldier_F", _pos, [], 0, "NONE"];  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
 
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;

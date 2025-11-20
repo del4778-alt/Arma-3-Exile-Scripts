@@ -122,12 +122,15 @@ EAD_fnc_isA3XAIVehicle = {
     if (!isNull _driver) then {
         private _group = group _driver;
 
-        // A3XAI sets these variables on units/groups
+        // A3XAI Elite Edition sets these variables (lowercase) on units/groups
+        // Also check old A3XAI variables for compatibility
         if (
-            _driver getVariable ["A3XAI_AIUnit", false] ||
+            _driver getVariable ["A3XAI_unit", false] ||          // A3XAI Elite Edition (NEW)
+            _driver getVariable ["A3XAI_AIUnit", false] ||        // Old A3XAI (compatibility)
             _driver getVariable ["UPSMON_Grp", false] ||
-            _group getVariable ["A3XAI_dynGroup", false] ||
-            _group getVariable ["A3XAI_staticGroup", false]
+            _group getVariable ["A3XAI_group", false] ||          // A3XAI Elite Edition (NEW)
+            _group getVariable ["A3XAI_dynGroup", false] ||       // Old A3XAI (compatibility)
+            _group getVariable ["A3XAI_staticGroup", false]       // Old A3XAI (compatibility)
         ) exitWith {
             if (EAD_CFG get "DEBUG_ENABLED") then {
                 diag_log format ["[EAD 9.5] A3XAI EXCLUDED (unit vars): %1", typeOf _veh];
@@ -138,8 +141,9 @@ EAD_fnc_isA3XAIVehicle = {
 
     // Layer 3: Check vehicle for A3XAI ownership markers
     if (
-        _veh getVariable ["A3XAI_VehOwned", false] ||
-        _veh getVariable ["A3XAI_Vehicle", false]
+        _veh getVariable ["A3XAI_vehicle", false] ||             // A3XAI Elite Edition (NEW - lowercase)
+        _veh getVariable ["A3XAI_VehOwned", false] ||            // Old A3XAI (compatibility)
+        _veh getVariable ["A3XAI_Vehicle", false]                // Old A3XAI (compatibility)
     ) exitWith {
         if (EAD_CFG get "DEBUG_ENABLED") then {
             diag_log format ["[EAD 9.5] A3XAI EXCLUDED (veh vars): %1", typeOf _veh];

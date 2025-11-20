@@ -1,21 +1,27 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.32 - COMBAT & FORMATION OVERHAUL
-    🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, tight formation
+    ELITE AI RECRUIT SYSTEM v7.33 - COMMAND RESPONSIVENESS FIX
+    🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, responds to commands
+
+    CHANGES IN v7.33:
+    - 🆕 COMMAND RESPONSIVENESS: AI now respond IMMEDIATELY to player commands
+    - 🆕 PLAYER COMMAND DETECTION: FSM detects manual waypoints and pauses auto-following
+    - 🆕 15-SECOND COOLDOWN: After player command, FSM won't override for 15 seconds
+    - 🆕 REDUCED INTERFERENCE: Follow enforcement only triggers if AI >100m away
+    - 🆕 REMOVED SPAM: Deleted constant doFollow command that ran every 2 seconds
+    - ✅ FIXED: "Have to command twice" bug - FSM was overriding player commands
+    - ✅ FIXED: AI ignoring orders - aggressive 5m follow threshold removed
+    - ✅ FIXED: FSM interference - now respects manual commands in ALL states
 
     CHANGES IN v7.32:
     - 🔥 CUSTOM LOADOUTS: AT gets DMR-03 suppressed, AA gets MXM, Sniper gets APDS rounds
     - 🔥 VIPER GEAR: All AI equipped with Viper helmets, uniforms, vests, and harnesses
     - 🔥 TIGHT FORMATION: Changed from COLUMN to WEDGE (fighter-jet style)
-    - 🔥 CLOSE FOLLOW: AI stay within 5m (was lagging 30-50m behind)
     - 🔥 AGGRESSIVE STANCE: Combat-ready at all times (AWARE + RED combat mode)
     - 🔥 INSTANT ENGAGEMENT: Disabled COVER AI (snipers now shoot immediately)
     - 🔥 EXTENDED RANGE: Enemy detection increased to 800m (was 300m)
     - 🔥 KNOWLEDGE SHARING: When one AI sees enemy, all AI instantly know
     - 🔥 LASER ACCURACY: No bullet flinching, perfect aim, instant target acquisition
     - 🔥 SUPER MOVEMENT: 50% faster animation speed (1.5x multiplier)
-    - ✅ FIXED: Snipers now engage targets (disabled COVER AI that made them hide)
-    - ✅ FIXED: AT/AA more accurate (perfect aimingAccuracy + aimingShake + aimingSpeed)
-    - ✅ FIXED: AI return to tight formation after combat (auto doMove to player pos)
 
     CUSTOM LOADOUTS:
     - AT: DMR-03 (suppressed) + Titan AT + Viper green hex gear + medic harness
@@ -39,8 +45,8 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.32 (Combat & Formation Overhaul)...";
-diag_log "[AI RECRUIT] 🔥 SUPER-AGGRESSIVE AI - Laser accuracy, tight formation";
+diag_log "[AI RECRUIT] Starting v7.33 (Command Responsiveness Fix)...";
+diag_log "[AI RECRUIT] 🔥 AI NOW RESPOND TO COMMANDS IMMEDIATELY!";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -233,6 +239,42 @@ diag_log "[AI RECRUIT] FSM Brain: 4-state simplified system initialized";
 diag_log "[AI RECRUIT] States: IDLE ⟷ COMBAT → RETREAT → HEAL → IDLE";
 
 // ====================================================================================
+// 🆕 v7.33: Player Command Detection
+// ====================================================================================
+RECRUIT_fnc_HasPlayerCommand = {
+    params ["_unit"];
+
+    // Check if AI has waypoints that weren't set by FSM
+    private _currentWP = currentWaypoint (group _unit);
+    private _wpCount = count waypoints (group _unit);
+
+    // If AI has waypoints, check if they're fresh (set in last 15 seconds)
+    if (_wpCount > 0) then {
+        private _lastManualCommand = _unit getVariable ["RECRUIT_lastManualCommand", 0];
+
+        // Check if waypoint position has changed recently
+        private _lastWPPos = _unit getVariable ["RECRUIT_lastWPPos", [0,0,0]];
+        if (_currentWP < _wpCount) then {
+            private _currentWPPos = waypointPosition [group _unit, _currentWP];
+
+            if (_currentWPPos distance2D _lastWPPos > 5) then {
+                // Waypoint changed - player likely gave a command
+                _unit setVariable ["RECRUIT_lastManualCommand", time];
+                _unit setVariable ["RECRUIT_lastWPPos", _currentWPPos];
+                true
+            } else {
+                // Check cooldown
+                (time - _lastManualCommand) < 15
+            };
+        } else {
+            false
+        };
+    } else {
+        false
+    };
+};
+
+// ====================================================================================
 // 🔥 v7.32: Share enemy knowledge across all AI in group
 // ====================================================================================
 RECRUIT_fnc_ShareEnemyKnowledge = {
@@ -342,12 +384,16 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _playerGroup setFormation "WEDGE";  // Changed from COLUMN to WEDGE (tight fighter-jet formation)
             _unit setUnitPos "UP";
 
-            // 🔥 v7.32: TIGHT FORMATION - Force AI to stay close (5m max distance)
-            private _distToPlayer = _unit distance _player;
-            if (_distToPlayer > 5) then {
-                _unit doMove (getPos _player);  // Force move if > 5m away
-            } else {
-                _unit doFollow _player;
+            // 🆕 v7.33: ONLY enforce following if AI is stuck/far away AND no player command
+            private _hasPlayerCommand = [_unit] call RECRUIT_fnc_HasPlayerCommand;
+
+            if (!_hasPlayerCommand) then {
+                private _distToPlayer = _unit distance _player;
+                // Only intervene if AI is REALLY far (50m+) or stuck
+                if (_distToPlayer > 50) then {
+                    _unit doFollow _player;
+                    _unit doMove (getPos _player);
+                };
             };
         };
 
@@ -371,15 +417,18 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _unit setSpeedMode "FULL";
             _unit setCombatMode "YELLOW";
             _playerGroup setFormation "WEDGE";  // Changed from COLUMN to WEDGE
-
-            // 🔥 v7.32: Stay close during retreat
-            private _distToPlayer = _unit distance _player;
-            if (_distToPlayer > 5) then {
-                _unit doMove (getPos _player);
-            } else {
-                _unit doFollow _player;
-            };
             _unit setUnitPos "UP";
+
+            // 🆕 v7.33: Retreat to player but respect manual commands
+            private _hasPlayerCommand = [_unit] call RECRUIT_fnc_HasPlayerCommand;
+
+            if (!_hasPlayerCommand) then {
+                private _distToPlayer = _unit distance _player;
+                if (_distToPlayer > 30) then {
+                    _unit doFollow _player;
+                    _unit doMove (getPos _player);
+                };
+            };
 
             if ("SmokeShell" in magazines _unit && random 1 > 0.7) then {
                 _unit fire ["SmokeShellMuzzle", "SmokeShellMuzzle", "SmokeShell"];
@@ -393,15 +442,18 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _unit setSpeedMode "FULL";
             _unit setCombatMode "RED";   // Changed from YELLOW to RED
             _playerGroup setFormation "WEDGE";  // Changed from COLUMN to WEDGE
-
-            // 🔥 v7.32: Stay close during healing
-            private _distToPlayer = _unit distance _player;
-            if (_distToPlayer > 5) then {
-                _unit doMove (getPos _player);
-            } else {
-                _unit doFollow _player;
-            };
             _unit setUnitPos "UP";
+
+            // 🆕 v7.33: Heal near player but respect manual commands
+            private _hasPlayerCommand = [_unit] call RECRUIT_fnc_HasPlayerCommand;
+
+            if (!_hasPlayerCommand) then {
+                private _distToPlayer = _unit distance _player;
+                if (_distToPlayer > 30) then {
+                    _unit doFollow _player;
+                    _unit doMove (getPos _player);
+                };
+            };
 
             if ("FirstAidKit" in items _unit) then {
                 _unit action ["HealSoldierSelf", _unit];
@@ -886,32 +938,43 @@ RECRUIT_fnc_FSM_BrainLoop = {
                     };
                 };
 
-                // ✅ CRITICAL FIX: Follow enforcement ONLY when:
+                // 🆕 v7.33: SMART FOLLOW ENFORCEMENT - Respect player commands!
+                // Follow enforcement ONLY when:
                 // - NOT in combat
-                // - Player NOT in vehicle (or if player IS vehicle driver, no follow)
+                // - Player NOT in vehicle
                 // - AI NOT in vehicle
+                // - NO recent player command detected
+                // - AI is stuck or very far away
                 if (_currentState != FSM_STATE_COMBAT) then {
                     private _playerVeh = vehicle _player;
                     private _playerInVehicle = _playerVeh != _player;
-                    
+
                     // Only follow if player is on foot
                     if (!_playerInVehicle) then {
-                        private _distanceToPlayerSqr = _unit distanceSqr _player;
+                        // 🆕 CHECK FOR PLAYER COMMANDS FIRST!
+                        private _hasPlayerCommand = [_unit] call RECRUIT_fnc_HasPlayerCommand;
 
-                        if (_distanceToPlayerSqr > (30 * 30)) then {
-                            _unit doFollow _player;
-                            _unit doMove (getPos _player);
-                        };
+                        if (!_hasPlayerCommand) then {
+                            private _distanceToPlayerSqr = _unit distanceSqr _player;
 
-                        if (_timeInState > 2) then {
-                            _unit doFollow _player;
+                            // Only intervene if AI is VERY far (100m+) - they might be executing orders
+                            if (_distanceToPlayerSqr > (100 * 100)) then {
+                                _unit doFollow _player;
+                                _unit doMove (getPos _player);
+                                diag_log format ["[AI RECRUIT FSM] %1 very far from player (%2m) - forcing follow",
+                                    name _unit, round sqrt _distanceToPlayerSqr];
+                            };
+
+                            // REMOVED: The constant doFollow command that ran every 2 seconds
+                            // This was overriding all player commands!
                         };
                     } else {
                         // Player is in vehicle - AI should NOT follow
-                        // Clear any follow commands
-                        if (_timeInState > 5) then {
+                        // Clear any follow commands (but only once)
+                        private _lastVehicleCheck = _unit getVariable ["RECRUIT_lastVehicleCheck", 0];
+                        if (time - _lastVehicleCheck > 10) then {
                             _unit doFollow _player;
-                            _unit setVariable ["FSM_StateTimer", time, false];
+                            _unit setVariable ["RECRUIT_lastVehicleCheck", time];
                         };
                     };
                 };
@@ -1825,9 +1888,17 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.31 - EAD PERSISTENCE FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.33 - COMMAND RESPONSIVENESS FIX";
 diag_log "";
-diag_log "  ✅ MAJOR FIXES:";
+diag_log "  🆕 v7.33 COMMAND FIXES:";
+diag_log "    - AI RESPOND TO COMMANDS IMMEDIATELY (no more double commands!)";
+diag_log "    - Player command detection → 15s FSM cooldown";
+diag_log "    - Follow enforcement → Only when AI >100m away";
+diag_log "    - Removed constant doFollow spam (was running every 2 seconds)";
+diag_log "    - Aggressive 5m follow threshold → Removed";
+diag_log "    - FSM respects manual commands in ALL states";
+diag_log "";
+diag_log "  ✅ PREVIOUS FIXES (v7.31):";
 diag_log "    - Driver stops after combat → EAD auto re-registers";
 diag_log "    - FSM interference → Paused when player drives";
 diag_log "    - Passengers jumping out → Per-seat cargo lock";

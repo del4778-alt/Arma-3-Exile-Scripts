@@ -150,9 +150,9 @@ if (isClass (configFile >> "CfgPatches" >> "exile_server")) then {
 
 // Check for Elite AI Driving (delayed check since EAD loads after A3XAI)
 [] spawn {
-    sleep 5; // Wait for other systems to initialize
+    sleep 10; // Wait for EAD to fully load (execVM is async, needs extra time)
 
-    if (!isNil "EAD_fnc_initVehicle") then {
+    if (!isNil "EAD_fnc_registerDriver") then {
         A3XAI_EAD_available = true;
         diag_log "[A3XAI] Elite AI Driving (EAD) detected - Enhanced vehicle AI enabled";
     } else {

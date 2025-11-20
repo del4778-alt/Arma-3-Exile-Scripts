@@ -1,29 +1,31 @@
 /* =====================================================================================
     ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5 APEX EDITION
-    AUTHOR: MAXIMUM PERFORMANCE + A3XAI SAFE
+    RECRUIT_AI EXCLUSIVE - HIGH PERFORMANCE
 
-    v9.5 ENHANCEMENTS:
-        ✅ All v9.0 features (250 km/h, 4-height, apex, top-down)
+    ✅ RECRUIT_AI EXCLUSIVE MODE:
+        ✅ Only works with vehicles flagged by recruit_ai.sqf
+        ✅ Auto-detection DISABLED to prevent conflicts
+        ✅ No interference with A3XAI, mission AI, or other AI systems
+        ✅ Activated via RECRUIT_fnc_ForceEADReregister only
 
-        🆕 FROM v10.2 (BEST PARTS ONLY):
-        ✅ Predictive collision detection (expectedDestination)
+    ✅ COMPREHENSIVE RAY COVERAGE - 33 RAYS:
+        ✅ 5 front-center rays (dead center + small offsets)
+        ✅ 7 front-left rays (10° to 40° sweep)
+        ✅ 7 front-right rays (10° to 40° sweep)
+        ✅ 4 side detection rays (45° and 60° L/R)
+        ✅ 4 corner detection rays (70° and 85° L/R)
+        ✅ 6 near-side rays (90° to 120° L/R)
+        ✅ NO LOD reduction - always full coverage
+        ✅ Extended ranges: 150m main, 100m wide, 80m side
+
+    ✅ HIGH-SPEED PERFORMANCE:
+        ✅ 200-250 km/h on straights and mild turns
+        ✅ Enhanced steering for 90-degree corners
+        ✅ Predictive collision detection
         ✅ Combat evasive serpentine maneuvers
-        ✅ Dynamic LOD raycasting (fewer rays when far from players)
-        ✅ Enhanced stuck recovery (3 methods: reverse, jump, turn)
+        ✅ Enhanced stuck recovery (3 methods)
         ✅ Obstacle type detection (infantry/vehicle/static)
-
-        🆕 A3XAI COMPLETE EXCLUSION:
-        ✅ Multi-layer A3XAI detection
-        ✅ Respects EAID_Ignore flag
-        ✅ Detects A3XAI group variables
-        ✅ Detects A3XAI unit variables
-        ✅ NEVER touches A3XAI vehicles (fixes spinning/circling)
-        ✅ Only enhances Recruit AI, Patrol AI, Mission AI
-
-        ✅ REALISTIC SPEEDS:
-        ✅ 250 km/h supercar max (not 999 km/h nonsense)
-        ✅ Physics-safe limits
-        ✅ Optimized for Ivory supercars
+        ✅ Physics-safe velocity control
 ===================================================================================== */
 
 /* =====================================================================================
@@ -338,7 +340,7 @@ EAD_fnc_isBridge = {
     (_hits >= 3)
 };
 
-// 🆕 Adaptive scan with dynamic LOD (from v10.2)
+// ✅ COMPREHENSIVE SCAN - RECRUIT AI ONLY (30+ RAYS FOR MAXIMUM COVERAGE)
 EAD_fnc_scanAdaptive = {
     params ["_veh"];
 
@@ -349,21 +351,54 @@ EAD_fnc_scanAdaptive = {
     private _c = EAD_CFG get "DIST_CORNER";
     private _n = EAD_CFG get "DIST_NEAR";
 
-    private _useReducedRays = [_veh] call EAD_fnc_shouldUseReducedRays;
+    // ✅ MASSIVE RAY COVERAGE - 33 RAYS FOR RECRUIT AI VEHICLES
+    // No LOD system - always use full coverage for recruit_ai precision driving
+    private _rayDefinitions = [
+        // FRONT CENTER (5 rays - critical forward detection)
+        ["F0", 0, _m],              // Dead center
+        ["F0L", -3, _m],            // Slight left of center
+        ["F0R", 3, _m],             // Slight right of center
+        ["F0L2", -6, _m],           // Left-center
+        ["F0R2", 6, _m],            // Right-center
 
-    // Full 15-ray scan when near players, reduced 7-ray scan when far
-    private _rayDefinitions = if (_useReducedRays) then {
-        [
-            ["F0",0,_m],["FL1",12,_m],["FR1",-12,_m],
-            ["FL2",25,_w],["FR2",-25,_w],["L",45,_s],["R",-45,_s]
-        ]
-    } else {
-        [
-            ["F0",0,_m],["FL1",8,_m],["FR1",-8,_m],["FL2",16,_m],["FR2",-16,_m],
-            ["FL3",25,_w],["FR3",-25,_w],["L",45,_s],["R",-45,_s],["CL",70,_c],
-            ["CR",-70,_c],["NL",90,_n],["NR",-90,_n],["NL2",110,_n],["NR2",-110,_n]
-        ]
-    };
+        // FRONT-LEFT SWEEP (7 rays - dense coverage)
+        ["FL1", -10, _m],           // 10° left
+        ["FL2", -15, _m],           // 15° left
+        ["FL3", -20, _m],           // 20° left
+        ["FL4", -25, _w],           // 25° left (wide range)
+        ["FL5", -30, _w],           // 30° left
+        ["FL6", -35, _w],           // 35° left
+        ["FL7", -40, _s],           // 40° left (side range)
+
+        // FRONT-RIGHT SWEEP (7 rays - dense coverage)
+        ["FR1", 10, _m],            // 10° right
+        ["FR2", 15, _m],            // 15° right
+        ["FR3", 20, _m],            // 20° right
+        ["FR4", 25, _w],            // 25° right (wide range)
+        ["FR5", 30, _w],            // 30° right
+        ["FR6", 35, _w],            // 35° right
+        ["FR7", 40, _s],            // 40° right (side range)
+
+        // SIDE DETECTION (4 rays - roadside obstacles)
+        ["L", 45, _s],              // 45° left
+        ["L2", 60, _s],             // 60° left
+        ["R", -45, _s],             // 45° right
+        ["R2", -60, _s],            // 60° right
+
+        // CORNER DETECTION (4 rays - tight turns)
+        ["CL", 70, _c],             // 70° left corner
+        ["CL2", 85, _c],            // 85° left corner
+        ["CR", -70, _c],            // 70° right corner
+        ["CR2", -85, _c],           // 85° right corner
+
+        // NEAR SIDE (6 rays - immediate hazards)
+        ["NL", 90, _n],             // 90° left (perpendicular)
+        ["NL2", 105, _n],           // 105° left
+        ["NL3", 120, _n],           // 120° left (rear quarter)
+        ["NR", -90, _n],            // 90° right (perpendicular)
+        ["NR2", -105, _n],          // 105° right
+        ["NR3", -120, _n]           // 120° right (rear quarter)
+    ];
 
     private _rayDefs = _rayDefinitions apply {[_x#1, _x#2]};
     private _batchResult = [_veh, _rayDefs] call EAD_fnc_rayBatchAdvanced;
@@ -379,18 +414,6 @@ EAD_fnc_scanAdaptive = {
         _map set [_label + "_OBS", _obsInfo select 0];
         _map set [_label + "_OBJ", _obsInfo select 1];
     } forEach _rayDefinitions;
-
-    // Fill in missing rays when using reduced LOD
-    if (_useReducedRays) then {
-        _map set ["FL3", _map get "FL2"];
-        _map set ["FR3", _map get "FR2"];
-        _map set ["CL", _map get "L"];
-        _map set ["CR", _map get "R"];
-        _map set ["NL", 20];
-        _map set ["NR", 20];
-        _map set ["NL2", 20];
-        _map set ["NR2", 20];
-    };
 
     _map set ["OVERHEAD", [_veh] call EAD_fnc_rayTopDown];
     _map
@@ -524,9 +547,11 @@ EAD_fnc_speedBrain = {
 EAD_fnc_obstacleLimit = {
     params ["_veh","_s","_cur"];
 
+    // ✅ CHECK ALL FORWARD-FACING RAYS (33 rays total, check critical forward ones)
     private _m = selectMin [
-        _s get "F0", _s get "FL1", _s get "FR1",
-        _s get "FL2", _s get "FR2", _s get "FL3", _s get "FR3"
+        _s get "F0", _s get "F0L", _s get "F0R", _s get "F0L2", _s get "F0R2",
+        _s get "FL1", _s get "FL2", _s get "FL3", _s get "FL4", _s get "FL5",
+        _s get "FR1", _s get "FR2", _s get "FR3", _s get "FR4", _s get "FR5"
     ];
 
     // 🆕 Don't slow down for infantry if we have enough clearance (from v10.2)
@@ -534,7 +559,7 @@ EAD_fnc_obstacleLimit = {
     if (_f0ObsType == "INFANTRY" && _m > 15) exitWith {_cur};
 
     // ✅ IMPROVED: Less aggressive obstacle braking for high-speed travel
-    // With 150m forward scanning, we have more time to react
+    // With 150m forward scanning and 33 rays, we have more time to react
     if (_m < 35) then {_cur = _cur * 0.80};  // 80% at 35m (was 65% at 25m)
     if (_m < 25) then {_cur = _cur * 0.70};  // 70% at 25m (was 60% at 18m)
     if (_m < 15) then {_cur = _cur * 0.50};  // 50% at 15m (was 40% at 10m)
@@ -794,17 +819,23 @@ EAD_fnc_vectorDrive = {
     params ["_veh","_s","_tSpd","_profile"];
 
     private _dir = getDir _veh;
+
+    // ✅ USE NEW RAY LABELS - More precise side detection with L2/R2
     private _center = ((_s get "L") - (_s get "R")) * 0.004;
+    _center = _center + (((_s get "L2") - (_s get "R2")) * 0.002);
     _center = _center + (((_s get "CL") - (_s get "CR")) * 0.0015);
 
     private _path = [_s,_dir,_veh] call EAD_fnc_pathBias;
     private _drift = [_veh] call EAD_fnc_driftBias;
 
+    // ✅ IMPROVED: Use all near-side rays for better awareness
     private _near = 0;
     if ((_s get "NL") < 8) then {_near = _near + 0.03};
     if ((_s get "NR") < 8) then {_near = _near - 0.03};
+    if ((_s get "NL2") < 8) then {_near = _near + 0.02};
+    if ((_s get "NR2") < 8) then {_near = _near - 0.02};
 
-    // ✅ IMPROVED: Enhanced steering for tight turns
+    // ✅ IMPROVED: Enhanced steering for tight turns using comprehensive ray data
     // Detect tight turn situation (large difference between L/R rays)
     private _turnSharpness = abs((_s get "L") - (_s get "R"));
     private _steeringMultiplier = 55;
@@ -955,9 +986,12 @@ EAD_fnc_registerDriver = {
     if (isPlayer _unit) exitWith {};
     if (!local _veh) exitWith {};
 
-    // 🆕 COMPLETE A3XAI EXCLUSION - Multi-layer detection
-    if ([_veh, _unit] call EAD_fnc_isA3XAIVehicle) exitWith {
-        EAD_Stats set ["a3xaiExcluded", (EAD_Stats get "a3xaiExcluded") + 1];
+    // ✅ RECRUIT_AI EXCLUSIVE - Only accept vehicles flagged by recruit_ai.sqf
+    if !(_veh getVariable ["RECRUIT_AI_VEHICLE", false]) exitWith {
+        // Not a recruit_ai vehicle - skip registration
+        if (EAD_CFG get "DEBUG_ENABLED") then {
+            diag_log format ["[EAD] Skipping %1 - not a RECRUIT_AI_VEHICLE", typeOf _veh];
+        };
     };
 
     if (_veh getVariable ["EAD_active",false]) exitWith {};
@@ -979,9 +1013,15 @@ EAD_fnc_registerDriver = {
 };
 
 /* =====================================================================================
-    SECTION 12 — AUTO-DETECTION
+    SECTION 12 — AUTO-DETECTION (DISABLED - RECRUIT_AI EXCLUSIVE)
 ===================================================================================== */
 
+// ✅ AUTO-DETECTION DISABLED
+// EAD is now RECRUIT_AI EXCLUSIVE
+// Only recruit_ai.sqf can register vehicles via RECRUIT_fnc_ForceEADReregister
+// This prevents conflicts with A3XAI, mission AI, and other AI systems
+
+/* ORIGINAL AUTO-DETECTION LOOP - NOW DISABLED
 [] spawn {
     private _map = createHashMap;
     while {true} do {
@@ -1006,6 +1046,7 @@ EAD_fnc_registerDriver = {
         uiSleep 2.5;
     };
 };
+*/
 
 /* =====================================================================================
     SECTION 13 — PERF LOG

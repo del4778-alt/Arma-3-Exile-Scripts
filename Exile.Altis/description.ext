@@ -71,6 +71,7 @@ showHUD[] =
 };
 
 #include "config.cpp"
+#include "A3XAI_config.hpp"
 
 class CfgRemoteExec
 {

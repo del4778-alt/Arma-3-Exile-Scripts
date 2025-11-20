@@ -287,6 +287,11 @@ diag_log "[SERVER] ========================================";
 waitUntil {time > 0};
 sleep 5;
 
+// ✅ A3XAI Elite Edition (mission folder version - no PBO conflicts!)
+call compile preprocessFileLineNumbers "scripts\A3XAI\init.sqf";
+diag_log "[SERVER] - A3XAI Elite Edition initialized (mission folder version)";
+sleep 2;
+
 // ✅ Disable A3XAI debug spam (must load early)
 [] execVM "scripts\a3xai_debug_disable.sqf";
 diag_log "[SERVER] - A3XAI debug disable patch loaded";
@@ -321,10 +326,11 @@ diag_log "[SERVER] ========================================";
 diag_log "[SERVER] All systems initialized!";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] LOAD ORDER:";
-diag_log "[SERVER]   0. A3XAI Debug Disable (spam suppression)";
-diag_log "[SERVER]   1. Ravage (zombie resurrection)";
-diag_log "[SERVER]   2. Elite Driving v9.5 APEX (A3XAI SAFE + predictive + combat evasive)";
-diag_log "[SERVER]   3. Patrol AI (EAID_Ignore set)";
-diag_log "[SERVER]   4. Recruit AI (drivers enabled)";
-diag_log "[SERVER]   5. Vehicle Tire Protection (auto-repair)";
+diag_log "[SERVER]   1. A3XAI Elite Edition (mission folder - NO PBO CONFLICTS)";
+diag_log "[SERVER]   2. A3XAI Debug Disable (spam suppression)";
+diag_log "[SERVER]   3. Ravage (zombie resurrection)";
+diag_log "[SERVER]   4. Elite Driving v9.5 APEX (A3XAI SAFE + predictive + combat evasive)";
+diag_log "[SERVER]   5. Patrol AI (EAID_Ignore set)";
+diag_log "[SERVER]   6. Recruit AI (drivers enabled)";
+diag_log "[SERVER]   7. Vehicle Tire Protection (auto-repair)";
 diag_log "[SERVER] ========================================";

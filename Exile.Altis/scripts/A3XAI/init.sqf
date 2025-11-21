@@ -138,6 +138,29 @@ A3XAI_HCClients = [];
 diag_log "[A3XAI] Global variables initialized";
 
 // ============================================
+// SETUP FACTION RELATIONS
+// ============================================
+
+// ✅ FIX: Set EAST faction as hostile to all other sides
+// This ensures A3XAI (EAST) units:
+//   - Attack zombies (CIVILIAN from Ravage)
+//   - Attack players if configured (RESISTANCE/WEST)
+//   - Are properly recognized as hostile
+
+EAST setFriend [WEST, 0];          // Hostile to WEST (BLUFOR)
+EAST setFriend [RESISTANCE, 0];     // Hostile to RESISTANCE (players)
+EAST setFriend [INDEPENDENT, 0];    // Hostile to INDEPENDENT (AAF/GUER)
+EAST setFriend [CIVILIAN, 0];       // Hostile to CIVILIAN (zombies from Ravage)
+
+// Make sure other sides recognize EAST as hostile (bidirectional)
+WEST setFriend [EAST, 0];
+RESISTANCE setFriend [EAST, 0];
+INDEPENDENT setFriend [EAST, 0];
+CIVILIAN setFriend [EAST, 0];
+
+diag_log "[A3XAI] Faction relations configured: EAST hostile to all sides";
+
+// ============================================
 // DETECT DEPENDENCIES
 // ============================================
 

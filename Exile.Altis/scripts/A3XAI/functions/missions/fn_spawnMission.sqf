@@ -3,7 +3,7 @@
     Spawns a mission of specified type
 
     Parameters:
-        0: STRING - Mission type: "convoy", "crash", "camp", "hunter", "rescue"
+        0: STRING - Mission type: "convoy", "crash", "camp", "hunter", "rescue", "supplyDrop", "outpost"
         1: ARRAY - Position [x,y,z]
         2: STRING - Difficulty (default: "medium")
 
@@ -14,7 +14,7 @@
 params ["_type", "_pos", ["_difficulty", "medium"]];
 
 // Validate mission type
-if !(_type in ["convoy", "crash", "camp", "hunter", "rescue"]) exitWith {
+if !(_type in ["convoy", "crash", "camp", "hunter", "rescue", "supplyDrop", "outpost"]) exitWith {
     [1, format ["Invalid mission type: %1", _type]] call A3XAI_fnc_log;
     createHashMap
 };

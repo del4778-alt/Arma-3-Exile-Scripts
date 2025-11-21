@@ -56,16 +56,18 @@ if (_useExile) then {
 
 // Add weapon and magazines
 if (_weapon != "") then {
-    _unit addWeapon _weapon;
-
     // Add magazines
     private _magazines = getArray (configFile >> "CfgWeapons" >> _weapon >> "magazines");
     if (count _magazines > 0) then {
         private _magazine = _magazines select 0;
-        for "_i" from 0 to 3 do {
+        // ✅ FIX: Add magazines BEFORE weapon so weapon auto-loads first mag
+        for "_i" from 0 to 5 do {  // 6 mags total (was 4)
             _unit addMagazine _magazine;
         };
     };
+
+    // Add weapon AFTER magazines (auto-loads first mag)
+    _unit addWeapon _weapon;
 };
 
 // Add pistol for higher difficulties
@@ -85,13 +87,14 @@ if (_difficulty in ["medium", "hard", "extreme"]) then {
     };
 
     if (_pistol != "") then {
-        _unit addWeapon _pistol;
         private _pistolMags = getArray (configFile >> "CfgWeapons" >> _pistol >> "magazines");
         if (count _pistolMags > 0) then {
-            for "_i" from 0 to 1 do {
+            // ✅ FIX: Add pistol mags BEFORE pistol
+            for "_i" from 0 to 2 do {  // 3 pistol mags
                 _unit addMagazine (_pistolMags select 0);
             };
         };
+        _unit addWeapon _pistol;
     };
 };
 
@@ -112,11 +115,12 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
     };
 
     if (_launcher != "") then {
-        _unit addWeapon _launcher;
         private _launcherMags = getArray (configFile >> "CfgWeapons" >> _launcher >> "magazines");
         if (count _launcherMags > 0) then {
+            // ✅ FIX: Add launcher mag BEFORE launcher
             _unit addMagazine (_launcherMags select 0);
         };
+        _unit addWeapon _launcher;
     };
 };
 

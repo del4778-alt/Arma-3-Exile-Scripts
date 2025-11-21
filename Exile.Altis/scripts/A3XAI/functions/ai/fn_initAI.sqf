@@ -18,6 +18,10 @@ if (isNull _unit) exitWith {false};
 _unit disableAI "AUTOTARGET";
 _unit disableAI "CHECKVISIBLE";
 
+// ✅ FIX: Add critical AI behavior settings (from DMS)
+_unit allowFleeing 0;  // Never flee
+_unit enableGunLights "forceOn";  // Gun lights for night combat
+
 // Set side
 _unit setVariable ["A3XAI_unit", true, true];
 _unit setVariable ["A3XAI_difficulty", _difficulty, true];

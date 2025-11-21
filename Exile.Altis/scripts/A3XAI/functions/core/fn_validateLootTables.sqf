@@ -27,8 +27,9 @@ private _missingCategories = [];
         _missingCategories pushBack _x;
         _valid = false;
     } else {
-        // Check if category has any items (properties)
-        private _itemCount = count (configProperties [_categoryConfig, "true", true]);
+        // ✅ FIX: Check if category has any items (properties with numeric values - prices)
+        // Must use "isNumber _x" condition to match property extraction in fn_equipAI.sqf
+        private _itemCount = count (configProperties [_categoryConfig, "isNumber _x", true]);
         if (_itemCount == 0) then {
             _missingCategories pushBack (format ["%1 (empty)", _x]);
             _valid = false;

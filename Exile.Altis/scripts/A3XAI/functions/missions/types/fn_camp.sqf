@@ -130,7 +130,10 @@ if (_difficulty in ["hard", "extreme"]) then {
 
     for "_i" from 0 to (_vehCount - 1) do {
         private _vehPos = _campPos getPos [40 + random 10, (360 / _vehCount) * _i];
-        private _vehClass = selectRandom ["Exile_Car_Offroad_Armed_Guerilla01", "O_MRAP_02_hmg_F"];  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST)
+        private _vehClass = selectRandom [
+            "Exile_Car_Offroad_Armed_Guerilla01",
+            "ivory_suburban_marked", "ivory_charger_marked", "ivory_challenger_marked"
+        ];
 
         private _vehicle = createVehicle [_vehClass, _vehPos, [], 0, "NONE"];
         _vehicle setDir (random 360);

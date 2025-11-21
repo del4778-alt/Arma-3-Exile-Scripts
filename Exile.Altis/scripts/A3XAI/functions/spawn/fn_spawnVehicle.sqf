@@ -36,9 +36,22 @@ if (count _roadPos == 0) then {
 if (_vehicleClass == "") then {
     _vehicleClass = switch (_difficulty) do {
         case "easy": {selectRandom ["Exile_Car_Offroad_Armed_Guerilla01", "Exile_Car_Offroad_Armed_Guerilla02"]};
-        case "medium": {selectRandom ["O_MRAP_02_hmg_F", "O_MRAP_02_gmg_F"]};  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST Ifrit)
-        case "hard": {selectRandom ["O_APC_Wheeled_02_rcws_F", "O_APC_Tracked_02_cannon_F"]};  // FIX: EAST Marid/BTR-K
-        case "extreme": {selectRandom ["O_APC_Wheeled_02_rcws_F", "O_MBT_02_cannon_F"]};  // FIX: EAST T-100
+        case "medium": {selectRandom [
+            "ivory_cv_marked", "ivory_cv_unmarked",
+            "ivory_taurus_marked", "ivory_taurus_unmarked",
+            "ivory_charger_marked", "ivory_charger_unmarked"
+        ]};
+        case "hard": {selectRandom [
+            "ivory_suburban_marked", "ivory_suburban_unmarked",
+            "ivory_m3_marked", "ivory_m3_unmarked",
+            "ivory_rs4_marked", "ivory_rs4_unmarked"
+        ]};
+        case "extreme": {selectRandom [
+            "ivory_challenger_marked", "ivory_challenger_unmarked",
+            "ivory_evox_marked", "ivory_wrx_marked",
+            "ivory_charger_slicktop", "ivory_cv_slicktop", "ivory_taurus_slicktop",
+            "ivory_rev_unmarked"
+        ]};
         default {"Exile_Car_Offroad_Armed_Guerilla01"};
     };
 };

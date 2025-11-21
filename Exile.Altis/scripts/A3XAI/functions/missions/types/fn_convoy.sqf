@@ -28,12 +28,12 @@ if (count _roads < 5) exitWith {
     createHashMap
 };
 
-// Select convoy vehicles based on difficulty
+// Select convoy vehicles based on difficulty (Ivory car pack - no tanks!)
 private _vehicleClasses = switch (_difficulty) do {
     case "easy": {["Exile_Car_Offroad_Armed_Guerilla01", "Exile_Car_Offroad_Armed_Guerilla02"]};
-    case "medium": {["O_MRAP_02_hmg_F", "O_MRAP_02_gmg_F"]};  // FIX: Changed from I_MRAP (INDEPENDENT) to O_MRAP (EAST)
-    case "hard": {["O_APC_Wheeled_02_rcws_F", "O_APC_Tracked_02_cannon_F"]};  // FIX: EAST APCs
-    case "extreme": {["O_APC_Wheeled_02_rcws_F", "O_MBT_02_cannon_F"]};  // FIX: EAST MBT
+    case "medium": {["ivory_cv_marked", "ivory_taurus_marked", "ivory_charger_marked"]};
+    case "hard": {["ivory_suburban_marked", "ivory_m3_marked", "ivory_rs4_marked"]};
+    case "extreme": {["ivory_challenger_marked", "ivory_evox_marked", "ivory_wrx_marked", "ivory_charger_slicktop"]};
     default {["Exile_Car_Offroad_Armed_Guerilla01"]};
 };
 

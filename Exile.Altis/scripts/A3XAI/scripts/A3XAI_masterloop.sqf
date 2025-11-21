@@ -75,8 +75,14 @@ while {A3XAI_enabled} do {
     // ============================================
     // CHECK CURRENT AI COUNT
     // ============================================
-
-    private _currentAI = count (allUnits select {side _x == EAST});
+    // Count AI with A3XAI variables OR units in EAST groups (more reliable than config side check)
+    private _currentAI = count (allUnits select {
+        alive _x && {
+            (_x getVariable ["A3XAI_unit", false]) ||
+            (_x getVariable ["A3XAI_spawned", false]) ||
+            (side group _x == EAST && !isPlayer _x)
+        }
+    });
 
     if (_currentAI >= A3XAI_maxAIGlobal) then {
         [4, format ["At AI limit (%1/%2) - skipping spawns", _currentAI, A3XAI_maxAIGlobal]] call A3XAI_fnc_log;

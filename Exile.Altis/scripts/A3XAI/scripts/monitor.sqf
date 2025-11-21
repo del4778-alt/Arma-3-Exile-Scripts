@@ -17,7 +17,14 @@ while {A3XAI_enabled} do {
     // Collect statistics
     private _fps = diag_fps;
     private _players = count allPlayers;
-    private _activeAI = count (allUnits select {side _x == EAST});
+    // Count AI with A3XAI_unit variable OR units in EAST groups (more reliable than side check)
+    private _activeAI = count (allUnits select {
+        alive _x && {
+            (_x getVariable ["A3XAI_unit", false]) ||
+            (_x getVariable ["A3XAI_spawned", false]) ||
+            (side group _x == EAST && !isPlayer _x)
+        }
+    });
     private _activeGroups = count A3XAI_activeGroups;
     private _activeVehicles = count A3XAI_activeVehicles;
     private _activeSpawns = 0;

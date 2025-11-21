@@ -58,14 +58,23 @@ for "_i" from 0 to (_unitCount - 1) do {
     [_unit] call A3XAI_fnc_addAIEventHandlers;
 };
 
-// ✅ VERIFICATION: Check if units actually spawned as EAST side
+// ✅ VERIFICATION: Check if units actually spawned in EAST group
+// NOTE: Use "side group _unit" not "side _unit" as unit config side can differ from group side
 private _units = units _group;
 if (count _units > 0) then {
     private _firstUnit = _units select 0;
-    private _unitSide = side _firstUnit;
-    if (_unitSide != EAST) then {
-        [1, format ["WARNING: Units spawned as %1 instead of EAST! Group was %2", _unitSide, _groupSide]] call A3XAI_fnc_log;
+    private _unitConfigSide = side _firstUnit;          // Config-defined side
+    private _unitGroupSide = side group _firstUnit;     // Actual group side (what matters)
+
+    if (_unitGroupSide != EAST) then {
+        [1, format ["WARNING: Units spawned as %1 instead of EAST! Group was %2", _unitGroupSide, _groupSide]] call A3XAI_fnc_log;
         [1, format ["Unit classname: %1, Group: %2", typeOf _firstUnit, _group]] call A3XAI_fnc_log;
+    } else {
+        // Unit is in correct EAST group - mark as A3XAI unit
+        {
+            _x setVariable ["A3XAI_unit", true, true];
+            _x setVariable ["A3XAI_spawned", true, true];
+        } forEach _units;
     };
 };
 

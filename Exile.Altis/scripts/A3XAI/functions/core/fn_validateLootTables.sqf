@@ -39,14 +39,20 @@ if (count _allItems == 0) exitWith {
 };
 
 // Filter items by prefix to validate each category exists
-private _rifles = _allItems select {_x select [0, 7] == "arifle_"};
-private _lmgs = _allItems select {_x select [0, 4] == "LMG_" || "_SW_" in _x};
-private _snipers = _allItems select {_x select [0, 7] == "srifle_"};
-private _pistols = _allItems select {_x select [0, 5] == "hgun_"};
-private _uniforms = _allItems select {_x select [0, 2] == "U_"};
-private _vests = _allItems select {_x select [0, 2] == "V_"};
-private _headgear = _allItems select {_x select [0, 2] == "H_"};
-private _backpacks = _allItems select {_x select [0, 2] == "B_"};
+// IMPORTANT: Filter out abstract _base_ classes that can't be created as real items
+private _isValidItem = {
+    private _item = _x;
+    !("_base_" in _item) && !("_Base_" in _item) && !("_BASE_" in _item)
+};
+
+private _rifles = _allItems select {(_x select [0, 7] == "arifle_") && (call _isValidItem)};
+private _lmgs = _allItems select {((_x select [0, 4] == "LMG_") || ("_SW_" in _x)) && (call _isValidItem)};
+private _snipers = _allItems select {(_x select [0, 7] == "srifle_") && (call _isValidItem)};
+private _pistols = _allItems select {(_x select [0, 5] == "hgun_") && (call _isValidItem)};
+private _uniforms = _allItems select {(_x select [0, 2] == "U_") && (call _isValidItem)};
+private _vests = _allItems select {(_x select [0, 2] == "V_") && (call _isValidItem)};
+private _headgear = _allItems select {(_x select [0, 2] == "H_") && (call _isValidItem)};
+private _backpacks = _allItems select {(_x select [0, 2] == "B_") && (call _isValidItem)};
 
 // Check what categories are missing
 private _missingCategories = [];

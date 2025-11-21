@@ -38,8 +38,9 @@ if (_useExile) then {
         default {"Rifles"};
     };
 
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    private _weapons = (getArray (missionConfigFile >> "CfgExileArsenal" >> _weaponCat)) select {
+    // ✅ FIX: Extract property names from CfgExileArsenal (Exile uses properties, not arrays!)
+    private _weaponsConfig = missionConfigFile >> "CfgExileArsenal" >> _weaponCat;
+    private _weapons = ((configProperties [_weaponsConfig, "isNumber _x", true]) apply {configName _x}) select {
         !(_x in ["", "throw", "put"])
     };
 
@@ -76,8 +77,9 @@ if (_difficulty in ["medium", "hard", "extreme"]) then {
     private _pistol = "";
 
     if (_useExile) then {
-        // ✅ FIX: Use missionConfigFile for mission-defined configs
-        private _pistols = getArray (missionConfigFile >> "CfgExileArsenal" >> "Pistols");
+        // ✅ FIX: Extract property names from CfgExileArsenal
+        private _pistolsConfig = missionConfigFile >> "CfgExileArsenal" >> "Pistols";
+        private _pistols = (configProperties [_pistolsConfig, "isNumber _x", true]) apply {configName _x};
         if (count _pistols > 0) then {
             _pistol = selectRandom _pistols;
         };
@@ -105,8 +107,9 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
     private _launcher = "";
 
     if (_useExile) then {
-        // ✅ FIX: Use missionConfigFile for mission-defined configs
-        private _launchers = getArray (missionConfigFile >> "CfgExileArsenal" >> "Launchers");
+        // ✅ FIX: Extract property names from CfgExileArsenal
+        private _launchersConfig = missionConfigFile >> "CfgExileArsenal" >> "Launchers";
+        private _launchers = (configProperties [_launchersConfig, "isNumber _x", true]) apply {configName _x};
         if (count _launchers > 0) then {
             _launcher = selectRandom _launchers;
         };
@@ -129,8 +132,9 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
 
 // Add uniform
 private _uniforms = if (_useExile) then {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    getArray (missionConfigFile >> "CfgExileArsenal" >> "Uniforms")
+    // ✅ FIX: Extract property names from CfgExileArsenal
+    private _uniformsConfig = missionConfigFile >> "CfgExileArsenal" >> "Uniforms";
+    (configProperties [_uniformsConfig, "isNumber _x", true]) apply {configName _x}
 } else {
     A3XAI_fallbackLoot getOrDefault ["uniforms", []]
 };
@@ -141,8 +145,9 @@ if (count _uniforms > 0) then {
 
 // Add vest
 private _vests = if (_useExile) then {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    getArray (missionConfigFile >> "CfgExileArsenal" >> "Vests")
+    // ✅ FIX: Extract property names from CfgExileArsenal
+    private _vestsConfig = missionConfigFile >> "CfgExileArsenal" >> "Vests";
+    (configProperties [_vestsConfig, "isNumber _x", true]) apply {configName _x}
 } else {
     A3XAI_fallbackLoot getOrDefault ["vests", []]
 };
@@ -153,8 +158,9 @@ if (count _vests > 0) then {
 
 // Add headgear
 private _headgear = if (_useExile) then {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    getArray (missionConfigFile >> "CfgExileArsenal" >> "Headgear")
+    // ✅ FIX: Extract property names from CfgExileArsenal
+    private _headgearConfig = missionConfigFile >> "CfgExileArsenal" >> "Headgear";
+    (configProperties [_headgearConfig, "isNumber _x", true]) apply {configName _x}
 } else {
     A3XAI_fallbackLoot getOrDefault ["headgear", []]
 };
@@ -165,8 +171,9 @@ if (count _headgear > 0) then {
 
 // Add items
 private _items = if (_useExile) then {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    getArray (missionConfigFile >> "CfgExileArsenal" >> "Items")
+    // ✅ FIX: Extract property names from CfgExileArsenal
+    private _itemsConfig = missionConfigFile >> "CfgExileArsenal" >> "Items";
+    (configProperties [_itemsConfig, "isNumber _x", true]) apply {configName _x}
 } else {
     A3XAI_fallbackLoot getOrDefault ["items", []]
 };

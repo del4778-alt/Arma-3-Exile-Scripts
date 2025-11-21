@@ -83,18 +83,22 @@ for "_i" from 0 to (_guardCount - 1) do {
 // Set group to defend hostages
 [_group, "defend"] call A3XAI_fnc_setGroupBehavior;
 
-// Add patrol waypoints
-for "_i" from 0 to 4 do {
-    private _wpPos = _rescuePos getPos [20, 72 * _i];
+// ✅ FIX: Use defensive waypoints (small radius, GUARD type) instead of patrol
+// Guards should stay close to hostages, not wander off
+for "_i" from 0 to 3 do {
+    private _wpPos = _rescuePos getPos [15, 90 * _i];  // 15m radius, 4 points (was 20m, 5 points)
     private _wp = _group addWaypoint [_wpPos, 0];
-    _wp setWaypointType "MOVE";
+    _wp setWaypointType "GUARD";  // GUARD stays in area vs MOVE (wanders)
     _wp setWaypointSpeed "LIMITED";
-    _wp setWaypointBehaviour "SAFE";
-    _wp setWaypointCombatMode "YELLOW";
+    _wp setWaypointBehaviour "COMBAT";  // Stay alert for rescue attempts (was SAFE)
+    _wp setWaypointCombatMode "RED";  // Engage threats (was YELLOW)
+    _wp setWaypointCompletionRadius 12;  // Stay within 12m of waypoint
 };
 
+// Return to hostages and loop
 private _wp = _group addWaypoint [_rescuePos, 0];
 _wp setWaypointType "CYCLE";
+_wp setWaypointCompletionRadius 10;
 
 // Spawn hostages
 private _hostageCount = switch (_difficulty) do {

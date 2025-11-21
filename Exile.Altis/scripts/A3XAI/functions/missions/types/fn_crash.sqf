@@ -99,18 +99,22 @@ for "_i" from 0 to (_defenderCount - 1) do {
 // Set group to defend crash site
 [_group, "defend"] call A3XAI_fnc_setGroupBehavior;
 
-// Add patrol waypoints around crash
+// ✅ FIX: Use defensive waypoints (small radius, GUARD type) instead of wide patrol
+// Add tight defensive perimeter around crash - AI stay close to defend
 for "_i" from 0 to 3 do {
-    private _wpPos = _crashPos getPos [40, 90 * _i];
+    private _wpPos = _crashPos getPos [20, 90 * _i];  // 20m radius (was 40m - too far)
     private _wp = _group addWaypoint [_wpPos, 0];
-    _wp setWaypointType "MOVE";
+    _wp setWaypointType "GUARD";  // GUARD stays in area vs MOVE (wanders off)
     _wp setWaypointSpeed "LIMITED";
-    _wp setWaypointBehaviour "COMBAT";
-    _wp setWaypointCombatMode "RED";
+    _wp setWaypointBehaviour "COMBAT";  // Already COMBAT - good
+    _wp setWaypointCombatMode "RED";  // Already RED - good
+    _wp setWaypointCompletionRadius 18;  // Stay within 18m of waypoint
 };
 
+// Return to crash center and loop
 private _wp = _group addWaypoint [_crashPos, 0];
 _wp setWaypointType "CYCLE";
+_wp setWaypointCompletionRadius 15;
 
 // Create loot crates
 private _lootCount = switch (_difficulty) do {

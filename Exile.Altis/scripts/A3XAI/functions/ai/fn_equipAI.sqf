@@ -38,7 +38,8 @@ if (_useExile) then {
         default {"Rifles"};
     };
 
-    private _weapons = (getArray (configFile >> "CfgExileArsenal" >> _weaponCat)) select {
+    // ✅ FIX: Use missionConfigFile for mission-defined configs
+    private _weapons = (getArray (missionConfigFile >> "CfgExileArsenal" >> _weaponCat)) select {
         !(_x in ["", "throw", "put"])
     };
 
@@ -56,16 +57,18 @@ if (_useExile) then {
 
 // Add weapon and magazines
 if (_weapon != "") then {
-    _unit addWeapon _weapon;
-
     // Add magazines
     private _magazines = getArray (configFile >> "CfgWeapons" >> _weapon >> "magazines");
     if (count _magazines > 0) then {
         private _magazine = _magazines select 0;
-        for "_i" from 0 to 3 do {
+        // ✅ FIX: Add magazines BEFORE weapon so weapon auto-loads first mag
+        for "_i" from 0 to 5 do {  // 6 mags total (was 4)
             _unit addMagazine _magazine;
         };
     };
+
+    // Add weapon AFTER magazines (auto-loads first mag)
+    _unit addWeapon _weapon;
 };
 
 // Add pistol for higher difficulties
@@ -73,7 +76,8 @@ if (_difficulty in ["medium", "hard", "extreme"]) then {
     private _pistol = "";
 
     if (_useExile) then {
-        private _pistols = getArray (configFile >> "CfgExileArsenal" >> "Pistols");
+        // ✅ FIX: Use missionConfigFile for mission-defined configs
+        private _pistols = getArray (missionConfigFile >> "CfgExileArsenal" >> "Pistols");
         if (count _pistols > 0) then {
             _pistol = selectRandom _pistols;
         };
@@ -85,13 +89,14 @@ if (_difficulty in ["medium", "hard", "extreme"]) then {
     };
 
     if (_pistol != "") then {
-        _unit addWeapon _pistol;
         private _pistolMags = getArray (configFile >> "CfgWeapons" >> _pistol >> "magazines");
         if (count _pistolMags > 0) then {
-            for "_i" from 0 to 1 do {
+            // ✅ FIX: Add pistol mags BEFORE pistol
+            for "_i" from 0 to 2 do {  // 3 pistol mags
                 _unit addMagazine (_pistolMags select 0);
             };
         };
+        _unit addWeapon _pistol;
     };
 };
 
@@ -100,7 +105,8 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
     private _launcher = "";
 
     if (_useExile) then {
-        private _launchers = getArray (configFile >> "CfgExileArsenal" >> "Launchers");
+        // ✅ FIX: Use missionConfigFile for mission-defined configs
+        private _launchers = getArray (missionConfigFile >> "CfgExileArsenal" >> "Launchers");
         if (count _launchers > 0) then {
             _launcher = selectRandom _launchers;
         };
@@ -112,17 +118,19 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
     };
 
     if (_launcher != "") then {
-        _unit addWeapon _launcher;
         private _launcherMags = getArray (configFile >> "CfgWeapons" >> _launcher >> "magazines");
         if (count _launcherMags > 0) then {
+            // ✅ FIX: Add launcher mag BEFORE launcher
             _unit addMagazine (_launcherMags select 0);
         };
+        _unit addWeapon _launcher;
     };
 };
 
 // Add uniform
 private _uniforms = if (_useExile) then {
-    getArray (configFile >> "CfgExileArsenal" >> "Uniforms")
+    // ✅ FIX: Use missionConfigFile for mission-defined configs
+    getArray (missionConfigFile >> "CfgExileArsenal" >> "Uniforms")
 } else {
     A3XAI_fallbackLoot getOrDefault ["uniforms", []]
 };
@@ -133,7 +141,8 @@ if (count _uniforms > 0) then {
 
 // Add vest
 private _vests = if (_useExile) then {
-    getArray (configFile >> "CfgExileArsenal" >> "Vests")
+    // ✅ FIX: Use missionConfigFile for mission-defined configs
+    getArray (missionConfigFile >> "CfgExileArsenal" >> "Vests")
 } else {
     A3XAI_fallbackLoot getOrDefault ["vests", []]
 };
@@ -144,7 +153,8 @@ if (count _vests > 0) then {
 
 // Add headgear
 private _headgear = if (_useExile) then {
-    getArray (configFile >> "CfgExileArsenal" >> "Headgear")
+    // ✅ FIX: Use missionConfigFile for mission-defined configs
+    getArray (missionConfigFile >> "CfgExileArsenal" >> "Headgear")
 } else {
     A3XAI_fallbackLoot getOrDefault ["headgear", []]
 };
@@ -155,7 +165,8 @@ if (count _headgear > 0) then {
 
 // Add items
 private _items = if (_useExile) then {
-    getArray (configFile >> "CfgExileArsenal" >> "Items")
+    // ✅ FIX: Use missionConfigFile for mission-defined configs
+    getArray (missionConfigFile >> "CfgExileArsenal" >> "Items")
 } else {
     A3XAI_fallbackLoot getOrDefault ["items", []]
 };

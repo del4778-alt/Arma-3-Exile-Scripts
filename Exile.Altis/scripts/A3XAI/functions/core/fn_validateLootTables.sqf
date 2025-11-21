@@ -8,9 +8,9 @@
 
 private _valid = true;
 
-// Check if Exile config exists
-if (!isClass (configFile >> "CfgExileArsenal")) exitWith {
-    [1, "CfgExileArsenal not found - using fallback loot tables"] call A3XAI_fnc_log;
+// ✅ FIX: Check missionConfigFile (description.ext) instead of configFile
+if (!isClass (missionConfigFile >> "CfgExileArsenal")) exitWith {
+    [1, "CfgExileArsenal not found in mission config - using fallback loot tables"] call A3XAI_fnc_log;
     A3XAI_useFallbackLoot = true;
     [] call A3XAI_fnc_initFallbackLoot;
     false
@@ -21,7 +21,8 @@ private _requiredCategories = ["Rifles", "LMG", "Sniperrifles", "Pistols", "Unif
 private _missingCategories = [];
 
 {
-    if (!isClass (configFile >> "CfgExileArsenal" >> _x)) then {
+    // ✅ FIX: Use missionConfigFile for mission-defined configs
+    if (!isClass (missionConfigFile >> "CfgExileArsenal" >> _x)) then {
         _missingCategories pushBack _x;
         _valid = false;
     };

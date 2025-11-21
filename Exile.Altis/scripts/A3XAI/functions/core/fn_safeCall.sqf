@@ -13,24 +13,23 @@
 
 params ["_function", "_params", ["_errorMsg", "unknown"]];
 
-private _result = nil;
+// Use a mutable reference to store result across try/catch scope
+private _resultRef = [nil];
 
 try {
-    _result = _params call _function;
+    _resultRef set [0, _params call _function];
 } catch {
-    private _error = _exception;
+    private _error = str _exception;
     [1, format ["ERROR in %1: %2", _errorMsg, _error]] call A3XAI_fnc_log;
 
-    if (A3XAI_debugMode) then {
+    if (!isNil "A3XAI_debugMode" && {A3XAI_debugMode}) then {
         diag_log format ["=== A3XAI ERROR STACK TRACE ==="];
         diag_log format ["Function: %1", _errorMsg];
         diag_log format ["Exception: %1", _error];
         diag_log format ["Params: %1", _params];
-        diag_log format ["Stack: %1", diag_stacktrace];
         diag_log format ["==============================="];
     };
-
-    _result = nil;
 };
 
-_result
+// Return the result (nil if exception occurred)
+_resultRef select 0

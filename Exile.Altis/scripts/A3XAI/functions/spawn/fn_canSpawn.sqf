@@ -34,7 +34,14 @@ if (_fps < A3XAI_minServerFPS) exitWith {
 };
 
 // Check global AI limit
-private _currentAI = count (allUnits select {side _x == EAST});
+// Count AI with A3XAI variables OR units in EAST groups (more reliable than config side check)
+private _currentAI = count (allUnits select {
+    alive _x && {
+        (_x getVariable ["A3XAI_unit", false]) ||
+        (_x getVariable ["A3XAI_spawned", false]) ||
+        (side group _x == EAST && !isPlayer _x)
+    }
+});
 if (_currentAI >= A3XAI_maxAIGlobal) exitWith {
     [false, format ["AI limit reached: %1/%2", _currentAI, A3XAI_maxAIGlobal]]
 };

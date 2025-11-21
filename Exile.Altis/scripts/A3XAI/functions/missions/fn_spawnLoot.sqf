@@ -2,6 +2,9 @@
     A3XAI Elite - Spawn Loot
     Creates and fills a loot crate
 
+    NOTE: Uses cached item lists from fn_validateLootTables.sqf which
+    scans Exile's flat CfgExileArsenal structure by classname prefix.
+
     Parameters:
         0: OBJECT - Loot container
         1: STRING - Difficulty level (default: "medium")
@@ -40,12 +43,16 @@ for "_i" from 1 to _weaponCount do {
     private _weapon = "";
 
     if (_useExile) then {
-        private _category = selectRandom ["Rifles", "LMG", "Sniperrifles"];
-        // ✅ FIX: Extract property names from CfgExileArsenal (Exile uses properties, not arrays!)
-        private _weaponsConfig = missionConfigFile >> "CfgExileArsenal" >> _category;
-        private _weapons = (configProperties [_weaponsConfig, "isNumber _x", true]) apply {configName _x};
-        if (count _weapons > 0) then {
-            _weapon = selectRandom _weapons;
+        // Build weapon pool from cached lists
+        private _weaponPool = [];
+        if (!isNil "A3XAI_exileRifles") then {_weaponPool append A3XAI_exileRifles};
+        if (!isNil "A3XAI_exileLMGs") then {_weaponPool append A3XAI_exileLMGs};
+        if (!isNil "A3XAI_exileSnipers" && {_difficulty in ["hard", "extreme"]}) then {
+            _weaponPool append A3XAI_exileSnipers
+        };
+
+        if (count _weaponPool > 0) then {
+            _weapon = selectRandom _weaponPool;
         };
     } else {
         private _lootPool = A3XAI_fallbackLootPools getOrDefault [_difficulty, A3XAI_fallbackLootPools get "medium"];
@@ -66,38 +73,71 @@ for "_i" from 1 to _weaponCount do {
     };
 };
 
-// Add items (4-10 based on difficulty)
-private _itemCount = floor((4 + random 6) * _lootMultiplier);
+// Add pistols (1-2)
+private _pistolCount = 1 + floor(random 1 * _lootMultiplier);
+for "_i" from 1 to _pistolCount do {
+    private _pistol = "";
 
-private _itemCategories = if (_useExile) then {
-    // ✅ FIX: Extract property names from CfgExileArsenal
-    private _itemsConfig = missionConfigFile >> "CfgExileArsenal" >> "Items";
-    (configProperties [_itemsConfig, "isNumber _x", true]) apply {configName _x}
-} else {
-    A3XAI_fallbackLoot getOrDefault ["items", []]
+    if (_useExile && {!isNil "A3XAI_exilePistols"} && {count A3XAI_exilePistols > 0}) then {
+        _pistol = selectRandom A3XAI_exilePistols;
+    } else {
+        private _pistols = A3XAI_fallbackLoot getOrDefault ["pistols", []];
+        if (count _pistols > 0) then {
+            _pistol = selectRandom _pistols;
+        };
+    };
+
+    if (_pistol != "") then {
+        _container addWeaponCargoGlobal [_pistol, 1];
+        private _magazines = getArray (configFile >> "CfgWeapons" >> _pistol >> "magazines");
+        if (count _magazines > 0) then {
+            _container addMagazineCargoGlobal [_magazines select 0, 2 + floor(random 2)];
+        };
+    };
 };
 
-for "_i" from 1 to _itemCount do {
-    if (count _itemCategories > 0) then {
-        private _item = selectRandom _itemCategories;
-        _container addItemCargoGlobal [_item, 1];
+// Add vests (1-3)
+private _vestCount = 1 + floor(random 2 * _lootMultiplier);
+if (_useExile && {!isNil "A3XAI_exileVests"} && {count A3XAI_exileVests > 0}) then {
+    for "_i" from 1 to _vestCount do {
+        _container addItemCargoGlobal [selectRandom A3XAI_exileVests, 1];
+    };
+} else {
+    private _vests = A3XAI_fallbackLoot getOrDefault ["vests", []];
+    if (count _vests > 0) then {
+        for "_i" from 1 to _vestCount do {
+            _container addItemCargoGlobal [selectRandom _vests, 1];
+        };
+    };
+};
+
+// Add uniforms (1-2)
+private _uniformCount = 1 + floor(random 1 * _lootMultiplier);
+if (_useExile && {!isNil "A3XAI_exileUniforms"} && {count A3XAI_exileUniforms > 0}) then {
+    for "_i" from 1 to _uniformCount do {
+        _container addItemCargoGlobal [selectRandom A3XAI_exileUniforms, 1];
+    };
+} else {
+    private _uniforms = A3XAI_fallbackLoot getOrDefault ["uniforms", []];
+    if (count _uniforms > 0) then {
+        for "_i" from 1 to _uniformCount do {
+            _container addItemCargoGlobal [selectRandom _uniforms, 1];
+        };
     };
 };
 
 // Add backpacks (1-3)
 private _backpackCount = 1 + floor(random 2 * _lootMultiplier);
-
-private _backpacks = if (_useExile) then {
-    // ✅ FIX: Extract property names from CfgExileArsenal
-    private _backpacksConfig = missionConfigFile >> "CfgExileArsenal" >> "Backpacks";
-    (configProperties [_backpacksConfig, "isNumber _x", true]) apply {configName _x}
+if (_useExile && {!isNil "A3XAI_exileBackpacks"} && {count A3XAI_exileBackpacks > 0}) then {
+    for "_i" from 1 to _backpackCount do {
+        _container addBackpackCargoGlobal [selectRandom A3XAI_exileBackpacks, 1];
+    };
 } else {
-    A3XAI_fallbackLoot getOrDefault ["backpacks", []]
-};
-
-for "_i" from 1 to _backpackCount do {
+    private _backpacks = A3XAI_fallbackLoot getOrDefault ["backpacks", []];
     if (count _backpacks > 0) then {
-        _container addBackpackCargoGlobal [selectRandom _backpacks, 1];
+        for "_i" from 1 to _backpackCount do {
+            _container addBackpackCargoGlobal [selectRandom _backpacks, 1];
+        };
     };
 };
 
@@ -134,6 +174,19 @@ switch (_missionType) do {
         // Medical supplies
         _container addItemCargoGlobal ["Medikit", 2];
         _container addItemCargoGlobal ["FirstAidKit", 10];
+    };
+
+    case "supplyDrop": {
+        // Extra weapons and high value items
+        _container addItemCargoGlobal ["NVGoggles", 2];
+        _container addItemCargoGlobal ["Rangefinder", 1];
+    };
+
+    case "outpost": {
+        // Military supplies
+        _container addItemCargoGlobal ["NVGoggles", 3];
+        _container addMagazineCargoGlobal ["HandGrenade", 5];
+        _container addMagazineCargoGlobal ["200Rnd_65x39_cased_Box", 5];
     };
 };
 

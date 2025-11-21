@@ -106,18 +106,22 @@ for "_i" from 0 to (_defenderCount - 1) do {
 // Set group to defend camp
 [_group, "defend"] call A3XAI_fnc_setGroupBehavior;
 
-// Add patrol waypoints
-for "_i" from 0 to 5 do {
-    private _wpPos = _campPos getPos [25, 60 * _i];
+// ✅ FIX: Use defensive waypoints (small radius, GUARD type) instead of long patrol
+// Add tight defensive perimeter waypoints - AI stay close to camp
+for "_i" from 0 to 3 do {
+    private _wpPos = _campPos getPos [12, 90 * _i];  // 12m radius, 4 points (was 25m, 6 points)
     private _wp = _group addWaypoint [_wpPos, 0];
-    _wp setWaypointType "MOVE";
+    _wp setWaypointType "GUARD";  // GUARD stays in area vs MOVE (wanders)
     _wp setWaypointSpeed "LIMITED";
-    _wp setWaypointBehaviour "SAFE";
-    _wp setWaypointCombatMode "YELLOW";
+    _wp setWaypointBehaviour "COMBAT";  // Stay alert (was SAFE)
+    _wp setWaypointCombatMode "RED";  // Engage on sight (was YELLOW)
+    _wp setWaypointCompletionRadius 15;  // Stay within 15m of waypoint
 };
 
+// Return to center and loop
 private _wp = _group addWaypoint [_campPos, 0];
 _wp setWaypointType "CYCLE";
+_wp setWaypointCompletionRadius 10;
 
 // Spawn patrol vehicles (higher difficulties)
 private _vehicles = [];

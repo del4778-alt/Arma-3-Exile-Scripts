@@ -21,10 +21,18 @@ private _requiredCategories = ["Rifles", "LMG", "Sniperrifles", "Pistols", "Unif
 private _missingCategories = [];
 
 {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    if (!isClass (missionConfigFile >> "CfgExileArsenal" >> _x)) then {
+    // ✅ FIX: Check if category exists and has properties (Exile uses properties, not arrays!)
+    private _categoryConfig = missionConfigFile >> "CfgExileArsenal" >> _x;
+    if (!isClass _categoryConfig) then {
         _missingCategories pushBack _x;
         _valid = false;
+    } else {
+        // Check if category has any items (properties)
+        private _itemCount = count (configProperties [_categoryConfig, "true", true]);
+        if (_itemCount == 0) then {
+            _missingCategories pushBack (format ["%1 (empty)", _x]);
+            _valid = false;
+        };
     };
 } forEach _requiredCategories;
 

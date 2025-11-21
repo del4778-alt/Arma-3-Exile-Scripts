@@ -41,8 +41,9 @@ for "_i" from 1 to _weaponCount do {
 
     if (_useExile) then {
         private _category = selectRandom ["Rifles", "LMG", "Sniperrifles"];
-        // ✅ FIX: Use missionConfigFile for mission-defined configs
-        private _weapons = getArray (missionConfigFile >> "CfgExileArsenal" >> _category);
+        // ✅ FIX: Extract property names from CfgExileArsenal (Exile uses properties, not arrays!)
+        private _weaponsConfig = missionConfigFile >> "CfgExileArsenal" >> _category;
+        private _weapons = (configProperties [_weaponsConfig, "isNumber _x", true]) apply {configName _x};
         if (count _weapons > 0) then {
             _weapon = selectRandom _weapons;
         };
@@ -69,8 +70,9 @@ for "_i" from 1 to _weaponCount do {
 private _itemCount = floor((4 + random 6) * _lootMultiplier);
 
 private _itemCategories = if (_useExile) then {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    getArray (missionConfigFile >> "CfgExileArsenal" >> "Items")
+    // ✅ FIX: Extract property names from CfgExileArsenal
+    private _itemsConfig = missionConfigFile >> "CfgExileArsenal" >> "Items";
+    (configProperties [_itemsConfig, "isNumber _x", true]) apply {configName _x}
 } else {
     A3XAI_fallbackLoot getOrDefault ["items", []]
 };
@@ -86,8 +88,9 @@ for "_i" from 1 to _itemCount do {
 private _backpackCount = 1 + floor(random 2 * _lootMultiplier);
 
 private _backpacks = if (_useExile) then {
-    // ✅ FIX: Use missionConfigFile for mission-defined configs
-    getArray (missionConfigFile >> "CfgExileArsenal" >> "Backpacks")
+    // ✅ FIX: Extract property names from CfgExileArsenal
+    private _backpacksConfig = missionConfigFile >> "CfgExileArsenal" >> "Backpacks";
+    (configProperties [_backpacksConfig, "isNumber _x", true]) apply {configName _x}
 } else {
     A3XAI_fallbackLoot getOrDefault ["backpacks", []]
 };

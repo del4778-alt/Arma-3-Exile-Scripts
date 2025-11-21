@@ -32,9 +32,17 @@ private _group = createGroup [EAST, true];
 
 // ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
 // Arma 3 has 144 group limit per side - if exceeded, createGroup returns CIVILIAN group
-if (!isNull _group && {side _group != EAST}) exitWith {
+if (isNull _group) exitWith {
+    [1, "Cannot spawn infantry: Failed to create group (returned null)"] call A3XAI_fnc_log;
+    createHashMap
+};
+
+private _groupSide = side _group;
+if (_groupSide != EAST) exitWith {
+    private _eastGroups = {side _x == EAST} count allGroups;
     deleteGroup _group;
-    [1, format ["Cannot spawn infantry: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    [1, format ["Cannot spawn infantry: Group created as %1 instead of EAST (EAST groups: %2/144)", _groupSide, _eastGroups]] call A3XAI_fnc_log;
+    [1, "This usually means EAST side group limit (144) has been reached"] call A3XAI_fnc_log;
     createHashMap
 };
 
@@ -48,6 +56,17 @@ for "_i" from 0 to (_unitCount - 1) do {
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;
     [_unit, _difficulty] call A3XAI_fnc_equipAI;
     [_unit] call A3XAI_fnc_addAIEventHandlers;
+};
+
+// ✅ VERIFICATION: Check if units actually spawned as EAST side
+private _units = units _group;
+if (count _units > 0) then {
+    private _firstUnit = _units select 0;
+    private _unitSide = side _firstUnit;
+    if (_unitSide != EAST) then {
+        [1, format ["WARNING: Units spawned as %1 instead of EAST! Group was %2", _unitSide, _groupSide]] call A3XAI_fnc_log;
+        [1, format ["Unit classname: %1, Group: %2", typeOf _firstUnit, _group]] call A3XAI_fnc_log;
+    };
 };
 
 // Set group behavior

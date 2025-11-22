@@ -122,6 +122,13 @@ if (isNil "A3XAI_hunterTargetClosest") then {A3XAI_hunterTargetClosest = true};
 if (isNil "A3XAI_hostagesJoinRescuer") then {A3XAI_hostagesJoinRescuer = false};
 if (isNil "A3XAI_waterMinDepth") then {A3XAI_waterMinDepth = 5};
 
+// Distance thresholds (Exile Occupation style)
+if (isNil "A3XAI_minDistanceToSpawnZones") then {A3XAI_minDistanceToSpawnZones = 750};
+if (isNil "A3XAI_minDistanceToTraders") then {A3XAI_minDistanceToTraders = 750};
+if (isNil "A3XAI_minDistanceToTerritory") then {A3XAI_minDistanceToTerritory = 350};
+if (isNil "A3XAI_minDistanceToPlayer") then {A3XAI_minDistanceToPlayer = 250};
+if (isNil "A3XAI_minDistanceToMarkers") then {A3XAI_minDistanceToMarkers = 350};
+
 // Vehicle settings
 if (isNil "A3XAI_roadMinWidth") then {A3XAI_roadMinWidth = 4};
 if (isNil "A3XAI_roadBlacklist") then {A3XAI_roadBlacklist = ["TRAIL"]};

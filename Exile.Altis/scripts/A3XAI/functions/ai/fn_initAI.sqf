@@ -14,8 +14,15 @@ params ["_unit", ["_difficulty", "medium"]];
 
 if (isNull _unit) exitWith {false};
 
-// ✅ v3.7: SPAWN PROTECTION - Prevent immediate death from collision/terrain
-// Make unit invulnerable for first 2 seconds after spawn
+// ✅ v3.8: Set A3XAI marker IMMEDIATELY - before anything else
+// This is critical for side detection in EntityKilled handler
+_unit setVariable ["A3XAI_unit", true, true];
+_unit setVariable ["A3XAI_difficulty", _difficulty, true];
+_unit setVariable ["A3XAI_spawnTime", time];
+
+// ✅ v3.8: EXTENDED SPAWN PROTECTION (5 seconds)
+// Prevents death from: collision, terrain, player AI, environment
+// Your recruit AI have PERFECT 1.0 skills and kill instantly - need more time
 _unit allowDamage false;
 
 // ✅ v3.7: Fix spawn position - ensure unit is on ground and not stuck
@@ -41,19 +48,22 @@ _unit enableAI "ANIM";          // Enable animations
 _unit allowFleeing 0;  // Never flee
 _unit enableGunLights "forceOn";  // Gun lights for night combat
 
-// ✅ v3.7: Re-enable damage after spawn protection delay (vanilla approach)
+// ✅ v3.8: Re-enable damage after EXTENDED spawn protection (5 seconds)
+// Also re-enable all AI features in case something disabled them
 [_unit] spawn {
     params ["_unit"];
-    sleep 2;
+    sleep 5;  // Extended from 2s to 5s for safety
     if (!isNull _unit && alive _unit) then {
         _unit allowDamage true;
+        // Re-enable AI in case it got disabled
+        _unit enableAI "ALL";
+        _unit enableAI "MOVE";
+        _unit enableAI "PATH";
+        _unit enableAI "ANIM";
+        _unit enableAI "FSM";
+        _unit setUnitPos "AUTO";
     };
 };
-
-// Set A3XAI marker variables
-_unit setVariable ["A3XAI_unit", true, true];
-_unit setVariable ["A3XAI_difficulty", _difficulty, true];
-_unit setVariable ["A3XAI_spawnTime", time];
 
 // ✅ v3.0: Zombies are WEST, mission AI are EAST - faction hostility handles combat
 // No more RVG_ZedIgnore needed - zombies WILL attack mission AI and vice versa

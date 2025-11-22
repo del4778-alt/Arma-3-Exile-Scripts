@@ -15,7 +15,31 @@ if (isNull _unit) exitWith {false};
 
 // Killed event handler
 _unit addEventHandler ["Killed", {
-    params ["_unit", "_killer"];
+    params ["_unit", "_killer", "_instigator", "_useEffects"];
+
+    // ✅ v3.9: DEBUG - Log what killed the AI to diagnose deaths
+    private _spawnTime = _unit getVariable ["A3XAI_spawnTime", 0];
+    private _aliveTime = time - _spawnTime;
+    private _killerType = if (isNull _killer) then {"NULL"} else {typeOf _killer};
+    private _killerSide = if (isNull _killer) then {"NONE"} else {str (side _killer)};
+    private _instigatorType = if (isNull _instigator) then {"NULL"} else {typeOf _instigator};
+    private _mission = _unit getVariable ["A3XAI_mission", "unknown"];
+    private _wasInVehicle = vehicle _unit != _unit;
+
+    diag_log format ["[A3XAI:DEATH] Unit: %1 | Alive: %2s | Killer: %3 (%4) | Instigator: %5 | Mission: %6 | InVehicle: %7",
+        typeOf _unit,
+        _aliveTime toFixed 1,
+        _killerType,
+        _killerSide,
+        _instigatorType,
+        _mission,
+        _wasInVehicle
+    ];
+
+    // Log if death was very quick (possible spawn issue)
+    if (_aliveTime < 10) then {
+        diag_log format ["[A3XAI:DEATH] ⚠️ QUICK DEATH after only %1 seconds! Position: %2", _aliveTime toFixed 1, getPosATL _unit];
+    };
 
     // Update statistics
     if (A3XAI_stats getOrDefault ["totalKills", 0] >= 0) then {
@@ -134,6 +158,34 @@ _unit addEventHandler ["Killed", {
             };
         }, [_unit], 300] call A3XAI_fnc_setTimeout;  // 5 minute cleanup
     };
+}];
+
+// ✅ v3.9: HandleDamage - Log all damage sources to diagnose quick deaths
+_unit addEventHandler ["HandleDamage", {
+    params ["_unit", "_selection", "_damage", "_source", "_projectile", "_hitIndex", "_instigator", "_hitPoint"];
+
+    // Only log significant damage (> 0.1)
+    if (_damage > 0.1) then {
+        private _spawnTime = _unit getVariable ["A3XAI_spawnTime", 0];
+        private _aliveTime = time - _spawnTime;
+        private _sourceType = if (isNull _source) then {"NULL/Environment"} else {typeOf _source};
+        private _sourceSide = if (isNull _source) then {"NONE"} else {str (side _source)};
+
+        // Log damage for early deaths (within first 30 seconds)
+        if (_aliveTime < 30) then {
+            diag_log format ["[A3XAI:DAMAGE] Unit hit at %1s | Damage: %2 | Source: %3 (%4) | Projectile: %5 | HitPoint: %6",
+                _aliveTime toFixed 1,
+                _damage toFixed 2,
+                _sourceType,
+                _sourceSide,
+                _projectile,
+                _hitPoint
+            ];
+        };
+    };
+
+    // Return original damage (don't modify)
+    _damage
 }];
 
 // Hit event handler (for aggressive reaction)

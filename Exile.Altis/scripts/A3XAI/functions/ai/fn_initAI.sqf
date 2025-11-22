@@ -48,12 +48,15 @@ _unit enableAI "ANIM";          // Enable animations
 _unit allowFleeing 0;  // Never flee
 _unit enableGunLights "forceOn";  // Gun lights for night combat
 
-// ✅ v3.8: Re-enable damage after EXTENDED spawn protection (5 seconds)
+// ✅ v3.9: Re-enable damage after EXTENDED spawn protection (5 seconds)
 // Also re-enable all AI features in case something disabled them
 [_unit] spawn {
     params ["_unit"];
     sleep 5;  // Extended from 2s to 5s for safety
     if (!isNull _unit && alive _unit) then {
+        private _pos = getPosATL _unit;
+        diag_log format ["[A3XAI:SPAWN] Protection ending for unit at %1 - enabling damage", _pos];
+
         _unit allowDamage true;
         // Re-enable AI in case it got disabled
         _unit enableAI "ALL";
@@ -62,6 +65,18 @@ _unit enableGunLights "forceOn";  // Gun lights for night combat
         _unit enableAI "ANIM";
         _unit enableAI "FSM";
         _unit setUnitPos "AUTO";
+
+        // Log status 1 second after protection ends
+        sleep 1;
+        if (!isNull _unit) then {
+            if (alive _unit) then {
+                diag_log format ["[A3XAI:SPAWN] ✅ Unit still alive 1s after protection ended at %1", getPosATL _unit];
+            } else {
+                diag_log format ["[A3XAI:SPAWN] ❌ Unit DIED within 1s of protection ending!"];
+            };
+        };
+    } else {
+        diag_log format ["[A3XAI:SPAWN] ❌ Unit died DURING 5s protection period!"];
     };
 };
 

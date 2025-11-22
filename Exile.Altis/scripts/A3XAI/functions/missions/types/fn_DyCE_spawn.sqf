@@ -208,19 +208,28 @@ for "_i" from 0 to (_vehicleCount - 1) do {
         continue;
     };
 
-    _vehicle setDir (random 360);
+    // Set vehicle direction towards endpoint for convoy formation
+    private _vehDir = _vehSpawnPos getDir _endWaypoint;
+    _vehicle setDir _vehDir;
     _vehicle setFuel (0.8 + random 0.2);
-    _vehicle lock 2;
+
+    // Vehicle always unlocked - players can take after killing crew
+    _vehicle lock 0;
+    _vehicle setVariable ["DyCE_vehicle", true, true];
 
     // ========================================
     // CREATE CREW
     // ========================================
     private _group = createGroup [DyCE_Config get "aiSide", true];
     private _crewCount = (_crewRange select 0) + floor(random ((_crewRange select 1) - (_crewRange select 0) + 1));
+    private _crewUnits = [];
 
     for "_j" from 0 to (_crewCount - 1) do {
         private _unitType = "O_Soldier_F";
-        private _unit = _group createUnit [_unitType, _vehSpawnPos, [], 0, "NONE"];
+        private _unit = _group createUnit [_unitType, _vehSpawnPos, [], 0, "CAN_COLLIDE"];
+
+        // Temporarily disable AI during setup (DyCE style)
+        _unit disableAI "ALL";
 
         // Apply A3XAI initialization
         [_unit, _difficulty] call A3XAI_fnc_initAI;
@@ -237,8 +246,9 @@ for "_i" from 0 to (_vehicleCount - 1) do {
         };
 
         // Mark as DyCE unit
-        _unit setVariable ["DyCE_unit", true];
-        _unit setVariable ["A3XAI_mission", _missionName];
+        _unit setVariable ["DyCE_unit", true, true];
+        _unit setVariable ["DyCE_vehicle", _vehicle, true];
+        _unit setVariable ["A3XAI_mission", _missionName, true];
 
         // Assign to vehicle (ground vehicles only)
         if (_j == 0) then {
@@ -253,16 +263,39 @@ for "_i" from 0 to (_vehicleCount - 1) do {
                 _unit moveInAny _vehicle;
             };
         };
+
+        // Re-enable AI after setup
+        _unit enableAI "ALL";
+        _crewUnits pushBack _unit;
     };
 
+    // Store crew reference on vehicle
+    _vehicle setVariable ["DyCE_crew", _crewUnits, true];
+
     // ========================================
-    // SET GROUP BEHAVIOR
+    // SET GROUP BEHAVIOR (Aggressive Police)
     // ========================================
     _group setBehaviour "AWARE";
-    _group setCombatMode "YELLOW";
+    _group setCombatMode "RED";           // Engage at will - shoot on sight
     _group setFormation "COLUMN";
-    _group setSpeedMode "LIMITED";
+    _group setSpeedMode "NORMAL";         // Full speed patrols
     _group setVariable ["DyCE_speedLimit", _speedLimit];
+
+    // Enable all AI behaviors explicitly
+    {
+        _x enableAI "TARGET";
+        _x enableAI "AUTOTARGET";
+        _x enableAI "MOVE";
+        _x enableAI "FSM";
+        _x enableAI "AUTOCOMBAT";
+        _x enableAI "COVER";
+        _x enableAI "SUPPRESSION";
+        _x enableAI "CHECKVISIBLE";
+        _x enableAI "PATH";
+    } forEach (units _group);
+
+    // Set vehicle speed limit
+    _vehicle limitSpeed _speedLimit;
 
     // ========================================
     // GENERATE WAYPOINTS (DyCE-Style Road Routes)
@@ -389,21 +422,22 @@ if (DyCE_Config get "enableMarkers") then {
 };
 
 // ============================================================
-// SEND EXILE TOAST NOTIFICATION
+// SEND NOTIFICATIONS
 // ============================================================
 if (DyCE_Config get "enableNotifications" && _alertMessage != "") then {
-    // Use Exile's toast notification system
-    private _toastTitle = "POLICE ACTIVITY";
-    private _toastText = _alertMessage;
-
-    // Format: ["toastRequest", [type, [title, text]]]
-    // Types: "SuccessTitleAndText", "ErrorTitleAndText", "InfoTitleAndText", "WarningTitleAndText"
-    ["toastRequest", ["WarningTitleAndText", [_toastTitle, _toastText]]] remoteExec ["ExileClient_gui_toaster_addTemplateToast", 0];
-
-    // Also show hint with position info
     private _posGrid = mapGridPosition _spawnPos;
-    private _hintMsg = format ["<t size='1.2' color='#ff0000'>%1</t><br/><t size='0.9'>%2</t><br/><t size='0.8' color='#ffff00'>Grid: %3</t>", _toastTitle, _alertMessage, _posGrid];
-    [_hintMsg] remoteExec ["hint", 0];
+
+    // System chat notification (always works)
+    private _chatMsg = format ["[POLICE] %1 - Grid: %2", _alertMessage, _posGrid];
+    _chatMsg remoteExec ["systemChat", 0];
+
+    // Hint notification with formatting
+    private _hintMsg = format [
+        "<t size='1.3' color='#ff0000'>POLICE ACTIVITY</t><br/><br/><t size='1.0'>%1</t><br/><br/><t size='0.9' color='#ffff00'>Grid: %2</t>",
+        _alertMessage,
+        _posGrid
+    ];
+    _hintMsg remoteExec ["hint", 0];
 };
 
 // ============================================================

@@ -60,7 +60,8 @@ if (_vehicleClass == "") then {
 private _vehicle = createVehicle [_vehicleClass, _roadPos, [], 0, "NONE"];
 _vehicle setDir (random 360);
 _vehicle setFuel (0.7 + random 0.3);
-_vehicle lock 2;
+_vehicle lock 0;  // Always unlocked
+_vehicle setVariable ["A3XAI_vehicle", true, true];
 
 // Create crew
 private _group = createGroup [EAST, true];
@@ -80,13 +81,17 @@ private _crewCount = switch (true) do {
     default {2};
 };
 
+private _crewUnits = [];
+
 for "_i" from 0 to (_crewCount - 1) do {
-    private _unit = _group createUnit ["O_Soldier_F", _roadPos, [], 0, "NONE"];  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
+    private _unit = _group createUnit ["O_Soldier_F", _roadPos, [], 0, "CAN_COLLIDE"];
 
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;
     [_unit, _difficulty] call A3XAI_fnc_equipAI;
     [_unit] call A3XAI_fnc_addAIEventHandlers;
+
+    _unit setVariable ["A3XAI_vehicle", _vehicle, true];
 
     if (_i == 0) then {
         _unit assignAsDriver _vehicle;
@@ -95,10 +100,23 @@ for "_i" from 0 to (_crewCount - 1) do {
         _unit assignAsGunner _vehicle;
         _unit moveInAny _vehicle;
     };
+
+    _crewUnits pushBack _unit;
 };
 
-// Set group behavior
-[_group, "vehicle"] call A3XAI_fnc_setGroupBehavior;
+// Store crew on vehicle
+_vehicle setVariable ["A3XAI_crew", _crewUnits, true];
+
+// Set group behavior - aggressive police
+_group setBehaviour "AWARE";
+_group setCombatMode "RED";  // Engage at will
+_group setFormation "COLUMN";
+_group setSpeedMode "NORMAL";
+
+// Enable all AI behaviors
+{
+    _x enableAI "ALL";
+} forEach (units _group);
 
 // Generate route
 private _waypoints = [_roadPos, 1500, 10] call A3XAI_fnc_generateRoute;

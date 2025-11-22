@@ -85,6 +85,7 @@ class CfgFunctions {
             class supplyDrop {};     // Supply drop mission
             class invasion {};       // Town invasion mission (VEMF-style)
             class highwayPatrol {};  // Highway patrol between spawn zones
+            class DyCE_spawn {};     // DyCE unified convoy spawner
         };
 
         class HC {

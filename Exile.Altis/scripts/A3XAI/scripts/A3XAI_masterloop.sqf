@@ -2,6 +2,12 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.3: DyCE Integration (Dynamic Convoy Events)
+        - Armed convoys, troop transports, helicopter patrols
+        - Supply trucks with high-value loot
+        - Integrated from: https://github.com/ExiledHeisenberg/DyCE
+        - Unified convoy spawner with configurable types
+
     v3.2: Highway Patrol System
         - Highway patrols spawn between Exile spawn zones
         - Up to 4 highway patrols active at once
@@ -43,8 +49,17 @@ private _lastHighwayPatrol = 0;
 private _maxHighwayPatrols = 4;          // Max concurrent highway patrols
 private _highwayPatrolsSpawned = 0;
 
+// ============================================
+// DyCE DYNAMIC CONVOY CONFIGURATION
+// ============================================
+private _dyceInterval = 120;             // Check DyCE spawn every 2 minutes
+private _lastDyceCheck = 0;
+private _dyceInitialized = false;
+private _dyceConvoyTypes = ["armedConvoy", "troopConvoy", "heliPatrol", "supplyTruck"];
+
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
+[3, "DyCE Dynamic Convoy Events enabled"] call A3XAI_fnc_log;
 
 while {A3XAI_enabled} do {
     sleep _loopInterval;
@@ -263,6 +278,58 @@ while {A3XAI_enabled} do {
     };
 
     // ============================================
+    // 5. DyCE DYNAMIC CONVOY EVENTS (Every 2 minutes)
+    // ============================================
+    // Spawn random convoy types from DyCE configuration
+    // Types: armedConvoy, troopConvoy, heliPatrol, supplyTruck
+
+    if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
+        if ((time - _lastDyceCheck) >= _dyceInterval) then {
+            // Check total DyCE events active
+            private _currentDyceEvents = A3XAI_activeMissions select {
+                _x getOrDefault ["dyce", false]
+            };
+
+            private _maxEvents = if (!isNil "DyCE_Config") then {
+                DyCE_Config getOrDefault ["maxTotalDynamicEvents", 8]
+            } else {8};
+
+            if (count _currentDyceEvents < _maxEvents) then {
+                // Select random convoy type to spawn
+                private _convoyType = selectRandom _dyceConvoyTypes;
+
+                // Check specific limits for this type
+                private _typeCount = {(_x getOrDefault ["type", ""]) == _convoyType} count _currentDyceEvents;
+                private _typeLimit = switch (_convoyType) do {
+                    case "armedConvoy": {2};
+                    case "troopConvoy": {1};
+                    case "heliPatrol": {2};
+                    case "supplyTruck": {1};
+                    default {2};
+                };
+
+                if (_typeCount < _typeLimit) then {
+                    // Spawn the convoy
+                    private _result = [A3XAI_fnc_DyCE_spawn, [_convoyType, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
+
+                    if (!isNil "_result" && {count _result > 0}) then {
+                        [3, format ["[DyCE] Spawned %1 [%2/%3 events active]",
+                            _convoyType, (count _currentDyceEvents) + 1, _maxEvents]] call A3XAI_fnc_log;
+                    } else {
+                        [4, format ["[DyCE] Failed to spawn %1", _convoyType]] call A3XAI_fnc_log;
+                    };
+                } else {
+                    [4, format ["[DyCE] %1 limit reached (%2/%3)", _convoyType, _typeCount, _typeLimit]] call A3XAI_fnc_log;
+                };
+            } else {
+                [4, format ["[DyCE] Event limit reached (%1/%2)", count _currentDyceEvents, _maxEvents]] call A3XAI_fnc_log;
+            };
+
+            _lastDyceCheck = time;
+        };
+    };
+
+    // ============================================
     // MISSION SCHEDULER v3.1
     // ============================================
 
@@ -320,6 +387,26 @@ while {A3XAI_enabled} do {
         };
         _lastHighwayPatrol = time;
         [3, format ["=== HIGHWAY PATROLS ACTIVE: %1 ===", _highwayPatrolsSpawned]] call A3XAI_fnc_log;
+
+        // Spawn initial DyCE convoys
+        if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
+            [3, "=== SPAWNING INITIAL DyCE CONVOYS ==="] call A3XAI_fnc_log;
+
+            // Spawn one armed convoy and one heli patrol at startup
+            private _initialDyceTypes = ["armedConvoy", "heliPatrol"];
+            {
+                private _result = [A3XAI_fnc_DyCE_spawn, [_x, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
+                if (!isNil "_result" && {count _result > 0}) then {
+                    [3, format ["[DyCE] Initial %1 spawned", _x]] call A3XAI_fnc_log;
+                };
+                sleep 2;
+            } forEach _initialDyceTypes;
+
+            _lastDyceCheck = time;
+            [3, format ["=== DyCE CONVOYS ACTIVE: %1 ===", count DyCE_ActiveConvoys]] call A3XAI_fnc_log;
+        };
+
+        _dyceInitialized = true;
     };
 
     // SCHEDULED MISSION CHECK: Replace completed missions

@@ -290,7 +290,12 @@ sleep 5;
 // ✅ A3XAI Elite Edition (mission folder version - no PBO conflicts!)
 call compile preprocessFileLineNumbers "scripts\A3XAI\init.sqf";
 diag_log "[SERVER] - A3XAI Elite Edition initialized (mission folder version)";
-sleep 2;
+sleep 1;
+
+// ✅ DyCE Dynamic Convoy Events (integrated with A3XAI)
+call compile preprocessFileLineNumbers "scripts\A3XAI\DyCE_config.sqf";
+diag_log "[SERVER] - DyCE Dynamic Convoy Events loaded";
+sleep 1;
 
 // ✅ FIXED: Use mission-relative paths (no leading backslash)
 diag_log "[SERVER] Loading AI systems in correct order...";
@@ -318,8 +323,13 @@ diag_log "[SERVER] ========================================";
 diag_log "[SERVER] All systems initialized!";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] LOAD ORDER:";
+diag_log "[SERVER]   0. A3XAI Elite + DyCE Dynamic Convoys";
 diag_log "[SERVER]   1. Ravage (zombie resurrection)";
 diag_log "[SERVER]   2. Elite Driving v9.7 APEX (AI FULL SPEED + BRIDGE FORCE + ROADKILL)";
 diag_log "[SERVER]   3. Patrol AI (EAID_Ignore set)";
 diag_log "[SERVER]   4. Recruit AI (drivers enabled)";
+diag_log "[SERVER] ========================================";
+diag_log "[SERVER] ACTIVE SYSTEMS:";
+diag_log "[SERVER]   - Missions: cache, invasion, convoy, crash, camp, hunter, outpost, supplyDrop";
+diag_log "[SERVER]   - DyCE: armedConvoy, troopConvoy, heliPatrol, highwayPatrol, supplyTruck";
 diag_log "[SERVER] ========================================";

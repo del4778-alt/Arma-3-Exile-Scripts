@@ -60,7 +60,7 @@ if (_vehicleClass == "") then {
 private _vehicle = createVehicle [_vehicleClass, _roadPos, [], 0, "NONE"];
 _vehicle setDir (random 360);
 _vehicle setFuel (0.7 + random 0.3);
-_vehicle lock 2;
+_vehicle lock 0;  // Always unlocked
 _vehicle setVariable ["A3XAI_vehicle", true, true];
 
 // Create crew
@@ -104,24 +104,8 @@ for "_i" from 0 to (_crewCount - 1) do {
     _crewUnits pushBack _unit;
 };
 
-// Store crew on vehicle for unlock check
+// Store crew on vehicle
 _vehicle setVariable ["A3XAI_crew", _crewUnits, true];
-
-// Vehicle unlock on crew death
-{
-    _x addEventHandler ["Killed", {
-        params ["_unit", "_killer"];
-        private _veh = _unit getVariable ["A3XAI_vehicle", objNull];
-        if (!isNull _veh) then {
-            private _crew = _veh getVariable ["A3XAI_crew", []];
-            private _aliveCrew = _crew select {alive _x};
-            if (count _aliveCrew == 0) then {
-                _veh lock 0;
-                [4, "[A3XAI] Vehicle unlocked - all crew eliminated"] call A3XAI_fnc_log;
-            };
-        };
-    }];
-} forEach _crewUnits;
 
 // Set group behavior - aggressive police
 _group setBehaviour "AWARE";

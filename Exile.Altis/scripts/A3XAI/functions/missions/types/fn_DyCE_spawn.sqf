@@ -213,10 +213,9 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _vehicle setDir _vehDir;
     _vehicle setFuel (0.8 + random 0.2);
 
-    // Lock vehicle initially - will unlock when crew dead
-    _vehicle lock 2;
+    // Vehicle always unlocked - players can take after killing crew
+    _vehicle lock 0;
     _vehicle setVariable ["DyCE_vehicle", true, true];
-    _vehicle setVariable ["DyCE_locked", true, true];
 
     // ========================================
     // CREATE CREW
@@ -272,39 +271,6 @@ for "_i" from 0 to (_vehicleCount - 1) do {
 
     // Store crew reference on vehicle
     _vehicle setVariable ["DyCE_crew", _crewUnits, true];
-
-    // ========================================
-    // VEHICLE UNLOCK ON CREW DEATH
-    // ========================================
-    _vehicle addEventHandler ["GetIn", {
-        params ["_vehicle", "_role", "_unit", "_turret"];
-        // If player tries to get in locked vehicle, check if crew dead
-        if (isPlayer _unit) then {
-            private _crew = _vehicle getVariable ["DyCE_crew", []];
-            private _aliveCrew = _crew select {alive _x};
-            if (count _aliveCrew == 0) then {
-                _vehicle lock 0;  // Unlock
-                _vehicle setVariable ["DyCE_locked", false, true];
-            };
-        };
-    }];
-
-    // Add killed handler to each crew member to unlock vehicle
-    {
-        _x addEventHandler ["Killed", {
-            params ["_unit", "_killer"];
-            private _veh = _unit getVariable ["DyCE_vehicle", objNull];
-            if (!isNull _veh) then {
-                private _crew = _veh getVariable ["DyCE_crew", []];
-                private _aliveCrew = _crew select {alive _x};
-                if (count _aliveCrew == 0) then {
-                    _veh lock 0;  // Unlock when all crew dead
-                    _veh setVariable ["DyCE_locked", false, true];
-                    [4, format ["[DyCE] Vehicle unlocked - all crew eliminated"]] call A3XAI_fnc_log;
-                };
-            };
-        }];
-    } forEach _crewUnits;
 
     // ========================================
     // SET GROUP BEHAVIOR (Aggressive Police)

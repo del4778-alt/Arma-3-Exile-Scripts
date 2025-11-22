@@ -41,12 +41,16 @@ EAD_CFG = createHashMapFromArray [
     ["OFFROAD_MULT", 0.75],             // 75% speed off-road (was 0.85)
 
     // ✅ REDUCED SCAN DISTANCES - Shorter lookahead = more aggressive driving
-    // At 200km/h = 55m/s, 30m gives ~0.5s reaction time (plenty for AI)
-    ["DIST_MAIN", 50],                  // Reduced from 150m to 50m (main forward)
-    ["DIST_WIDE", 35],                  // Reduced from 100m to 35m (wide angles)
-    ["DIST_SIDE", 25],                  // Reduced from 80m to 25m (side detection)
-    ["DIST_CORNER", 20],                // Reduced from 60m to 20m (90° corners)
-    ["DIST_NEAR", 12],                  // Reduced from 30m to 12m (immediate obstacles)
+    // At 200km/h = 55m/s, 50m gives ~1s reaction time
+    ["DIST_MAIN", 50],                  // Forward detection (main)
+    ["DIST_WIDE", 35],                  // Wide angle forward (25-40°)
+
+    // ✅ ROAD-FOCUSED SIDE DETECTION
+    // Arma road width ~10m, half = 5m + 10m buffer = 15m
+    // Only scan what matters: road surface + immediate edge
+    ["DIST_SIDE", 15],                  // Side rays (45-60°) - road width + 10m
+    ["DIST_CORNER", 15],                // Corner rays (65-88°) - road width + 10m
+    ["DIST_NEAR", 8],                   // Near rays (90°+) - immediate hazards only
 
     // ✅ APEX RACING
     ["APEX_ENABLED", true],

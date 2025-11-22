@@ -756,6 +756,88 @@ RECRUIT_fnc_VerifyAndRetryGetIn = {
 };
 
 // ====================================================================================
+// NEW: Vehicle Immobilization Monitor - Auto-repair when vehicle can't move
+// ====================================================================================
+RECRUIT_fnc_VehicleImmobilizationMonitor = {
+    params ["_player", "_veh"];
+
+    if (isNull _player || isNull _veh) exitWith {};
+
+    private _uid = getPlayerUID _player;
+
+    diag_log format ["[AI RECRUIT] Starting vehicle immobilization monitor for %1", typeOf _veh];
+
+    while {!isNull _veh && !isNull _player && vehicle _player == _veh} do {
+        sleep 3;
+
+        // Check if vehicle is immobilized (wheels/tracks/engine damaged)
+        private _canMove = true;
+        private _hitPoints = getAllHitPointsDamage _veh;
+
+        if (count _hitPoints >= 3) then {
+            private _hitNames = _hitPoints select 0;
+            private _hitDamages = _hitPoints select 2;
+
+            {
+                private _name = toLower _x;
+                private _damage = _hitDamages select _forEachIndex;
+
+                // Check critical components
+                if (_damage > 0.9) then {
+                    if ("wheel" in _name || "engine" in _name || "fuel" in _name || "track" in _name) then {
+                        _canMove = false;
+                    };
+                };
+            } forEach _hitNames;
+        };
+
+        // Also check if vehicle is completely stopped with high damage
+        if (speed _veh < 2 && damage _veh > 0.5) then {
+            _canMove = false;
+        };
+
+        // If immobilized, trigger auto-repair
+        if (!_canMove) then {
+            diag_log format ["[AI RECRUIT] Vehicle %1 immobilized - initiating auto-repair", typeOf _veh];
+
+            // Get player's AI
+            private _allAI = all_recruited_ai_map getOrDefault [_uid, []];
+            private _availableAI = _allAI select {alive _x};
+
+            if (count _availableAI > 0) then {
+                private _repairer = _availableAI select 0;
+
+                // Notify player
+                "Vehicle immobilized! AI repairing..." remoteExec ["systemChat", 0];
+
+                // Quick repair (AI uses setDamage - no toolkit needed)
+                sleep 2;  // Brief delay for "repair"
+
+                if (!isNull _veh) then {
+                    // Full repair
+                    _veh setDamage 0;
+                    _veh setFuel (fuel _veh max 0.3);
+
+                    // Repair all hit points
+                    private _hitPointNames = (getAllHitPointsDamage _veh) select 0;
+                    {
+                        _veh setHitPointDamage [_x, 0];
+                    } forEach _hitPointNames;
+
+                    private _msg = format ["%1 repaired the vehicle!", name _repairer];
+                    _msg remoteExec ["systemChat", 0];
+                    _msg remoteExec ["hint", 0];
+
+                    diag_log format ["[AI RECRUIT] %1 auto-repaired immobilized vehicle", name _repairer];
+                };
+            };
+        };
+    };
+
+    diag_log "[AI RECRUIT] Vehicle immobilization monitor ended";
+};
+
+// ====================================================================================
 // NEW: Bridge/Stuck Recovery for AI Recruit vehicles
 // ====================================================================================
 RECRUIT_fnc_CheckBridgeStuck = {
@@ -1804,6 +1886,9 @@ fn_setupPlayerHandlers = {
                         diag_log format ["[AI RECRUIT] Player entered %1 - EAD already active", typeOf _veh];
                     };
                 };
+
+                // 🔥 v7.34: Start vehicle immobilization monitor for auto-repair
+                [_player, _veh] spawn RECRUIT_fnc_VehicleImmobilizationMonitor;
             };
         };
     }];
@@ -1818,7 +1903,10 @@ fn_setupPlayerHandlers = {
         // AUTO-REPAIR: AI repairs damaged vehicle on exit
         // ============================================
         if (!isNull _vehicle && {damage _vehicle > 0.1}) then {
-            private _recruitAI = RECRUIT_AI select {alive _x && {(_x distance _vehicle) < 50}};
+            // 🔥 v7.34 FIX: Get AI from player's map, not undefined RECRUIT_AI
+            private _uid = getPlayerUID _unit;
+            private _allAI = all_recruited_ai_map getOrDefault [_uid, []];
+            private _recruitAI = _allAI select {alive _x && {(_x distance _vehicle) < 50}};
 
             if (count _recruitAI > 0) then {
                 // Select closest AI to repair
@@ -1827,12 +1915,14 @@ fn_setupPlayerHandlers = {
 
                 diag_log format ["[AI RECRUIT] Vehicle damaged (%.0f%%) - %1 will repair", _vehicleDamage * 100, name _repairer];
 
-                // Have AI repair the vehicle
-                [_repairer, _vehicle] spawn {
-                    params ["_ai", "_veh"];
+                // Have AI repair the vehicle (AI can run setDamage - no toolkit needed)
+                [_repairer, _vehicle, _unit] spawn {
+                    params ["_ai", "_veh", "_player"];
 
-                    // Move to vehicle
-                    _ai doMove (position _veh);
+                    // Move to vehicle if not already close
+                    if (_ai distance _veh > 5) then {
+                        _ai doMove (position _veh);
+                    };
 
                     // Wait for arrival or timeout
                     private _timeout = time + 15;
@@ -1859,7 +1949,9 @@ fn_setupPlayerHandlers = {
                             diag_log format ["[AI RECRUIT] %1 repaired vehicle - now at 100%%", name _ai];
 
                             // Notify player
-                            format ["%1 has repaired the vehicle", name _ai] remoteExec ["systemChat", owner (vehicle _ai getVariable ["RECRUIT_owner", _ai])];
+                            private _msg = format ["%1 has repaired the vehicle!", name _ai];
+                            _msg remoteExec ["systemChat", 0];
+                            _msg remoteExec ["hint", 0];
                         };
                     };
                 };

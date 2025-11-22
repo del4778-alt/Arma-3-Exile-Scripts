@@ -268,23 +268,8 @@ addMissionEventHandler ["EntityKilled", {
             diag_log format ["[RMG:Ravage] Recruit AI death ignored: %1 (no zombie spawn)", name _killed];
         };
 
-        // ✅ A3XAI exclusion - Don't resurrect A3XAI units as zombies
-        // Check all A3XAI marker variables: A3XAI_unit (main), A3XAI_spawned, A3XAI_Ignore, or group variable
-        private _isA3XAI = (_killed getVariable ["A3XAI_unit", false]) ||
-            (_killed getVariable ["A3XAI_spawned", false]) ||
-            (_killed getVariable ["A3XAI_Ignore", false]) || {
-            !isNull (group _killed) && {(group _killed) getVariable ["A3XAI_Group", false]}
-        };
-
-        if (_debug) then {
-            diag_log format ["  - A3XAI Unit: %1", _isA3XAI];
-        };
-
-        if (_isA3XAI) exitWith {
-            diag_log format ["[RMG:Ravage] A3XAI unit death ignored: %1 (no zombie spawn)", name _killed];
-        };
-
         // ✅ A3XAI hostage exclusion - Don't spawn zombies from mission hostages
+        // NOTE: Regular A3XAI units (EAST) SHOULD spawn zombies - this helps players!
         private _isHostage = _killed getVariable ["A3XAI_hostage", false];
 
         if (_debug) then {

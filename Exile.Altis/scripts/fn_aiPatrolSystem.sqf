@@ -64,13 +64,15 @@ if (call DEFENDER_fnc_vcomCheck) then {
 // PREPROCESSOR MACROS
 // ============================================
 
-#define SIDE_RES RESISTANCE
+// FIX: Changed from RESISTANCE to EAST to match A3XAI side (prevents AI infighting)
+#define SIDE_RES EAST
 #define SIDE_W WEST
 #define SIDE_E EAST
 #define VAR_AUDIO "DEFENDER_audioEH"
 #define VAR_MAGS "DEFENDER_startMags"
 #define VAR_LOWAMMO "DEFENDER_lowAmmo"
-#define UNIT_TYPE "I_Soldier_F"
+// FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST) to match A3XAI
+#define UNIT_TYPE "O_Soldier_F"
 #define DETECT_RAD 1500
 #define AUDIO_RAD 2000
 #define COVER_DIST 50

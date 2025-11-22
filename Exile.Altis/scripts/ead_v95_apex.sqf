@@ -35,32 +35,33 @@
 EAD_CFG = createHashMapFromArray [
     ["TICK", 0.06],                     // ✅ Optimized tick rate
 
-    // ✅ SUPERCAR SPEED PROFILES (250 km/h realistic)
-    ["HIGHWAY_BASE", 250],
-    ["CITY_BASE", 130],
-    ["OFFROAD_MULT", 0.85],
+    // ✅ TUNED SPEED PROFILES - Per user request
+    ["HIGHWAY_BASE", 200],              // 200 km/h on asphalt (was 250)
+    ["CITY_BASE", 90],                  // 90 km/h in cities (was 130)
+    ["OFFROAD_MULT", 0.75],             // 75% speed off-road (was 0.85)
 
-    // ✅ EXTENDED DISTANCES FOR HIGH SPEED - INCREASED FOR BETTER OBSTACLE AVOIDANCE
-    ["DIST_MAIN", 150],                 // Increased from 120m to 150m (more lookahead at 200+ km/h)
-    ["DIST_WIDE", 100],                 // Increased from 80m to 100m
-    ["DIST_SIDE", 80],                  // Increased from 60m to 80m (avoid side fences/signs)
-    ["DIST_CORNER", 60],                // Increased from 45m to 60m
-    ["DIST_NEAR", 30],                  // Increased from 25m to 30m
+    // ✅ REDUCED SCAN DISTANCES - Shorter lookahead = more aggressive driving
+    // At 200km/h = 55m/s, 30m gives ~0.5s reaction time (plenty for AI)
+    ["DIST_MAIN", 50],                  // Reduced from 150m to 50m (main forward)
+    ["DIST_WIDE", 35],                  // Reduced from 100m to 35m (wide angles)
+    ["DIST_SIDE", 25],                  // Reduced from 80m to 25m (side detection)
+    ["DIST_CORNER", 20],                // Reduced from 60m to 20m (90° corners)
+    ["DIST_NEAR", 12],                  // Reduced from 30m to 12m (immediate obstacles)
 
     // ✅ APEX RACING
     ["APEX_ENABLED", true],
     ["APEX_CUT_ANGLE", 35],
-    ["APEX_SPEED_BOOST", 1.15],
+    ["APEX_SPEED_BOOST", 1.10],         // Reduced from 1.15 (less aggressive apex)
 
-    // ✅ SMART CURVE DETECTION - ADJUSTED FOR HIGHER SPEED MAINTENANCE
-    ["CURVE_GENTLE_THRESHOLD", 75],     // Increased from 65 (less sensitive, maintains speed better)
-    ["CURVE_SHARP_THRESHOLD", 30],      // Increased from 25 (only sharp curves slow down)
-    ["CURVE_GENTLE_MULT", 1.00],        // Changed from 0.98 (no slowdown on gentle curves)
-    ["CURVE_SHARP_MULT", 0.75],         // Increased from 0.65 (less aggressive braking on sharp turns)
+    // ✅ CURVE DETECTION - Tuned for 90° turns at 80-100km/h
+    ["CURVE_GENTLE_THRESHOLD", 70],     // Reduced from 75 (detect curves earlier)
+    ["CURVE_SHARP_THRESHOLD", 25],      // Reduced from 30 (90° turns detected as SHARP)
+    ["CURVE_GENTLE_MULT", 1.00],        // No slowdown on gentle curves
+    ["CURVE_SHARP_MULT", 0.45],         // 45% speed on sharp 90° turns (was 0.75) = ~90km/h
 
     // ✅ AGGRESSIVE BRIDGE MODE - Speed boost instead of brakes
     ["BRIDGE_SIDE_OFFSET", 5],
-    ["BRIDGE_NO_BRAKE_TIME", 5.0],      // Increased from 4.0 - 5 seconds of no braking
+    ["BRIDGE_NO_BRAKE_TIME", 5.0],      // 5 seconds of no braking
     ["BRIDGE_SPEED_BOOST", 1.25],       // 25% speed boost on bridges
     ["BRIDGE_STRAIGHT_WHEELS", true],   // Keep wheels straight on bridges
 
@@ -383,17 +384,25 @@ EAD_fnc_scanAdaptive = {
         ["FR6", 35, _w],            // 35° right
         ["FR7", 40, _s],            // 40° right (side range)
 
-        // SIDE DETECTION (4 rays - roadside obstacles)
+        // SIDE DETECTION (6 rays - roadside obstacles, extended for 90° turns)
         ["L", 45, _s],              // 45° left
-        ["L2", 60, _s],             // 60° left
+        ["L2", 50, _s],             // 50° left - NEW: pre-turn detection
+        ["L3", 55, _s],             // 55° left - NEW: pre-turn detection
+        ["L4", 60, _s],             // 60° left
         ["R", -45, _s],             // 45° right
-        ["R2", -60, _s],            // 60° right
+        ["R2", -50, _s],            // 50° right - NEW: pre-turn detection
+        ["R3", -55, _s],            // 55° right - NEW: pre-turn detection
+        ["R4", -60, _s],            // 60° right
 
-        // CORNER DETECTION (4 rays - tight turns)
-        ["CL", 70, _c],             // 70° left corner
-        ["CL2", 85, _c],            // 85° left corner
-        ["CR", -70, _c],            // 70° right corner
-        ["CR2", -85, _c],           // 85° right corner
+        // CORNER DETECTION (8 rays - tight turns, buildings flush with road)
+        ["CL", 65, _c],             // 65° left corner - NEW: earlier detection
+        ["CL2", 70, _c],            // 70° left corner
+        ["CL3", 80, _c],            // 80° left corner - NEW
+        ["CL4", 88, _c],            // 88° left corner - nearly perpendicular
+        ["CR", -65, _c],            // 65° right corner - NEW: earlier detection
+        ["CR2", -70, _c],           // 70° right corner
+        ["CR3", -80, _c],           // 80° right corner - NEW
+        ["CR4", -88, _c],           // 88° right corner - nearly perpendicular
 
         // NEAR SIDE (6 rays - immediate hazards)
         ["NL", 90, _n],             // 90° left (perpendicular)
@@ -562,17 +571,17 @@ EAD_fnc_obstacleLimit = {
     private _f0ObsType = _s get "F0_OBS";
     if (_f0ObsType == "INFANTRY" && _m > 15) exitWith {_cur};
 
-    // ✅ IMPROVED: Less aggressive obstacle braking for high-speed travel
-    // With 150m forward scanning and 33 rays, we have more time to react
-    if (_m < 35) then {_cur = _cur * 0.80};  // 80% at 35m (was 65% at 25m)
-    if (_m < 25) then {_cur = _cur * 0.70};  // 70% at 25m (was 60% at 18m)
-    if (_m < 15) then {_cur = _cur * 0.50};  // 50% at 15m (was 40% at 10m)
-    if (_m < 8) then {_cur = _cur * 0.30};   // 30% at 8m (emergency braking)
+    // ✅ TUNED: Obstacle braking for shorter scan distances (50m main)
+    // More aggressive close-range braking, less far-range braking
+    if (_m < 20) then {_cur = _cur * 0.85};  // 85% at 20m (start slowing)
+    if (_m < 12) then {_cur = _cur * 0.60};  // 60% at 12m (significant slow)
+    if (_m < 6) then {_cur = _cur * 0.35};   // 35% at 6m (hard brake)
+    if (_m < 3) then {_cur = _cur * 0.15};   // 15% at 3m (emergency stop)
 
     // 🆕 Predictive collision avoidance (from v10.2)
     private _predictResult = [_veh, _cur] call EAD_fnc_predictiveCollision;
-    if ((_predictResult select 0) && (_predictResult select 1) < 40) then {
-        _cur = _cur * 0.6;  // Changed from 0.5 to 0.6 (less harsh)
+    if ((_predictResult select 0) && (_predictResult select 1) < 20) then {
+        _cur = _cur * 0.5;  // Only slow for close predicted collisions
     };
 
     _cur

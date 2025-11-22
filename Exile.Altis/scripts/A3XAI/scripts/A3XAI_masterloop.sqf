@@ -2,6 +2,18 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.4: Ground-only DyCE (no helis/tanks)
+        - Armed convoys, troop transports, supply trucks
+        - Police/Gendarmerie themed units
+        - Exile toast notifications + map markers
+        - Integrated from: https://github.com/ExiledHeisenberg/DyCE
+
+    v3.2: Highway Patrol System
+        - Highway patrols spawn between Exile spawn zones
+        - Up to 4 highway patrols active at once
+        - New patrol every 5 minutes
+        - Dynamic routes on major road corridors
+
     v3.1: Mission Scheduler
         - Wait 3 minutes after first player for server to settle
         - Spawn 3 missions at startup
@@ -29,8 +41,25 @@ private _firstPlayerTime = -1;
 private _lastMissionSpawn = 0;
 private _missionSpawnInterval = 600;
 
+// ============================================
+// HIGHWAY PATROL CONFIGURATION
+// ============================================
+private _highwayPatrolInterval = 300;    // Spawn highway patrol every 5 minutes
+private _lastHighwayPatrol = 0;
+private _maxHighwayPatrols = 4;          // Max concurrent highway patrols
+private _highwayPatrolsSpawned = 0;
+
+// ============================================
+// DyCE DYNAMIC CONVOY CONFIGURATION
+// ============================================
+private _dyceInterval = 120;             // Check DyCE spawn every 2 minutes
+private _lastDyceCheck = 0;
+private _dyceInitialized = false;
+private _dyceConvoyTypes = ["armedConvoy", "troopConvoy", "supplyTruck"];
+
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
+[3, "DyCE Dynamic Convoy Events enabled"] call A3XAI_fnc_log;
 
 while {A3XAI_enabled} do {
     sleep _loopInterval;
@@ -214,6 +243,92 @@ while {A3XAI_enabled} do {
     };
 
     // ============================================
+    // 4. HIGHWAY PATROLS (Every 5 minutes)
+    // ============================================
+    // Spawn enemy vehicle patrols on highways between Exile spawn zones
+    // These are separate from regular missions and provide road encounters
+
+    if ((time - _lastHighwayPatrol) >= _highwayPatrolInterval) then {
+        // Count current highway patrols
+        private _currentHighwayPatrols = A3XAI_activeMissions select {
+            (_x getOrDefault ["type", ""]) == "highwayPatrol"
+        };
+
+        if (count _currentHighwayPatrols < _maxHighwayPatrols) then {
+            // Spawn a new highway patrol
+            private _difficulty = selectRandom ["easy", "medium", "medium", "hard"];
+
+            // Empty position = let fn_highwayPatrol pick random highway route
+            private _result = [A3XAI_fnc_highwayPatrol, [[], _difficulty], "highwayPatrol"] call A3XAI_fnc_safeCall;
+
+            if (!isNil "_result" && {count _result > 0}) then {
+                _highwayPatrolsSpawned = _highwayPatrolsSpawned + 1;
+                private _route = _result getOrDefault ["route", ["unknown", "unknown"]];
+                [3, format ["Highway patrol spawned: %1-%2 route (%3) [%4/%5 active]",
+                    _route select 0, _route select 1, _difficulty,
+                    (count _currentHighwayPatrols) + 1, _maxHighwayPatrols]] call A3XAI_fnc_log;
+            } else {
+                [2, "Failed to spawn highway patrol"] call A3XAI_fnc_log;
+            };
+        } else {
+            [4, format ["Highway patrol limit reached (%1/%2)", count _currentHighwayPatrols, _maxHighwayPatrols]] call A3XAI_fnc_log;
+        };
+
+        _lastHighwayPatrol = time;
+    };
+
+    // ============================================
+    // 5. DyCE DYNAMIC CONVOY EVENTS (Every 2 minutes)
+    // ============================================
+    // Spawn random convoy types from DyCE configuration
+    // Types: armedConvoy, troopConvoy, supplyTruck (ground only)
+
+    if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
+        if ((time - _lastDyceCheck) >= _dyceInterval) then {
+            // Check total DyCE events active
+            private _currentDyceEvents = A3XAI_activeMissions select {
+                _x getOrDefault ["dyce", false]
+            };
+
+            private _maxEvents = if (!isNil "DyCE_Config") then {
+                DyCE_Config getOrDefault ["maxTotalDynamicEvents", 8]
+            } else {8};
+
+            if (count _currentDyceEvents < _maxEvents) then {
+                // Select random convoy type to spawn
+                private _convoyType = selectRandom _dyceConvoyTypes;
+
+                // Check specific limits for this type
+                private _typeCount = {(_x getOrDefault ["type", ""]) == _convoyType} count _currentDyceEvents;
+                private _typeLimit = switch (_convoyType) do {
+                    case "armedConvoy": {2};
+                    case "troopConvoy": {2};
+                    case "supplyTruck": {2};
+                    default {2};
+                };
+
+                if (_typeCount < _typeLimit) then {
+                    // Spawn the convoy
+                    private _result = [A3XAI_fnc_DyCE_spawn, [_convoyType, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
+
+                    if (!isNil "_result" && {count _result > 0}) then {
+                        [3, format ["[DyCE] Spawned %1 [%2/%3 events active]",
+                            _convoyType, (count _currentDyceEvents) + 1, _maxEvents]] call A3XAI_fnc_log;
+                    } else {
+                        [4, format ["[DyCE] Failed to spawn %1", _convoyType]] call A3XAI_fnc_log;
+                    };
+                } else {
+                    [4, format ["[DyCE] %1 limit reached (%2/%3)", _convoyType, _typeCount, _typeLimit]] call A3XAI_fnc_log;
+                };
+            } else {
+                [4, format ["[DyCE] Event limit reached (%1/%2)", count _currentDyceEvents, _maxEvents]] call A3XAI_fnc_log;
+            };
+
+            _lastDyceCheck = time;
+        };
+    };
+
+    // ============================================
     // MISSION SCHEDULER v3.1
     // ============================================
 
@@ -253,6 +368,44 @@ while {A3XAI_enabled} do {
         _missionsInitialized = true;
         _lastMissionCheck = time;
         [3, format ["=== INITIAL SPAWN COMPLETE: %1 missions active ===", count A3XAI_activeMissions]] call A3XAI_fnc_log;
+
+        // Spawn initial highway patrols
+        [3, "=== SPAWNING INITIAL HIGHWAY PATROLS ==="] call A3XAI_fnc_log;
+        private _initialPatrols = 2;  // Start with 2 highway patrols
+        for "_p" from 1 to _initialPatrols do {
+            private _difficulty = selectRandom ["easy", "medium"];
+            private _result = [A3XAI_fnc_highwayPatrol, [[], _difficulty], "highwayPatrol"] call A3XAI_fnc_safeCall;
+
+            if (!isNil "_result" && {count _result > 0}) then {
+                _highwayPatrolsSpawned = _highwayPatrolsSpawned + 1;
+                private _route = _result getOrDefault ["route", ["unknown", "unknown"]];
+                [3, format ["[%1/%2] Highway patrol: %3-%4 (%5)",
+                    _p, _initialPatrols, _route select 0, _route select 1, _difficulty]] call A3XAI_fnc_log;
+            };
+            sleep 2;
+        };
+        _lastHighwayPatrol = time;
+        [3, format ["=== HIGHWAY PATROLS ACTIVE: %1 ===", _highwayPatrolsSpawned]] call A3XAI_fnc_log;
+
+        // Spawn initial DyCE convoys
+        if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
+            [3, "=== SPAWNING INITIAL DyCE CONVOYS ==="] call A3XAI_fnc_log;
+
+            // Spawn initial ground convoys at startup
+            private _initialDyceTypes = ["armedConvoy", "troopConvoy"];
+            {
+                private _result = [A3XAI_fnc_DyCE_spawn, [_x, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
+                if (!isNil "_result" && {count _result > 0}) then {
+                    [3, format ["[DyCE] Initial %1 spawned", _x]] call A3XAI_fnc_log;
+                };
+                sleep 2;
+            } forEach _initialDyceTypes;
+
+            _lastDyceCheck = time;
+            [3, format ["=== DyCE CONVOYS ACTIVE: %1 ===", count DyCE_ActiveConvoys]] call A3XAI_fnc_log;
+        };
+
+        _dyceInitialized = true;
     };
 
     // SCHEDULED MISSION CHECK: Replace completed missions

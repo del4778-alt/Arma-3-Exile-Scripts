@@ -1,12 +1,13 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.6 APEX EDITION
-    RECRUIT_AI EXCLUSIVE - HIGH PERFORMANCE
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.7 APEX EDITION
+    RECRUIT_AI EXCLUSIVE - MAXIMUM PERFORMANCE
 
-    ✅ v9.6 NEW FEATURES:
-        🆕 WAYPOINT FOLLOWING - AI now drives toward player-set waypoints!
-        🆕 DYNAMIC TOP SPEED - Uses vehicle's actual maxSpeed (90% on asphalt)
-        🆕 RELAXED BRAKING - Only slow for close obstacles (10m instead of 20m)
-        🆕 IMPROVED STEERING - Waypoint bias + obstacle avoidance combined
+    ✅ v9.7 FIXES:
+        🆕 AI FULL SPEED MODE - forceSpeed on AI, EAD only handles steering/braking
+        🆕 AGGRESSIVE BRIDGE MODE - Force velocity forward, no braking, no steering
+        🆕 ROADKILL MODE - Speed up to hit EAST AI on roads
+        🆕 CITY/TOWN SPEED - Adjusted speeds for urban areas
+        🆕 RECRUIT AI SYNC - Works with recruit AI commands
 
     ✅ RECRUIT_AI EXCLUSIVE MODE:
         ✅ Only works with vehicles flagged by recruit_ai.sqf
@@ -14,22 +15,8 @@
         ✅ No interference with A3XAI, mission AI, or other AI systems
         ✅ Activated via RECRUIT_fnc_ForceEADReregister only
 
-    ✅ COMPREHENSIVE RAY COVERAGE - 41 RAYS:
-        ✅ 5 front-center rays (dead center + small offsets)
-        ✅ 7 front-left rays (10° to 40° sweep)
-        ✅ 7 front-right rays (10° to 40° sweep)
-        ✅ 8 side detection rays (45° to 60° L/R) - Extended for 90° turns
-        ✅ 8 corner detection rays (65° to 88° L/R) - Extended for 90° turns
-        ✅ 6 near-side rays (90° to 120° L/R)
-
-    ✅ HIGH-SPEED PERFORMANCE:
-        ✅ 90% of vehicle's actual top speed on asphalt
-        ✅ Enhanced steering for 90-degree corners
-        ✅ Predictive collision detection
-        ✅ Combat evasive serpentine maneuvers
-        ✅ Enhanced stuck recovery (3 methods)
-        ✅ Obstacle type detection (infantry/vehicle/static)
-        ✅ Physics-safe velocity control
+    ✅ COMPREHENSIVE RAY COVERAGE - 41 RAYS
+    ✅ HIGH-SPEED PERFORMANCE - Full vehicle top speed on straights
 ===================================================================================== */
 
 /* =====================================================================================
@@ -39,60 +26,60 @@
 EAD_CFG = createHashMapFromArray [
     ["TICK", 0.06],                     // ✅ Optimized tick rate
 
-    // ✅ v9.6: DYNAMIC SPEED - Uses vehicle's actual top speed
-    // Target 90% of vehicle's maxSpeed on asphalt
-    ["USE_VEHICLE_TOPSPEED", true],     // 🆕 Use vehicle's actual maxSpeed
-    ["TOPSPEED_MULTIPLIER", 0.90],      // 🆕 90% of vehicle top speed on asphalt
-    ["HIGHWAY_BASE", 200],              // Fallback if config read fails
-    ["CITY_BASE", 90],                  // 90 km/h in cities (was 130)
-    ["OFFROAD_MULT", 0.75],             // 75% speed off-road (was 0.85)
+    // ✅ v9.7: AI FULL SPEED MODE
+    // AI driver uses forceSpeed to reach max, EAD only brakes for corners/obstacles
+    ["AI_FULL_SPEED", true],            // 🆕 Let AI use full throttle
+    ["TOPSPEED_MULTIPLIER", 1.00],      // 🆕 100% of vehicle top speed (was 90%)
+    ["HIGHWAY_BASE", 250],              // Fallback speed
+    ["USE_VEHICLE_TOPSPEED", true],     // Use vehicle's actual maxSpeed
 
-    // ✅ v9.6: WAYPOINT FOLLOWING - EAD now drives toward player waypoints
-    ["WAYPOINT_ENABLED", true],         // 🆕 Enable waypoint detection
-    ["WAYPOINT_ARRIVE_DIST", 15],       // 🆕 Distance to consider "arrived" at waypoint
+    // ✅ v9.7: URBAN SPEED LIMITS
+    ["CITY_SPEED", 60],                 // 60 km/h in cities (tight streets)
+    ["TOWN_SPEED", 80],                 // 80 km/h in towns
+    ["VILLAGE_SPEED", 100],             // 100 km/h in villages
+    ["OFFROAD_MULT", 0.70],             // 70% speed off-road
 
-    // ✅ REDUCED SCAN DISTANCES - Shorter lookahead = more aggressive driving
-    // At 200km/h = 55m/s, 50m gives ~1s reaction time
-    ["DIST_MAIN", 50],                  // Forward detection (main)
-    ["DIST_WIDE", 35],                  // Wide angle forward (25-40°)
+    // ✅ v9.7: ROADKILL MODE
+    ["ROADKILL_ENABLED", true],         // 🆕 Speed up to hit EAST AI
+    ["ROADKILL_SPEED_BOOST", 1.30],     // 🆕 30% speed boost when targeting
+    ["ROADKILL_DETECT_RANGE", 50],      // 🆕 Detect enemies within 50m
 
-    // ✅ ROAD-FOCUSED SIDE DETECTION
-    // Arma road width ~10m, half = 5m + 10m buffer = 15m
-    // Only scan what matters: road surface + immediate edge
-    ["DIST_SIDE", 15],                  // Side rays (45-60°) - road width + 10m
-    ["DIST_CORNER", 15],                // Corner rays (65-88°) - road width + 10m
-    ["DIST_NEAR", 8],                   // Near rays (90°+) - immediate hazards only
+    // ✅ WAYPOINT FOLLOWING
+    ["WAYPOINT_ENABLED", true],
+    ["WAYPOINT_ARRIVE_DIST", 15],
+
+    // ✅ SCAN DISTANCES
+    ["DIST_MAIN", 50],
+    ["DIST_WIDE", 35],
+    ["DIST_SIDE", 15],
+    ["DIST_CORNER", 15],
+    ["DIST_NEAR", 8],
 
     // ✅ APEX RACING
     ["APEX_ENABLED", true],
     ["APEX_CUT_ANGLE", 35],
-    ["APEX_SPEED_BOOST", 1.10],         // Reduced from 1.15 (less aggressive apex)
+    ["APEX_SPEED_BOOST", 1.10],
 
-    // ✅ CURVE DETECTION - Tuned for 90° turns at 80-100km/h
-    ["CURVE_GENTLE_THRESHOLD", 70],     // Reduced from 75 (detect curves earlier)
-    ["CURVE_SHARP_THRESHOLD", 25],      // Reduced from 30 (90° turns detected as SHARP)
+    // ✅ CURVE DETECTION - Only slow for SHARP turns
+    ["CURVE_GENTLE_THRESHOLD", 70],
+    ["CURVE_SHARP_THRESHOLD", 25],
     ["CURVE_GENTLE_MULT", 1.00],        // No slowdown on gentle curves
-    ["CURVE_SHARP_MULT", 0.45],         // 45% speed on sharp 90° turns (was 0.75) = ~90km/h
+    ["CURVE_SHARP_MULT", 0.40],         // 40% speed on 90° turns only
 
-    // ✅ AGGRESSIVE BRIDGE MODE - Speed boost instead of brakes
+    // ✅ v9.7: AGGRESSIVE BRIDGE MODE
     ["BRIDGE_SIDE_OFFSET", 5],
-    ["BRIDGE_NO_BRAKE_TIME", 5.0],      // 5 seconds of no braking
-    ["BRIDGE_SPEED_BOOST", 1.25],       // 25% speed boost on bridges
-    ["BRIDGE_STRAIGHT_WHEELS", true],   // Keep wheels straight on bridges
+    ["BRIDGE_NO_BRAKE_TIME", 8.0],      // 🆕 8 seconds no braking (was 5)
+    ["BRIDGE_SPEED_BOOST", 1.40],       // 🆕 40% speed boost on bridges (was 25%)
+    ["BRIDGE_FORCE_FORWARD", true],     // 🆕 Force velocity straight ahead
 
-    // 🆕 PREDICTIVE COLLISION (from v10.2)
+    // 🆕 PREDICTIVE COLLISION
     ["PREDICT_ENABLED", true],
     ["PREDICT_TIME_AHEAD", 3.0],
 
-    // 🆕 COMBAT EVASIVE (from v10.2)
+    // 🆕 COMBAT EVASIVE
     ["COMBAT_EVASIVE", true],
     ["COMBAT_SERPENTINE_INTERVAL", 3.0],
     ["COMBAT_SPEED_MULT", 1.15],
-
-    // 🆕 DYNAMIC LOD (from v10.2)
-    ["LOD_ENABLED", true],
-    ["LOD_PLAYER_NEAR", 150],           // Use full rays < 150m from players
-    ["LOD_REDUCED_RAY_COUNT", 7],       // Use 7 rays when far from players
 
     // Stuck logic
     ["STUCK_TIME", 2.5],
@@ -100,8 +87,8 @@ EAD_CFG = createHashMapFromArray [
     ["REVERSE_TIME", 2.0],
     ["REVERSE_SPEED_KMH", 25],
 
-    // Emergency brake
-    ["EMERGENCY_BRAKE_DIST", 3],
+    // Emergency brake - only for imminent collisions
+    ["EMERGENCY_BRAKE_DIST", 2],        // 🆕 Reduced from 3 (less braking)
 
     // Debug
     ["DEBUG_ENABLED", false],
@@ -131,7 +118,7 @@ EAD_fnc_isA3XAIVehicle = {
     // Layer 1: Check EAID_Ignore flag (manual exclusions)
     if (_veh getVariable ["EAID_Ignore", false]) exitWith {
         if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD 9.5] EXCLUDED (EAID_Ignore): %1", typeOf _veh];
+            diag_log format ["[EAD 9.7] EXCLUDED (EAID_Ignore): %1", typeOf _veh];
         };
         true
     };
@@ -149,7 +136,7 @@ EAD_fnc_isA3XAIVehicle = {
             _group getVariable ["A3XAI_staticGroup", false]       // Old A3XAI
         ) exitWith {
             if (EAD_CFG get "DEBUG_ENABLED") then {
-                diag_log format ["[EAD 9.5] OLD A3XAI EXCLUDED (unit vars): %1", typeOf _veh];
+                diag_log format ["[EAD 9.7] OLD A3XAI EXCLUDED (unit vars): %1", typeOf _veh];
             };
             true
         };
@@ -162,7 +149,7 @@ EAD_fnc_isA3XAIVehicle = {
         _veh getVariable ["A3XAI_Vehicle", false]                // Old A3XAI (capital V)
     ) exitWith {
         if (EAD_CFG get "DEBUG_ENABLED") then {
-            diag_log format ["[EAD 9.5] OLD A3XAI EXCLUDED (veh vars): %1", typeOf _veh];
+            diag_log format ["[EAD 9.7] OLD A3XAI EXCLUDED (veh vars): %1", typeOf _veh];
         };
         true
     };
@@ -650,35 +637,56 @@ EAD_fnc_speedBrain = {
 
     _terrain params ["_isRoad","_slope","_dense"];
 
-    // 🆕 v9.6: Use vehicle's actual top speed instead of fixed value
+    // 🆕 v9.7: Get vehicle's FULL top speed
     private _base = if (EAD_CFG get "USE_VEHICLE_TOPSPEED") then {
         private _topSpeed = [_veh] call EAD_fnc_getVehicleTopSpeed;
-        _topSpeed * (EAD_CFG get "TOPSPEED_MULTIPLIER")  // 90% of top speed
+        _topSpeed * (EAD_CFG get "TOPSPEED_MULTIPLIER")  // 100% of top speed
     } else {
         EAD_CFG get "HIGHWAY_BASE"
     };
 
-    if (!_isRoad) then {_base = _base * (_profile get "offroad")};
-    if (_dense) then {_base = _base * 0.92};
-
-    private _curveType = [_s] call EAD_fnc_detectCurveType;
-    switch (_curveType) do {
-        case "GENTLE": {_base = _base * (EAD_CFG get "CURVE_GENTLE_MULT")};
-        case "SHARP": {_base = _base * (EAD_CFG get "CURVE_SHARP_MULT")};
-        case "MEDIUM": {_base = _base * 0.88};
+    // 🆕 v9.7: Check for urban speed limits
+    private _urbanSpeed = [_veh] call EAD_fnc_getUrbanSpeed;
+    if (_urbanSpeed > 0) then {
+        // In urban area - use urban speed limit as base
+        _base = _urbanSpeed;
     };
 
+    // Off-road penalty
+    if (!_isRoad) then {_base = _base * (_profile get "offroad")};
+    if (_dense) then {_base = _base * 0.95};  // Less penalty in forest
+
+    // 🆕 v9.7: ROADKILL MODE - Speed up when EAST AI ahead
+    private _hasRoadkillTarget = [_veh] call EAD_fnc_detectRoadkillTarget;
+    if (_hasRoadkillTarget) then {
+        _base = _base * (EAD_CFG get "ROADKILL_SPEED_BOOST");
+        _veh setVariable ["EAD_roadkillMode", true];
+    } else {
+        _veh setVariable ["EAD_roadkillMode", false];
+    };
+
+    // Curve detection - only slow for SHARP turns
+    private _curveType = [_s] call EAD_fnc_detectCurveType;
+    switch (_curveType) do {
+        case "GENTLE": {_base = _base * (EAD_CFG get "CURVE_GENTLE_MULT")};  // 100% - no slowdown
+        case "SHARP": {_base = _base * (EAD_CFG get "CURVE_SHARP_MULT")};    // 40% - 90° turns only
+        case "MEDIUM": {_base = _base * 0.90};  // 90% - slight slowdown
+    };
+
+    // Apex racing boost
     if (_curveType != "GENTLE" && (EAD_CFG get "APEX_ENABLED")) then {
         private _onApex = _veh getVariable ["EAD_onApex", false];
         if (_onApex) then {_base = _base * (EAD_CFG get "APEX_SPEED_BOOST")};
     };
 
-    if (_slope > 0.45) then {_base = _base * 0.70};
+    // Steep slope penalty
+    if (_slope > 0.45) then {_base = _base * 0.75};
 
-    // 🆕 Combat speed boost (from v10.2)
+    // Combat speed boost
     _base = _base * ([_veh] call EAD_fnc_getCombatMultiplier);
 
-    _base max 25
+    // 🆕 v9.7: Minimum speed 30 km/h (prevent crawling)
+    _base max 30
 };
 
 EAD_fnc_obstacleLimit = {
@@ -719,6 +727,66 @@ EAD_fnc_altitudeCorrection = {
     _spd
 };
 
+// 🆕 v9.7: Check if in urban area (city/town/village)
+EAD_fnc_getUrbanSpeed = {
+    params ["_veh"];
+    private _pos = getPosATL _veh;
+
+    // Check nearby locations
+    private _locations = nearestLocations [_pos, ["NameCityCapital", "NameCity", "NameVillage", "NameLocal"], 500];
+
+    if (count _locations == 0) exitWith {-1};  // Not in urban area
+
+    private _loc = _locations select 0;
+    private _type = type _loc;
+    private _dist = _pos distance2D (locationPosition _loc);
+    private _size = size _loc;
+    private _radius = ((_size select 0) max (_size select 1)) max 50;
+
+    // Only apply urban speed if actually inside the location
+    if (_dist > _radius) exitWith {-1};
+
+    switch (_type) do {
+        case "NameCityCapital": {EAD_CFG get "CITY_SPEED"};
+        case "NameCity": {EAD_CFG get "CITY_SPEED"};
+        case "NameVillage": {EAD_CFG get "VILLAGE_SPEED"};
+        case "NameLocal": {EAD_CFG get "TOWN_SPEED"};
+        default {-1};
+    }
+};
+
+// 🆕 v9.7: Detect EAST AI on road for roadkill
+EAD_fnc_detectRoadkillTarget = {
+    params ["_veh"];
+
+    if !(EAD_CFG get "ROADKILL_ENABLED") exitWith {false};
+
+    private _dir = getDir _veh;
+    private _pos = getPosATL _veh;
+    private _range = EAD_CFG get "ROADKILL_DETECT_RANGE";
+
+    // Look for EAST AI ahead on road
+    private _targets = _pos nearEntities [["Man"], _range];
+    private _foundTarget = false;
+
+    {
+        if (side _x == EAST && alive _x) then {
+            private _targetPos = getPosATL _x;
+            private _targetDir = _pos getDir _targetPos;
+            private _angleDiff = abs(_targetDir - _dir);
+            if (_angleDiff > 180) then {_angleDiff = 360 - _angleDiff};
+
+            // Target must be ahead (within 45 degrees)
+            if (_angleDiff < 45 && isOnRoad _targetPos) then {
+                _foundTarget = true;
+                _veh setVariable ["EAD_roadkillTarget", _x];
+            };
+        };
+    } forEach _targets;
+
+    _foundTarget
+};
+
 EAD_fnc_applyBridgeMode = {
     params ["_veh","_spd"];
     private _b = [_veh] call EAD_fnc_isBridge;
@@ -728,38 +796,59 @@ EAD_fnc_applyBridgeMode = {
         private _bridgeEnterTime = _veh getVariable ["EAD_bridgeEnterTime", 0];
         if (_bridgeEnterTime == 0) then {
             _veh setVariable ["EAD_bridgeEnterTime", _now];
-            // Store entry speed with boost applied
             private _boostMult = EAD_CFG get "BRIDGE_SPEED_BOOST";
-            _veh setVariable ["EAD_bridgeSpeed", (speed _veh max _spd) * _boostMult];
-            diag_log format ["[EAD] Bridge detected - applying %1x speed boost", _boostMult];
+            private _entrySpeed = (speed _veh) max 60;  // Minimum 60 km/h on bridge
+            _veh setVariable ["EAD_bridgeSpeed", _entrySpeed * _boostMult];
+            diag_log format ["[EAD 9.7] BRIDGE MODE: %1x boost, %2 km/h target", _boostMult, _entrySpeed * _boostMult];
         };
 
-        if ((_now - _bridgeEnterTime) < (EAD_CFG get "BRIDGE_NO_BRAKE_TIME")) then {
-            // Apply boosted speed
-            private _boostedSpeed = _veh getVariable ["EAD_bridgeSpeed", _spd];
-            _spd = _boostedSpeed max _spd;
+        private _bridgeTime = _now - _bridgeEnterTime;
+        private _noBrakeTime = EAD_CFG get "BRIDGE_NO_BRAKE_TIME";
+
+        if (_bridgeTime < _noBrakeTime) then {
             _veh setVariable ["EAD_onBridge", true];
             _veh setVariable ["EAD_bridgeNoBrake", true];
 
-            // ✅ FIX: Keep wheels straight on bridge - prevent turning into water
-            if (EAD_CFG get "BRIDGE_STRAIGHT_WHEELS") then {
+            // 🆕 v9.7: FORCE VEHICLE FORWARD - No steering, full throttle
+            if (EAD_CFG get "BRIDGE_FORCE_FORWARD") then {
                 private _driver = driver _veh;
                 if (!isNull _driver && !isPlayer _driver) then {
-                    // Force vehicle to maintain current heading
                     private _dir = getDir _veh;
+                    private _targetSpeed = _veh getVariable ["EAD_bridgeSpeed", 100];
+                    private _targetSpeedMS = _targetSpeed / 3.6;  // Convert km/h to m/s
+
+                    // Get current velocity
                     private _vel = velocity _veh;
-                    private _speed = vectorMagnitude _vel;
-                    if (_speed > 5) then {
-                        // Apply velocity in current direction (straight ahead)
-                        private _newVel = [sin _dir * _speed, cos _dir * _speed, _vel select 2];
-                        _veh setVelocity _newVel;
+                    private _currentSpeed = vectorMagnitude [_vel select 0, _vel select 1, 0];
+
+                    // If too slow, accelerate hard
+                    if (_currentSpeed < _targetSpeedMS) then {
+                        private _accel = (_targetSpeedMS - _currentSpeed) min 5;  // Max 5 m/s acceleration
+                        _targetSpeedMS = _currentSpeed + _accel;
                     };
+
+                    // Force velocity straight ahead at target speed
+                    private _newVel = [
+                        sin _dir * _targetSpeedMS,
+                        cos _dir * _targetSpeedMS,
+                        (_vel select 2) max -2  // Prevent diving
+                    ];
+                    _veh setVelocity _newVel;
+
+                    // Force AI to keep throttle
+                    _driver action ["YOURSPEED", _veh, _targetSpeed];
                 };
             };
+
+            // Return boosted speed
+            _spd = _veh getVariable ["EAD_bridgeSpeed", _spd];
         } else {
             _veh setVariable ["EAD_bridgeNoBrake", false];
         };
     } else {
+        if (_veh getVariable ["EAD_onBridge", false]) then {
+            diag_log "[EAD 9.7] BRIDGE MODE: Exited bridge";
+        };
         _veh setVariable ["EAD_bridgeEnterTime", 0];
         _veh setVariable ["EAD_onBridge", false];
         _veh setVariable ["EAD_bridgeNoBrake", false];
@@ -1238,7 +1327,7 @@ EAD_fnc_registerDriver = {
         uiSleep 600;
 
         diag_log format [
-            "[EAD 9.6 APEX] Vehicles:%1 | A3XAI Excluded:%2 | Avg:%3ms | Max:%4ms",
+            "[EAD 9.7 APEX] Vehicles:%1 | A3XAI Excluded:%2 | Avg:%3ms | Max:%4ms",
             EAD_Stats get "totalVehicles",
             EAD_Stats get "a3xaiExcluded",
             ((EAD_Stats get "avgTickTime") * 1000) toFixed 2,
@@ -1250,19 +1339,19 @@ EAD_fnc_registerDriver = {
 };
 
 diag_log "======================================================";
-diag_log "[EAD 9.6 APEX EDITION] INITIALIZED";
-diag_log "[EAD 9.6] 🆕 WAYPOINT FOLLOWING - AI drives to player waypoints!";
-diag_log "[EAD 9.6] 🆕 DYNAMIC TOP SPEED - 90% of vehicle's actual maxSpeed";
-diag_log "[EAD 9.6] 🆕 RELAXED BRAKING - Only slow at 10m (was 20m)";
-diag_log "[EAD 9.6] ✅ 41-ray comprehensive coverage";
-diag_log "[EAD 9.6] ✅ 4-height forward raycasting";
-diag_log "[EAD 9.6] ✅ Top-down obstacle detection";
-diag_log "[EAD 9.6] ✅ Apex curve cutting + racing line";
-diag_log "[EAD 9.6] ✅ Aggressive bridge mode (5s no-brake + speed boost)";
-diag_log "[EAD 9.6] ✅ Predictive collision detection";
-diag_log "[EAD 9.6] ✅ Combat evasive serpentine maneuvers";
-diag_log "[EAD 9.6] ✅ Enhanced stuck recovery (3 methods)";
-diag_log "[EAD 9.6] ✅ RECRUIT_AI EXCLUSIVE - No A3XAI interference";
+diag_log "[EAD 9.7 APEX EDITION] INITIALIZED";
+diag_log "[EAD 9.7] 🆕 AI FULL SPEED MODE - 100% vehicle top speed!";
+diag_log "[EAD 9.7] 🆕 AGGRESSIVE BRIDGE MODE - 8s no-brake + velocity forcing!";
+diag_log "[EAD 9.7] 🆕 ROADKILL MODE - Speed boost when targeting EAST AI on roads!";
+diag_log "[EAD 9.7] 🆕 URBAN SPEED LIMITS - City 60/Town 80/Village 100 km/h";
+diag_log "[EAD 9.7] ✅ 41-ray comprehensive coverage";
+diag_log "[EAD 9.7] ✅ 4-height forward raycasting";
+diag_log "[EAD 9.7] ✅ Waypoint following";
+diag_log "[EAD 9.7] ✅ Apex curve cutting + racing line";
+diag_log "[EAD 9.7] ✅ Predictive collision detection";
+diag_log "[EAD 9.7] ✅ Combat evasive serpentine maneuvers";
+diag_log "[EAD 9.7] ✅ Enhanced stuck recovery (3 methods)";
+diag_log "[EAD 9.7] ✅ RECRUIT_AI EXCLUSIVE - No A3XAI interference";
 diag_log "======================================================";
 
 /* =====================================================================================

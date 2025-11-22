@@ -52,6 +52,9 @@ if (isClass (missionConfigFile >> "CfgA3XAI")) then {
     if (isNumber (_cfg >> "A3XAI_hunterTargetClosest")) then {A3XAI_hunterTargetClosest = getNumber (_cfg >> "A3XAI_hunterTargetClosest") > 0};
     if (isNumber (_cfg >> "A3XAI_hostagesJoinRescuer")) then {A3XAI_hostagesJoinRescuer = getNumber (_cfg >> "A3XAI_hostagesJoinRescuer") > 0};
 
+    // v3.11: Arma 3 2.20+ optimizations
+    if (isNumber (_cfg >> "A3XAI_useAIThinkOnlyLocal")) then {A3XAI_useAIThinkOnlyLocal = getNumber (_cfg >> "A3XAI_useAIThinkOnlyLocal") > 0};
+
     // Load blacklist zones
     if (isArray (_cfg >> "A3XAI_blacklistZones")) then {
         A3XAI_blacklistZones = getArray (_cfg >> "A3XAI_blacklistZones");
@@ -103,6 +106,24 @@ A3XAI_stats = createHashMapFromArray [
     ["missionsCompleted", 0],
     ["playersKilled", 0]
 ];
+
+// ============================================
+// ARMA 3 2.20+ PERFORMANCE OPTIMIZATIONS
+// ============================================
+
+// AIThinkOnlyLocal: Disables processing targeting data for remote AI units
+// This improves client performance since they don't calculate all AI targeting
+// Trade-off: knowsAbout, targets, etc. won't work on remote units (fine for dedicated server)
+if (missionNamespace getVariable ["A3XAI_useAIThinkOnlyLocal", true]) then {
+    setMissionOptions createHashMapFromArray [
+        ["AIThinkOnlyLocal", true]
+    ];
+    diag_log "[A3XAI] Arma 3 2.20+: AIThinkOnlyLocal enabled (client performance optimization)";
+};
+
+// Log Arma version for debugging
+private _armaVersion = productVersion;
+diag_log format ["[A3XAI] Running on Arma 3 v%1.%2.%3", _armaVersion select 2, _armaVersion select 3, _armaVersion select 4];
 
 // Loot system
 A3XAI_useFallbackLoot = false;

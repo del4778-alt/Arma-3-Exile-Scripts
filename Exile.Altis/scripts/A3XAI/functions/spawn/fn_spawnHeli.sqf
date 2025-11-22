@@ -36,6 +36,7 @@ if (_heliClass == "") then {
 
 // Spawn helicopter
 private _heli = createVehicle [_heliClass, _spawnPos, [], 0, "FLY"];
+_heli allowDamage false;  // v3.12: IMMEDIATE vehicle protection during crew loading
 _heli setDir (random 360);
 _heli setFuel 1;
 _heli lock 2;

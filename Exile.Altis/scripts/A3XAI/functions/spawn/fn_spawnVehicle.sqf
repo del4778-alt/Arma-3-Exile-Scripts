@@ -58,6 +58,7 @@ if (_vehicleClass == "") then {
 
 // Spawn vehicle
 private _vehicle = createVehicle [_vehicleClass, _roadPos, [], 0, "NONE"];
+_vehicle allowDamage false;  // v3.12: IMMEDIATE vehicle protection during crew loading
 _vehicle setDir (random 360);
 _vehicle setFuel 1;
 _vehicle lock 0;  // Always unlocked

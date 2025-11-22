@@ -288,6 +288,7 @@ DEFENDER_fnc_applyGear = {
     removeAllWeapons _u;
     removeAllItems _u;
     removeAllAssignedItems _u;
+    removeAllMagazines _u;  // v3.12: Arma 2.20 command - faster than looping
     removeBackpack _u;
     removeVest _u;
     removeHeadgear _u;

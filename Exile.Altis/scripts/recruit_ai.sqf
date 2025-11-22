@@ -100,10 +100,11 @@ diag_log "[AI RECRUIT] Validating AI types...";
 RECRUIT_fnc_ApplyCustomLoadout = {
     params ["_unit", "_type"];
 
-    // Strip default loadout
+    // Strip default loadout (v3.12: Using optimized 2.20 commands)
     removeAllWeapons _unit;
     removeAllItems _unit;
     removeAllAssignedItems _unit;
+    removeAllMagazines _unit;  // Arma 2.20 command - faster than looping
     removeUniform _unit;
     removeVest _unit;
     removeBackpack _unit;

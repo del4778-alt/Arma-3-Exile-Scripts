@@ -18,10 +18,11 @@ params ["_unit", ["_difficulty", "medium"]];
 
 if (isNull _unit) exitWith {false};
 
-// Remove all gear first
+// Remove all gear first (v3.11: Using optimized 2.20 commands where available)
 removeAllWeapons _unit;
 removeAllItems _unit;
 removeAllAssignedItems _unit;
+removeAllMagazines _unit;  // v3.11: Arma 2.20 command - faster than looping
 removeUniform _unit;
 removeVest _unit;
 removeBackpack _unit;

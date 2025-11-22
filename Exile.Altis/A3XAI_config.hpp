@@ -137,6 +137,15 @@ class CfgA3XAI {
     A3XAI_cleanupPlayerRadius = 25;             // Don't cleanup within this radius of players (meters)
 
     // ================================================================
+    // v3.11: ARMA 3 2.20+ OPTIMIZATIONS
+    // Leverages new engine features for better performance
+    // ================================================================
+
+    A3XAI_useAIThinkOnlyLocal = 1;              // Enable AIThinkOnlyLocal (1=yes, 0=no)
+                                                 // Disables AI targeting calculations on clients
+                                                 // Improves client FPS, no impact on dedicated server AI
+
+    // ================================================================
     // SPAWN COOLDOWN SETTINGS
     // ================================================================
 

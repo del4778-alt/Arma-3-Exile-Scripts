@@ -6,17 +6,22 @@
         None
 
     Returns:
-        STRING - Mission type: "convoy", "crash", "camp", "hunter", "rescue"
+        STRING - Mission type
+
+    v3.1: Added "invasion" (town invasion) mission type
 */
 
 // Define mission weights if not already defined
 if (isNil "A3XAI_missionWeights") then {
     A3XAI_missionWeights = createHashMapFromArray [
-        ["convoy", 0.25],
-        ["crash", 0.30],
-        ["camp", 0.20],
-        ["hunter", 0.15],
-        ["rescue", 0.10]
+        ["convoy", 0.15],
+        ["crash", 0.15],
+        ["camp", 0.12],
+        ["hunter", 0.08],
+        ["cache", 0.12],
+        ["outpost", 0.10],
+        ["supplyDrop", 0.08],
+        ["invasion", 0.20]          // Town invasion - high weight for excitement
     ];
 };
 
@@ -40,7 +45,7 @@ private _selectedMission = if (count _weightedMissions > 0) then {
     selectRandom _weightedMissions
 } else {
     // Fallback to equal probability
-    selectRandom ["convoy", "crash", "camp", "hunter", "rescue"]
+    selectRandom ["convoy", "crash", "camp", "hunter", "cache", "outpost", "supplyDrop", "invasion"]
 };
 
 _selectedMission

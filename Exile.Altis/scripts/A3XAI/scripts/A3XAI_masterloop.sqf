@@ -1,6 +1,11 @@
 /*
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
+
+    v3.1: Mission Scheduler
+        - Wait 3 minutes after first player for server to settle
+        - Spawn 3 missions at startup
+        - Replace completed missions on schedule (15 min interval)
 */
 
 if (!isServer) exitWith {};
@@ -9,16 +14,48 @@ waitUntil {!isNil "A3XAI_initialized" && {A3XAI_initialized}};
 
 [3, "Master spawn loop started"] call A3XAI_fnc_log;
 
-private _loopInterval = 30; // Main loop runs every 30 seconds
+// ============================================
+// MISSION SCHEDULER CONFIGURATION
+// ============================================
+private _loopInterval = 30;              // Main loop runs every 30 seconds
+private _startupDelay = 180;             // 3 minutes (180 seconds) startup delay
+private _maxConcurrentMissions = 3;      // Max missions active at once
+private _missionCheckInterval = 900;     // Check/spawn missions every 15 minutes
+private _lastMissionCheck = 0;
+private _missionsInitialized = false;
+private _firstPlayerTime = -1;
+
+// Legacy compatibility
 private _lastMissionSpawn = 0;
-private _missionSpawnInterval = 600; // Spawn mission every 10 minutes
+private _missionSpawnInterval = 600;
+
+[3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
+    _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
 
 while {A3XAI_enabled} do {
     sleep _loopInterval;
 
     // Skip if no players online
     private _players = allPlayers select {alive _x && !(_x getVariable ["ExileIsBambi", false])};
-    if (count _players == 0) then {continue};
+    if (count _players == 0) then {
+        _firstPlayerTime = -1;  // Reset timer when no players
+        continue;
+    };
+
+    // Track first player join time
+    if (_firstPlayerTime < 0) then {
+        _firstPlayerTime = time;
+        [3, format ["First player detected - waiting %1 seconds before spawning missions", _startupDelay]] call A3XAI_fnc_log;
+    };
+
+    // Wait for startup delay
+    if ((time - _firstPlayerTime) < _startupDelay) then {
+        private _remaining = ceil(_startupDelay - (time - _firstPlayerTime));
+        if (_remaining % 60 == 0 || _remaining <= 10) then {
+            [4, format ["Mission startup: %1 seconds remaining", _remaining]] call A3XAI_fnc_log;
+        };
+        continue;
+    };
 
     // Check server FPS
     private _fps = diag_fps;
@@ -177,31 +214,80 @@ while {A3XAI_enabled} do {
     };
 
     // ============================================
-    // SPAWN MISSIONS
+    // MISSION SCHEDULER v3.1
     // ============================================
 
-    if ((time - _lastMissionSpawn) >= _missionSpawnInterval) then {
-        if (count A3XAI_activeMissions < 3) then { // Max 3 concurrent missions
-            // Select mission type and difficulty
-            private _missionType = [nil] call A3XAI_fnc_selectMission;
+    // INITIAL MISSION SPAWN: Spawn all 3 missions at startup
+    if (!_missionsInitialized) then {
+        [3, "=== INITIAL MISSION SPAWN ==="] call A3XAI_fnc_log;
+        [3, format ["Spawning %1 missions after %1s startup delay", _maxConcurrentMissions, _startupDelay]] call A3XAI_fnc_log;
+
+        for "_m" from 1 to _maxConcurrentMissions do {
+            private _missionType = [] call A3XAI_fnc_selectMission;
             private _difficulty = selectRandom ["medium", "hard", "extreme"];
 
-            // Find suitable location away from players
-            private _player = selectRandom _players;
-            if (!isNull _player) then {
-                private _distance = 1500 + random 1000;
-                private _dir = random 360;
-                private _missionPos = (position _player) getPos [_distance, _dir];
-
-                // Spawn mission
-                private _result = [A3XAI_fnc_spawnMission, [_missionType, _missionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
-
-                if (!isNil "_result") then {
-                    _lastMissionSpawn = time;
-                    [3, format ["Spawned %1 mission at %2 (%3 difficulty)", _missionType, _missionPos, _difficulty]] call A3XAI_fnc_log;
-                };
+            // Find location spread around map center or random player
+            private _basePos = if (count _players > 0) then {
+                position (selectRandom _players)
+            } else {
+                [] call A3XAI_fnc_getMapCenter
             };
+
+            // Spread missions apart (different directions)
+            private _distance = 1500 + random 1500;
+            private _dir = (360 / _maxConcurrentMissions) * _m + random 30;
+            private _missionPos = _basePos getPos [_distance, _dir];
+
+            // Spawn mission
+            private _result = [A3XAI_fnc_spawnMission, [_missionType, _missionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
+
+            if (!isNil "_result" && {count _result > 0}) then {
+                [3, format ["[%1/%2] Spawned %3 mission (%4)", _m, _maxConcurrentMissions, _missionType, _difficulty]] call A3XAI_fnc_log;
+            } else {
+                [2, format ["[%1/%2] Failed to spawn %3 mission", _m, _maxConcurrentMissions, _missionType]] call A3XAI_fnc_log;
+            };
+
+            sleep 2;  // Small delay between spawns
         };
+
+        _missionsInitialized = true;
+        _lastMissionCheck = time;
+        [3, format ["=== INITIAL SPAWN COMPLETE: %1 missions active ===", count A3XAI_activeMissions]] call A3XAI_fnc_log;
+    };
+
+    // SCHEDULED MISSION CHECK: Replace completed missions
+    if ((time - _lastMissionCheck) >= _missionCheckInterval) then {
+        private _activeMissions = count A3XAI_activeMissions;
+        private _missionsNeeded = _maxConcurrentMissions - _activeMissions;
+
+        if (_missionsNeeded > 0) then {
+            [3, format ["Mission check: %1 active, spawning %2 replacement(s)", _activeMissions, _missionsNeeded]] call A3XAI_fnc_log;
+
+            for "_m" from 1 to _missionsNeeded do {
+                private _missionType = [] call A3XAI_fnc_selectMission;
+                private _difficulty = selectRandom ["medium", "hard", "extreme"];
+
+                // Find suitable location away from players
+                private _player = selectRandom _players;
+                if (!isNull _player) then {
+                    private _distance = 1500 + random 1500;
+                    private _dir = random 360;
+                    private _missionPos = (position _player) getPos [_distance, _dir];
+
+                    private _result = [A3XAI_fnc_spawnMission, [_missionType, _missionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
+
+                    if (!isNil "_result" && {count _result > 0}) then {
+                        [3, format ["Replacement mission: %1 (%2)", _missionType, _difficulty]] call A3XAI_fnc_log;
+                    };
+                };
+
+                sleep 1;
+            };
+        } else {
+            [4, format ["Mission check: All %1 missions active, no replacements needed", _activeMissions]] call A3XAI_fnc_log;
+        };
+
+        _lastMissionCheck = time;
     };
 
     // ============================================

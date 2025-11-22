@@ -1,20 +1,20 @@
 /*
-    rmg_ravage_exile_config.sqf - SAFE ZOMBIE RESURRECTION
+    rmg_ravage_exile_config.sqf - ZOMBIE RESURRECTION SYSTEM
 
-    v2.7 - ZOMBIE RESURRECTION WITH LIMITS:
-        ✅ Zombies can now resurrect (CIVILIAN added to spawn sides)
-        ✅ Resurrection limit prevents infinite loops (default: 1 resurrection)
-        ✅ Tracks resurrection count per zombie
-        ✅ Configurable via maxZombieResurrections
+    v3.0 - ZOMBIES ARE WEST SIDE:
+        ✅ Zombies spawn as WEST (BLUFOR) - clean faction system
+        ✅ WEST hostile to RESISTANCE (players) and EAST (mission AI)
+        ✅ All AI deaths spawn ONE zombie (except recruit AI)
+        ✅ No more CIVILIAN side weirdness
 
-    v2.6 - DEBUG MODE:
-        Added comprehensive debug logging to diagnose zombie spawning
+    v2.7 - Previous changes kept for reference
 */
 
 if (!isServer) exitWith {};
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Initializing Ravage/Exile integration v2.7...";
+diag_log "[RMG:Ravage] Initializing Ravage/Exile integration v3.0...";
+diag_log "[RMG:Ravage] ZOMBIES ARE WEST SIDE - Clean faction system";
 diag_log "========================================";
 
 // ========================== CONFIG ==========================
@@ -25,20 +25,20 @@ private _CFG = [
 
     // --- Zed-on-death behavior
     ["zedClasses", ["zombie_bolter","zombie_walker","zombie_runner"]],
-    ["hordeSizeRange", [6, 12]],
+    ["hordeSizeRange", [1, 1]],           // v3.0: Always single zombie
     ["spawnDelay", 0.10],
     ["spawnOffset", 1.0],
-    ["chanceHorde", 0.10],
-    // ✅ ALL AI sides spawn zombies (EAST, WEST, RESISTANCE, CIVILIAN)
+    ["chanceHorde", 0.0],                 // v3.0: Disabled hordes - always 1 zombie per death
+    // ✅ v3.0: All AI sides spawn zombies + zombies resurrect once
     // RECRUIT AI is still EXCLUDED via ExileRecruited check below
-    ["spawnFromSides", [east, west, resistance, civilian]],
+    // WEST included for zombie resurrection (limited by maxZombieResurrections)
+    ["spawnFromSides", [east, resistance, west]],
     ["minPlayerDist", 10],
-    // ✅ v2.7: Zombie resurrection limit (prevents infinite loops)
-    // 0 = zombies never resurrect, 1 = resurrect once, 2 = twice, etc.
+    // ✅ v3.0: Zombie resurrection - zombies (WEST) can resurrect once
     ["maxZombieResurrections", 1],
 
-    // --- Ambient bandits/scavengers
-    ["ambientEnabled", true],
+    // --- Ambient bandits/scavengers - DISABLED (A3XAI handles all AI)
+    ["ambientEnabled", false],          // v3.0: Disabled - Ravage only spawns zombies
     ["ambientMaxGroups", 6],
     ["ambientGroupSize", [2,4]],
     ["ambientSpawnRadius", [100, 200]],
@@ -55,9 +55,10 @@ private _CFG = [
     // --- Performance / safety
     ["globalAICap", 100],
 
-    // --- Zombie faction hostility (zombies are CIVILIAN)
-    // All these sides will attack zombies (and zombies attack them)
-    ["zombieHostileSides", [east, resistance, west]],
+    // --- v3.0: Zombie faction hostility (zombies are WEST)
+    // WEST (zombies) hostile to EAST (mission AI) and RESISTANCE (players)
+    ["zombieSide", west],                 // v3.0: Zombies spawn as WEST
+    ["zombieHostileSides", [east, resistance]],
 
     // --- Zombie kill rewards
     ["zombieKillRewardPoptabs", 200],
@@ -80,14 +81,17 @@ RMG_Ravage_get = {
 private _get = RMG_Ravage_get;
 
 // =================== ZOMBIE FACTION SETUP ===================
-// ✅ Zombies are CIVILIAN - make all sides hostile to them
+// ✅ v3.0: Zombies are WEST - clean 3-way hostility
+private _zombieSide = ["zombieSide"] call _get;
 private _hostileSides = ["zombieHostileSides"] call _get;
+
+// Set up hostility: WEST (zombies) vs EAST and RESISTANCE
 {
-    civilian setFriend [_x, 0];
-    _x setFriend [civilian, 0];
+    _zombieSide setFriend [_x, 0];
+    _x setFriend [_zombieSide, 0];
 } forEach _hostileSides;
 
-diag_log format ["[RMG:Ravage] Zombie faction relations configured: CIVILIAN hostile to %1", _hostileSides];
+diag_log format ["[RMG:Ravage] Zombie faction: %1 hostile to %2", _zombieSide, _hostileSides];
 
 // =================== HELPERS ===================
 RMG_Ravage_inSafeZone = {
@@ -163,9 +167,11 @@ RMG_Ravage_spawnZed = {
         };
     };
 
-    private _grp = createGroup [civilian, true];
+    // ✅ v3.0: Create zombie as WEST (not CIVILIAN)
+    private _zombieSide = ["zombieSide"] call RMG_Ravage_get;
+    private _grp = createGroup [_zombieSide, true];
     if (isNull _grp) exitWith {
-        diag_log "[RMG:Ravage:ERROR] Failed to create civilian group!";
+        diag_log format ["[RMG:Ravage:ERROR] Failed to create %1 group!", _zombieSide];
         objNull
     };
 
@@ -221,9 +227,10 @@ addMissionEventHandler ["EntityKilled", {
     if (!isNull _killed && {!isNull _actualKiller} && {isPlayer _actualKiller}) then {
         private _zedClasses = ["zedClasses"] call RMG_Ravage_get;
         private _killedType = typeOf _killed;
+        private _zombieSide = ["zombieSide"] call RMG_Ravage_get;
 
-        // ✅ Check if killed unit is a zombie (CIVILIAN side + correct classname)
-        if (side _killed == civilian && {_killedType in _zedClasses}) then {
+        // ✅ v3.0: Check if killed unit is a zombie (WEST side + correct classname)
+        if (side _killed == _zombieSide && {_killedType in _zedClasses}) then {
             private _poptabs = ["zombieKillRewardPoptabs"] call RMG_Ravage_get;
             private _respect = ["zombieKillRewardRespect"] call RMG_Ravage_get;
 
@@ -268,23 +275,25 @@ addMissionEventHandler ["EntityKilled", {
             diag_log format ["[RMG:Ravage] Recruit AI death ignored: %1 (no zombie spawn)", name _killed];
         };
 
-        // ✅ A3XAI hostage exclusion - Don't spawn zombies from mission hostages
-        // NOTE: Regular A3XAI units (EAST) SHOULD spawn zombies - this helps players!
+        // ✅ v3.0: A3XAI units NOW SPAWN ZOMBIES (only hostages excluded)
+        // All AI deaths resurrect as zombies for challenging gameplay
         private _isHostage = _killed getVariable ["A3XAI_hostage", false];
 
         if (_debug) then {
             diag_log format ["  - A3XAI Hostage: %1", _isHostage];
         };
 
+        // Only exclude hostages from zombie spawning
         if (_isHostage) exitWith {
             diag_log format ["[RMG:Ravage] A3XAI hostage death ignored: %1 (no zombie spawn)", name _killed];
         };
 
-        // ✅ v2.7: Check zombie resurrection limit (prevents infinite loops)
+        // ✅ v3.0: Check zombie resurrection limit (prevents infinite loops)
         // Use flag variable to control spawn logic
         private _allowSpawn = true;
+        private _zombieSide = ["zombieSide"] call RMG_Ravage_get;
 
-        if (side _killed == civilian) then {
+        if (side _killed == _zombieSide) then {
             private _resCount = _killed getVariable ["RMG_ResurrectionCount", 0];
             private _maxRes = ["maxZombieResurrections"] call RMG_Ravage_get;
 
@@ -523,15 +532,14 @@ if (["ambientEnabled"] call _get) then {
 };
 
 diag_log "========================================";
-diag_log "[RMG:Ravage] Exile integration complete - v2.7";
-diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE WITH LIMITS";
-diag_log format ["[RMG:Ravage] - Max resurrections per zombie: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
-diag_log "[RMG:Ravage] - Zombies: CIVILIAN side (zombie_bolter, zombie_walker, zombie_runner)";
-diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no resurrection)";
-diag_log "[RMG:Ravage] - Spawn sides: EAST, CIVILIAN (ambient bandits now EAST to match A3XAI)";
+diag_log "[RMG:Ravage] Exile integration complete - v3.0";
+diag_log "[RMG:Ravage] ✅ ZOMBIES ARE WEST SIDE - Clean 3-way hostility";
+diag_log "[RMG:Ravage] - Faction setup: WEST (zombies) vs EAST (AI) vs RESISTANCE (players)";
+diag_log "[RMG:Ravage] - All AI deaths spawn ONE zombie (except recruits/hostages)";
+diag_log format ["[RMG:Ravage] - Max zombie resurrections: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
+diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no zombie spawn)";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
-diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE";
-diag_log "[RMG:Ravage] - Faction hostility: ALL vs CIVILIAN zombies";
+diag_log "[RMG:Ravage] - Ambient bandits: DISABLED (A3XAI handles all AI)";
 diag_log format ["[RMG:Ravage] - DEBUG MODE: %1", if (["debugMode"] call RMG_Ravage_get) then {"ENABLED"} else {"DISABLED"}];
 diag_log "[RMG:Ravage] All systems operational.";
 diag_log "========================================";

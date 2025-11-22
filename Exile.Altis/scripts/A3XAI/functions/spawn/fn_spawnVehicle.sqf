@@ -59,9 +59,16 @@ if (_vehicleClass == "") then {
 // Spawn vehicle
 private _vehicle = createVehicle [_vehicleClass, _roadPos, [], 0, "NONE"];
 _vehicle setDir (random 360);
-_vehicle setFuel (0.7 + random 0.3);
+_vehicle setFuel 1;
 _vehicle lock 0;  // Always unlocked
 _vehicle setVariable ["A3XAI_vehicle", true, true];
+_vehicle setVariable ["A3XAI_spawnPos", _roadPos, true];  // For unstick function
+
+// Get vehicle turret info (Sarge-AI style recursive exploration)
+private _turretInfo = [_vehicleClass] call A3XAI_fnc_getVehicleTurrets;
+private _armedTurrets = _turretInfo select {_x select 1};  // Filter for armed turrets
+
+[4, format ["Vehicle %1 has %2 turrets (%3 armed)", _vehicleClass, count _turretInfo, count _armedTurrets]] call A3XAI_fnc_log;
 
 // Create crew
 private _group = createGroup [EAST, true];
@@ -82,6 +89,7 @@ private _crewCount = switch (true) do {
 };
 
 private _crewUnits = [];
+private _turretIndex = 0;
 
 for "_i" from 0 to (_crewCount - 1) do {
     private _unit = _group createUnit ["O_Soldier_F", _roadPos, [], 0, "CAN_COLLIDE"];
@@ -93,13 +101,26 @@ for "_i" from 0 to (_crewCount - 1) do {
 
     _unit setVariable ["A3XAI_vehicle", _vehicle, true];
 
+    // Assign crew positions using turret info (Sarge-AI style)
     if (_i == 0) then {
+        // First unit is always driver
         _unit assignAsDriver _vehicle;
         _unit moveInDriver _vehicle;
     } else {
-        _unit assignAsGunner _vehicle;
-        _unit moveInAny _vehicle;
+        // Try to assign to armed turrets first
+        if (_turretIndex < count _armedTurrets) then {
+            private _turretPath = (_armedTurrets select _turretIndex) select 0;
+            _unit assignAsTurret [_vehicle, _turretPath];
+            _unit moveInTurret [_vehicle, _turretPath];
+            _turretIndex = _turretIndex + 1;
+        } else {
+            // Fallback to any available position
+            _unit moveInAny _vehicle;
+        };
     };
+
+    // Start ammo/fuel refresh loop for this AI (Sarge-AI style)
+    [_unit] spawn A3XAI_fnc_refreshAI;
 
     _crewUnits pushBack _unit;
 };

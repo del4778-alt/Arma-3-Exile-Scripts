@@ -41,6 +41,7 @@ class CfgFunctions {
             class equipAI {};
             class addAIEventHandlers {};
             class setGroupBehavior {};
+            class refreshAI {};          // Sarge-AI style ammo/fuel refresh loop
         };
 
         class Vehicle {
@@ -52,6 +53,7 @@ class CfgFunctions {
             class getRoadQuality {};
             class findValidRoad {};
             class generateRoute {};
+            class getVehicleTurrets {};  // Sarge-AI style recursive turret exploration
         };
 
         class Mission {

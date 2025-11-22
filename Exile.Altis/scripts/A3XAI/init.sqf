@@ -135,6 +135,9 @@ if (isNil "A3XAI_roadBlacklist") then {A3XAI_roadBlacklist = ["TRAIL"]};
 if (isNil "A3XAI_maxRecoveryAttempts") then {A3XAI_maxRecoveryAttempts = 3};
 if (isNil "A3XAI_vehicleRespawnTime") then {A3XAI_vehicleRespawnTime = 900};
 
+// AI refresh settings (Sarge-AI style)
+if (isNil "A3XAI_ammoRefreshInterval") then {A3XAI_ammoRefreshInterval = 120};  // Seconds between ammo/fuel checks
+
 // EAD integration
 A3XAI_EAD_available = false;
 if (isNil "A3XAI_EAD_enabled") then {A3XAI_EAD_enabled = true};

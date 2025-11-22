@@ -141,6 +141,10 @@ if (_difficulty in ["hard", "extreme"]) then {
         ];
 
         private _vehicle = createVehicle [_vehClass, _vehPos, [], 0, "NONE"];
+
+        // ✅ v3.9: IMMEDIATE vehicle protection - prevents explosion during setup
+        _vehicle allowDamage false;
+
         _vehicle setDir (random 360);
         _vehicle setFuel 0.5;
         _vehicle lock 2;

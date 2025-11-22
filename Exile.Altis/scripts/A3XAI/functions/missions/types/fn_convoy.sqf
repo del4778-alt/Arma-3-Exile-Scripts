@@ -85,6 +85,10 @@ for "_i" from 0 to (_vehicleCount - 1) do {
 
     // Spawn vehicle
     private _vehicle = createVehicle [_vehicleClass, _roadPos, [], 0, "NONE"];
+
+    // ✅ v3.9: IMMEDIATE vehicle protection - prevents explosion during crew loading
+    _vehicle allowDamage false;
+
     _vehicle setDir (random 360);
     _vehicle setFuel (0.7 + random 0.3);
     _vehicle lock 2; // Lock for AI

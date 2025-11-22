@@ -208,6 +208,9 @@ for "_i" from 0 to (_vehicleCount - 1) do {
         continue;
     };
 
+    // ✅ v3.9: IMMEDIATE vehicle protection - prevents explosion during crew loading
+    _vehicle allowDamage false;
+
     // Set vehicle direction towards endpoint for convoy formation
     private _vehDir = _vehSpawnPos getDir _endWaypoint;
     _vehicle setDir _vehDir;

@@ -197,28 +197,42 @@ while {A3XAI_enabled} do {
         };
     };
 
-    // 2. Vehicle Patrols (25% chance)
+    // 2. Vehicle Patrols (25% chance) - Spawn near Exile towns, cycle between them
     if (random 1 < 0.25 && _spawnAttempts < _maxSpawnsThisCycle) then {
         // Check if we haven't hit vehicle limit
         if (count A3XAI_activeVehicles < 10) then {
-            private _player = selectRandom _players;
-            if (!isNull _player) then {
-                private _distance = A3XAI_spawnDistanceMin + 500;
-                private _dir = random 360;
-                private _spawnPos = (position _player) getPos [_distance, _dir];
+            // Use Exile spawn zone towns for vehicle patrol routes
+            private _spawnZones = if (!isNil "DyCE_SpawnZones") then {
+                DyCE_SpawnZones
+            } else {
+                // Fallback Altis towns
+                createHashMapFromArray [
+                    ["Kavala", [3874, 13281, 0]],
+                    ["Zaros", [9927, 12083, 0]],
+                    ["Pyrgos", [17138, 12719, 0]],
+                    ["Sofia", [25713, 21330, 0]],
+                    ["Syrta", [8613, 18272, 0]]
+                ]
+            };
 
-                // Must be near road
-                private _roads = _spawnPos nearRoads 200;
+            private _townNames = keys _spawnZones;
+            if (count _townNames >= 2) then {
+                // Pick random start town
+                private _startTown = selectRandom _townNames;
+                private _startPos = _spawnZones get _startTown;
+
+                // Find road near start town
+                private _roads = _startPos nearRoads 500;
                 if (count _roads > 0) then {
                     private _road = _roads select 0;
-                    _spawnPos = position _road;
+                    private _spawnPos = position _road;
 
                     private _difficulty = selectRandom ["easy", "medium", "hard"];
                     private _result = [A3XAI_fnc_spawnVehicle, [_spawnPos, _difficulty], "spawnVehicle"] call A3XAI_fnc_safeCall;
 
                     if (!isNil "_result") then {
                         _spawnAttempts = _spawnAttempts + 1;
-                        [4, format ["Spawned vehicle patrol at %1 (%2)", _spawnPos, _difficulty]] call A3XAI_fnc_log;
+                        [4, format ["Spawned vehicle patrol near %1 (%2)", _startTown, _difficulty]] call A3XAI_fnc_log;
                     };
                 };
             };
@@ -414,9 +428,9 @@ while {A3XAI_enabled} do {
         _dyceInitialized = true;
     };
 
-    // Spawn initial roaming infantry patrols
+    // Spawn initial roaming infantry patrols (only 2 groups of 4 around player)
     [3, "=== SPAWNING INITIAL INFANTRY PATROLS ==="] call A3XAI_fnc_log;
-    private _initialInfantry = 4;  // Start with 4 infantry patrols
+    private _initialInfantry = 2;  // Only 2 infantry patrols around player
     for "_inf" from 1 to _initialInfantry do {
         private _player = selectRandom _players;
         if (!isNull _player) then {

@@ -64,10 +64,11 @@ private _highwayPatrolsSpawned = 0;
 // ============================================
 // DyCE DYNAMIC CONVOY CONFIGURATION
 // ============================================
-private _dyceInterval = 120;             // Check DyCE spawn every 2 minutes
+private _dyceInterval = 180;             // Check DyCE spawn every 3 minutes (was 2)
 private _lastDyceCheck = 0;
 private _dyceInitialized = false;
 private _dyceConvoyTypes = ["armedConvoy", "troopConvoy", "supplyTruck"];
+private _maxDyceConvoys = 3;             // Max 3 convoys total on map
 
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
@@ -338,43 +339,26 @@ while {A3XAI_enabled} do {
 
     if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
         if ((time - _lastDyceCheck) >= _dyceInterval) then {
-            // Check total DyCE events active
+            // Check total DyCE convoys active (max 3)
             private _currentDyceEvents = A3XAI_activeMissions select {
                 _x getOrDefault ["dyce", false]
             };
 
-            private _maxEvents = if (!isNil "DyCE_Config") then {
-                DyCE_Config getOrDefault ["maxTotalDynamicEvents", 8]
-            } else {8};
-
-            if (count _currentDyceEvents < _maxEvents) then {
+            if (count _currentDyceEvents < _maxDyceConvoys) then {
                 // Select random convoy type to spawn
                 private _convoyType = selectRandom _dyceConvoyTypes;
 
-                // Check specific limits for this type
-                private _typeCount = {(_x getOrDefault ["type", ""]) == _convoyType} count _currentDyceEvents;
-                private _typeLimit = switch (_convoyType) do {
-                    case "armedConvoy": {2};
-                    case "troopConvoy": {2};
-                    case "supplyTruck": {2};
-                    default {2};
-                };
+                // Spawn the convoy
+                private _result = [A3XAI_fnc_DyCE_spawn, [_convoyType, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
 
-                if (_typeCount < _typeLimit) then {
-                    // Spawn the convoy
-                    private _result = [A3XAI_fnc_DyCE_spawn, [_convoyType, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
-
-                    if (!isNil "_result" && {count _result > 0}) then {
-                        [3, format ["[DyCE] Spawned %1 [%2/%3 events active]",
-                            _convoyType, (count _currentDyceEvents) + 1, _maxEvents]] call A3XAI_fnc_log;
-                    } else {
-                        [4, format ["[DyCE] Failed to spawn %1", _convoyType]] call A3XAI_fnc_log;
-                    };
+                if (!isNil "_result" && {count _result > 0}) then {
+                    [3, format ["[DyCE] Spawned %1 [%2/%3 convoys active]",
+                        _convoyType, (count _currentDyceEvents) + 1, _maxDyceConvoys]] call A3XAI_fnc_log;
                 } else {
-                    [4, format ["[DyCE] %1 limit reached (%2/%3)", _convoyType, _typeCount, _typeLimit]] call A3XAI_fnc_log;
+                    [4, format ["[DyCE] Failed to spawn %1", _convoyType]] call A3XAI_fnc_log;
                 };
             } else {
-                [4, format ["[DyCE] Event limit reached (%1/%2)", count _currentDyceEvents, _maxEvents]] call A3XAI_fnc_log;
+                [4, format ["[DyCE] Convoy limit reached (%1/%2)", count _currentDyceEvents, _maxDyceConvoys]] call A3XAI_fnc_log;
             };
 
             _lastDyceCheck = time;
@@ -440,22 +424,18 @@ while {A3XAI_enabled} do {
         _lastHighwayPatrol = time;
         [3, format ["=== HIGHWAY PATROLS ACTIVE: %1 ===", _highwayPatrolsSpawned]] call A3XAI_fnc_log;
 
-        // Spawn initial DyCE convoys
+        // Spawn initial DyCE convoy (just 1 to start)
         if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
-            [3, "=== SPAWNING INITIAL DyCE CONVOYS ==="] call A3XAI_fnc_log;
+            [3, "=== SPAWNING INITIAL DyCE CONVOY ==="] call A3XAI_fnc_log;
 
-            // Spawn initial ground convoys at startup
-            private _initialDyceTypes = ["armedConvoy", "troopConvoy"];
-            {
-                private _result = [A3XAI_fnc_DyCE_spawn, [_x, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
-                if (!isNil "_result" && {count _result > 0}) then {
-                    [3, format ["[DyCE] Initial %1 spawned", _x]] call A3XAI_fnc_log;
-                };
-                sleep 2;
-            } forEach _initialDyceTypes;
+            // Spawn just 1 convoy at startup
+            private _result = [A3XAI_fnc_DyCE_spawn, ["armedConvoy", []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
+            if (!isNil "_result" && {count _result > 0}) then {
+                [3, "[DyCE] Initial armedConvoy spawned"] call A3XAI_fnc_log;
+            };
 
             _lastDyceCheck = time;
-            [3, format ["=== DyCE CONVOYS ACTIVE: %1 ===", count DyCE_ActiveConvoys]] call A3XAI_fnc_log;
+            [3, format ["=== DyCE CONVOYS ACTIVE: 1/%1 ===", _maxDyceConvoys]] call A3XAI_fnc_log;
         };
 
         _dyceInitialized = true;

@@ -14,9 +14,12 @@ params ["_unit", ["_difficulty", "medium"]];
 
 if (isNull _unit) exitWith {false};
 
-// Disable AI features we don't want
-_unit disableAI "AUTOTARGET";
-_unit disableAI "CHECKVISIBLE";
+// ✅ CRITICAL FIX: Enable all combat AI features so they attack enemies
+_unit enableAI "TARGET";        // Enable targeting
+_unit enableAI "AUTOTARGET";    // Enable auto-targeting enemies
+_unit enableAI "AUTOCOMBAT";    // Enable automatic combat behavior
+_unit enableAI "MOVE";          // Enable movement
+_unit enableAI "FSM";           // Enable FSM behavior
 
 // ✅ FIX: Add critical AI behavior settings (from DMS)
 _unit allowFleeing 0;  // Never flee

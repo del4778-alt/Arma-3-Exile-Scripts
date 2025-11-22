@@ -539,7 +539,7 @@ diag_log "[RMG:Ravage] - All AI deaths spawn ONE zombie (except recruits/hostage
 diag_log format ["[RMG:Ravage] - Max zombie resurrections: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
 diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no zombie spawn)";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
-diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE (EAST side)";
+diag_log "[RMG:Ravage] - Ambient bandits: DISABLED (A3XAI handles all AI)";
 diag_log format ["[RMG:Ravage] - DEBUG MODE: %1", if (["debugMode"] call RMG_Ravage_get) then {"ENABLED"} else {"DISABLED"}];
 diag_log "[RMG:Ravage] All systems operational.";
 diag_log "========================================";

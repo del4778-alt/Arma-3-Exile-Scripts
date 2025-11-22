@@ -37,8 +37,8 @@ private _CFG = [
     // ✅ v3.0: Zombie resurrection - zombies (WEST) can resurrect once
     ["maxZombieResurrections", 1],
 
-    // --- Ambient bandits/scavengers
-    ["ambientEnabled", true],
+    // --- Ambient bandits/scavengers - DISABLED (A3XAI handles all AI)
+    ["ambientEnabled", false],          // v3.0: Disabled - Ravage only spawns zombies
     ["ambientMaxGroups", 6],
     ["ambientGroupSize", [2,4]],
     ["ambientSpawnRadius", [100, 200]],

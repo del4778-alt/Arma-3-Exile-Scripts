@@ -6,17 +6,21 @@
         None
 
     Returns:
-        STRING - Mission type: "convoy", "crash", "camp", "hunter", "rescue"
+        STRING - Mission type: "convoy", "crash", "camp", "hunter", "cache", "outpost", "supplyDrop"
+
+    v3.0: Replaced "rescue" with "cache" (no CIVILIAN hostages = no faction conflicts)
 */
 
 // Define mission weights if not already defined
 if (isNil "A3XAI_missionWeights") then {
     A3XAI_missionWeights = createHashMapFromArray [
-        ["convoy", 0.25],
-        ["crash", 0.30],
-        ["camp", 0.20],
-        ["hunter", 0.15],
-        ["rescue", 0.10]
+        ["convoy", 0.20],
+        ["crash", 0.20],
+        ["camp", 0.15],
+        ["hunter", 0.10],
+        ["cache", 0.15],           // Replaces rescue - weapons cache
+        ["outpost", 0.10],
+        ["supplyDrop", 0.10]
     ];
 };
 
@@ -40,7 +44,7 @@ private _selectedMission = if (count _weightedMissions > 0) then {
     selectRandom _weightedMissions
 } else {
     // Fallback to equal probability
-    selectRandom ["convoy", "crash", "camp", "hunter", "rescue"]
+    selectRandom ["convoy", "crash", "camp", "hunter", "cache", "outpost", "supplyDrop"]
 };
 
 _selectedMission

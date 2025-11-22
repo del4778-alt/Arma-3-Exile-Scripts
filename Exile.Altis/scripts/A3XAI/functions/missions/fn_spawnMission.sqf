@@ -3,18 +3,20 @@
     Spawns a mission of specified type
 
     Parameters:
-        0: STRING - Mission type: "convoy", "crash", "camp", "hunter", "rescue", "supplyDrop", "outpost"
+        0: STRING - Mission type: "convoy", "crash", "camp", "hunter", "cache", "supplyDrop", "outpost"
         1: ARRAY - Position [x,y,z]
         2: STRING - Difficulty (default: "medium")
 
     Returns:
         HASHMAP - Mission data or empty hashmap on failure
+
+    v3.0: Replaced "rescue" with "cache" (no CIVILIAN hostages)
 */
 
 params ["_type", "_pos", ["_difficulty", "medium"]];
 
 // Validate mission type
-if !(_type in ["convoy", "crash", "camp", "hunter", "rescue", "supplyDrop", "outpost"]) exitWith {
+if !(_type in ["convoy", "crash", "camp", "hunter", "cache", "supplyDrop", "outpost"]) exitWith {
     [1, format ["Invalid mission type: %1", _type]] call A3XAI_fnc_log;
     createHashMap
 };
@@ -51,8 +53,16 @@ switch (_type) do {
         _missionData = [_pos, _difficulty] call A3XAI_fnc_hunter;
     };
 
-    case "rescue": {
-        _missionData = [_pos, _difficulty] call A3XAI_fnc_rescue;
+    case "cache": {
+        _missionData = [_pos, _difficulty] call A3XAI_fnc_cache;
+    };
+
+    case "supplyDrop": {
+        _missionData = [_pos, _difficulty] call A3XAI_fnc_supplyDrop;
+    };
+
+    case "outpost": {
+        _missionData = [_pos, _difficulty] call A3XAI_fnc_outpost;
     };
 
     default {

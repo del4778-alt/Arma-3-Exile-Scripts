@@ -80,7 +80,10 @@ class CfgFunctions {
             class crash {};
             class camp {};
             class hunter {};
-            class rescue {};
+            class cache {};          // Weapons cache mission (replaces rescue)
+            class outpost {};        // Military outpost mission
+            class supplyDrop {};     // Supply drop mission
+            class invasion {};       // Town invasion mission (VEMF-style)
         };
 
         class HC {

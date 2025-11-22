@@ -300,9 +300,9 @@ diag_log "[SERVER] Loading AI systems in correct order...";
 diag_log "[SERVER] - Ravage config loaded";
 sleep 1;
 
-// 2. Elite Driving (v9.5 Apex Edition - A3XAI Safe)
+// 2. Elite Driving (v9.7 Apex Edition - A3XAI Safe)
 [] execVM "scripts\ead_v95_apex.sqf";
-diag_log "[SERVER] - Elite Driving v9.5 Apex Edition loaded (A3XAI Safe)";
+diag_log "[SERVER] - Elite Driving v9.7 Apex Edition loaded (A3XAI Safe)";
 sleep 1;
 
 // 3. Patrol system
@@ -319,7 +319,7 @@ diag_log "[SERVER] All systems initialized!";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] LOAD ORDER:";
 diag_log "[SERVER]   1. Ravage (zombie resurrection)";
-diag_log "[SERVER]   2. Elite Driving v9.5 APEX (A3XAI SAFE + predictive + combat evasive)";
+diag_log "[SERVER]   2. Elite Driving v9.7 APEX (AI FULL SPEED + BRIDGE FORCE + ROADKILL)";
 diag_log "[SERVER]   3. Patrol AI (EAID_Ignore set)";
 diag_log "[SERVER]   4. Recruit AI (drivers enabled)";
 diag_log "[SERVER] ========================================";

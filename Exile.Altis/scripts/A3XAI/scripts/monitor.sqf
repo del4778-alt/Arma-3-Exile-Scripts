@@ -11,6 +11,40 @@ private _maxHistory = 10;
 
 [3, "Performance monitor started"] call A3XAI_fnc_log;
 
+// ✅ v3.8: Spawn separate unfreeze loop (runs more frequently)
+[] spawn {
+    while {A3XAI_enabled} do {
+        sleep 30;  // Check every 30 seconds
+
+        // Find and unfreeze stuck A3XAI units
+        private _unfrozen = 0;
+        {
+            if (alive _x && !isPlayer _x) then {
+                private _isA3XAI = _x getVariable ["A3XAI_unit", false];
+                private _isDyCE = _x getVariable ["DyCE_unit", false];
+
+                if (_isA3XAI || _isDyCE) then {
+                    // Re-enable all AI systems (in case they got disabled)
+                    _x enableAI "ALL";
+                    _x enableAI "MOVE";
+                    _x enableAI "PATH";
+                    _x enableAI "ANIM";
+                    _x enableAI "FSM";
+                    _x enableAI "TARGET";
+                    _x enableAI "AUTOTARGET";
+                    _x enableAI "AUTOCOMBAT";
+                    _x setUnitPos "AUTO";
+                    _unfrozen = _unfrozen + 1;
+                };
+            };
+        } forEach allUnits;
+
+        if (_unfrozen > 0 && A3XAI_debugLevel >= 4) then {
+            [4, format ["[UNFREEZE] Re-enabled AI for %1 units", _unfrozen]] call A3XAI_fnc_log;
+        };
+    };
+};
+
 while {A3XAI_enabled} do {
     sleep _monitorInterval;
 

@@ -221,6 +221,10 @@ for "_i" from 0 to (_vehicleCount - 1) do {
 
     // Spawn vehicle facing patrol direction
     private _vehicle = createVehicle [_vehicleClass, _roadPos, [], 0, "NONE"];
+
+    // ✅ v3.9: IMMEDIATE vehicle protection - prevents explosion during crew loading
+    _vehicle allowDamage false;
+
     _vehicle setDir _patrolDir;
     _vehicle setFuel (0.8 + random 0.2);
     _vehicle lock 2;

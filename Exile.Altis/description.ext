@@ -107,6 +107,7 @@ class CfgRemoteExec
         // ======================================
         // Used by fn_dynamicMissions.sqf for mission announcements and markers
         class systemChat { allowedTargets = 0; };
+        class hint { allowedTargets = 0; };           // ✅ Added for DyCE/recruit notifications
         class createMarker { allowedTargets = 0; };
         class deleteMarker { allowedTargets = 0; };
         class setMarkerPos { allowedTargets = 0; };
@@ -115,6 +116,8 @@ class CfgRemoteExec
         class setMarkerType { allowedTargets = 0; };
         class setMarkerShape { allowedTargets = 0; };
         class setMarkerAlpha { allowedTargets = 0; };
+        class setMarkerSize { allowedTargets = 0; };  // ✅ Added for area markers
+        class setMarkerBrush { allowedTargets = 0; }; // ✅ Added for area markers
 
         // ======================================
         // RAVAGE MOD SUPPORT

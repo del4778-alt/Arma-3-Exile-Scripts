@@ -150,12 +150,39 @@ if (_difficulty in ["hard", "extreme"]) then {
     _container addMagazineCargoGlobal ["SmokeShell", 2];
 };
 
+// ============================================================
+// EXILE CONCRETE BUILDING KITS (high value items for convoys)
+// ============================================================
+private _exileConcreteKits = [
+    "Exile_Item_ConcreteDoorKit",
+    "Exile_Item_ConcreteDoorwayKit",
+    "Exile_Item_ConcreteFloorKit",
+    "Exile_Item_ConcreteFloorPortKit",
+    "Exile_Item_ConcreteGateKit",
+    "Exile_Item_ConcreteStairsKit",
+    "Exile_Item_ConcreteSupportKit",
+    "Exile_Item_ConcreteWallKit",
+    "Exile_Item_ConcreteWindowKit"
+];
+
 // Add special loot based on mission type
 switch (_missionType) do {
     case "convoy": {
-        // More ammo
+        // Police convoy loot - ammo + Exile construction kits
         _container addMagazineCargoGlobal ["30Rnd_65x39_caseless_mag", 10];
         _container addMagazineCargoGlobal ["200Rnd_65x39_cased_Box", 3];
+
+        // Add 1-3 random concrete kits (valuable building supplies)
+        private _concreteCount = 1 + floor(random 2 * _lootMultiplier);
+        for "_i" from 1 to _concreteCount do {
+            private _kit = selectRandom _exileConcreteKits;
+            _container addItemCargoGlobal [_kit, 1];
+        };
+
+        // Chance for high-tier concrete kit
+        if (random 1 < 0.3) then {
+            _container addItemCargoGlobal ["Exile_Item_ConcreteGateKit", 1];
+        };
     };
 
     case "crash": {
@@ -165,9 +192,12 @@ switch (_missionType) do {
     };
 
     case "camp": {
-        // Building supplies, tools
+        // Building supplies, tools + basic concrete kits
         _container addItemCargoGlobal ["ToolKit", 1];
         _container addItemCargoGlobal ["Binocular", 1];
+
+        // Add 1 random concrete kit
+        _container addItemCargoGlobal [selectRandom _exileConcreteKits, 1];
     };
 
     case "rescue": {
@@ -177,16 +207,55 @@ switch (_missionType) do {
     };
 
     case "supplyDrop": {
-        // Extra weapons and high value items
+        // Extra weapons and high value items + concrete kits
         _container addItemCargoGlobal ["NVGoggles", 2];
         _container addItemCargoGlobal ["Rangefinder", 1];
+
+        // Supply drops have more building supplies (2-4 kits)
+        private _concreteCount = 2 + floor(random 2 * _lootMultiplier);
+        for "_i" from 1 to _concreteCount do {
+            _container addItemCargoGlobal [selectRandom _exileConcreteKits, 1];
+        };
     };
 
     case "outpost": {
-        // Military supplies
+        // Military supplies + construction materials
         _container addItemCargoGlobal ["NVGoggles", 3];
         _container addMagazineCargoGlobal ["HandGrenade", 5];
         _container addMagazineCargoGlobal ["200Rnd_65x39_cased_Box", 5];
+
+        // Outposts have concrete building supplies (2-4 kits)
+        private _concreteCount = 2 + floor(random 2 * _lootMultiplier);
+        for "_i" from 1 to _concreteCount do {
+            _container addItemCargoGlobal [selectRandom _exileConcreteKits, 1];
+        };
+    };
+
+    case "dyce";
+    case "armedConvoy";
+    case "troopConvoy";
+    case "highwayPatrol";
+    case "supplyTruck": {
+        // DyCE Police convoy loot - heavy on building supplies
+        _container addMagazineCargoGlobal ["30Rnd_65x39_caseless_mag", 8];
+        _container addMagazineCargoGlobal ["200Rnd_65x39_cased_Box", 2];
+
+        // Police convoys transport confiscated building materials (2-5 kits)
+        private _concreteCount = 2 + floor(random 3 * _lootMultiplier);
+        for "_i" from 1 to _concreteCount do {
+            private _kit = selectRandom _exileConcreteKits;
+            _container addItemCargoGlobal [_kit, 1];
+        };
+
+        // supplyTruck gets extra kits
+        if (_missionType == "supplyTruck") then {
+            for "_i" from 1 to 3 do {
+                _container addItemCargoGlobal [selectRandom _exileConcreteKits, 1];
+            };
+            // Guaranteed high-value items
+            _container addItemCargoGlobal ["Exile_Item_ConcreteGateKit", 1];
+            _container addItemCargoGlobal ["Exile_Item_ConcreteStairsKit", 1];
+        };
     };
 };
 

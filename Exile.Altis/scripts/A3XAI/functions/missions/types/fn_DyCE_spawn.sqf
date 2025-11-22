@@ -2,8 +2,11 @@
     A3XAI Elite - DyCE Unified Convoy Spawner
     Spawns any convoy type from DyCE_ConvoyTypes configuration
 
+    Road-finding logic adapted from original DyCE:
+    https://github.com/ExiledHeisenberg/DyCE
+
     Parameters:
-        0: STRING - Convoy type ("armedConvoy", "troopConvoy", "heliPatrol", etc.)
+        0: STRING - Convoy type ("armedConvoy", "troopConvoy", etc.)
         1: ARRAY - Spawn position (optional - auto-selects if empty)
 
     Returns:
@@ -16,6 +19,14 @@ params [["_convoyType", "armedConvoy"], ["_spawnPos", []]];
 if (isNil "DyCE_Initialized" || !DyCE_Initialized) exitWith {
     diag_log "[DyCE] ERROR: DyCE not initialized";
     createHashMap
+};
+
+// ============================================================
+// CACHE ALL ROADS ON MAP (DyCE Style - one-time operation)
+// ============================================================
+if (isNil "DyCE_AllRoads" || {count DyCE_AllRoads == 0}) then {
+    DyCE_AllRoads = [0,0,0] nearRoads 50000;  // Get ALL roads on map
+    [3, format ["[DyCE] Cached %1 roads on map", count DyCE_AllRoads]] call A3XAI_fnc_log;
 };
 
 // Get convoy configuration
@@ -44,46 +55,93 @@ private _missionName = format ["DyCE_%1_%2", _convoyType, floor(random 9999)];
 [3, format ["[DyCE] Spawning %1 (%2)", _name, _difficulty]] call A3XAI_fnc_log;
 
 // ============================================================
-// FIND SPAWN POSITION (Ground vehicles only)
+// FIND SPAWN POSITION (DyCE-Style Road Finding)
 // ============================================================
+private _vehicleSpawnPoints = [];
+private _endWaypoint = [];
+private _spawnRadius = DyCE_Config getOrDefault ["vehicleSpawnSearchRadius", 100];
+private _minPlayerDist = DyCE_Config getOrDefault ["minDistanceFromPlayers", 500];
+
 if (count _spawnPos == 0) then {
-    // Auto-select spawn position based on convoy type
     if (_convoyType == "highwayPatrol") then {
-        // Use highway route system
+        // Use highway route system for highway patrols
         private _route = selectRandom DyCE_HighwayRoutes;
-        _spawnPos = _route select 2;  // Midpoint
+        _spawnPos = _route select 2;  // Midpoint of route
+
+        // Find roads near the route midpoint
+        _vehicleSpawnPoints = _spawnPos nearRoads _spawnRadius;
+        if (count _vehicleSpawnPoints > 0) then {
+            _spawnPos = getPos (selectRandom _vehicleSpawnPoints);
+        };
     } else {
-        // Ground convoy - find road near player
-        private _players = allPlayers select {alive _x};
-        if (count _players > 0) then {
-            private _player = selectRandom _players;
-            private _searchRadius = DyCE_Config get "playerProximityCheck";
-            private _minDist = DyCE_Config get "minDistanceFromPlayers";
+        // DyCE-style: Select random road from ALL roads on map
+        private _attempts = 0;
+        private _maxAttempts = 20;
+        private _validSpawn = false;
 
-            // Find road away from player
-            private _distance = _minDist + random (_searchRadius - _minDist);
-            private _dir = random 360;
-            private _testPos = (position _player) getPos [_distance, _dir];
-            private _roads = _testPos nearRoads (DyCE_Config get "vehicleSpawnSearchRadius");
+        while {!_validSpawn && _attempts < _maxAttempts} do {
+            _attempts = _attempts + 1;
 
-            if (count _roads > 0) then {
-                _spawnPos = getPos (selectRandom _roads);
-            } else {
-                _spawnPos = _testPos;
+            // Select random road from entire map
+            private _randomRoad = selectRandom DyCE_AllRoads;
+            private _testPos = getPos _randomRoad;
+
+            // Check distance from all players
+            private _tooClose = false;
+            {
+                if (alive _x && {(_testPos distance2D _x) < _minPlayerDist}) exitWith {
+                    _tooClose = true;
+                };
+            } forEach allPlayers;
+
+            if (!_tooClose) then {
+                // Find nearby roads for vehicle placement (DyCE uses 100m radius)
+                _vehicleSpawnPoints = _testPos nearRoads _spawnRadius;
+
+                // Need enough spawn points for convoy vehicles
+                private _neededVehicles = _vehicleCountRange select 1;  // Max vehicles
+                if (count _vehicleSpawnPoints >= _neededVehicles) then {
+                    _spawnPos = _testPos;
+                    _validSpawn = true;
+                    [4, format ["[DyCE] Found valid spawn at %1 (attempt %2, %3 roads nearby)",
+                        _spawnPos, _attempts, count _vehicleSpawnPoints]] call A3XAI_fnc_log;
+                };
             };
-        } else {
-            _spawnPos = [] call A3XAI_fnc_getMapCenter;
+        };
+
+        // Fallback if no valid position found
+        if (!_validSpawn) then {
+            _spawnPos = getPos (selectRandom DyCE_AllRoads);
+            _vehicleSpawnPoints = _spawnPos nearRoads (_spawnRadius * 2);
+            [2, format ["[DyCE] Using fallback spawn at %1 after %2 attempts", _spawnPos, _attempts]] call A3XAI_fnc_log;
         };
     };
 };
 
-// Validate spawn - find nearest road
-private _roads = _spawnPos nearRoads 300;
-if (count _roads > 0) then {
-    _spawnPos = getPos (_roads select 0);
-} else {
-    [2, format ["[DyCE] No road found for %1 at %2, using position anyway", _convoyType, _spawnPos]] call A3XAI_fnc_log;
+// ============================================================
+// FIND END WAYPOINT (DyCE requires 4km+ distance)
+// ============================================================
+private _goodPosDist = 0;
+private _waypointAttempts = 0;
+while {_goodPosDist < 4000 && _waypointAttempts < 30} do {
+    _waypointAttempts = _waypointAttempts + 1;
+    _endWaypoint = getPos (selectRandom DyCE_AllRoads);
+    _goodPosDist = _spawnPos distance2D _endWaypoint;
 };
+
+if (_goodPosDist < 4000) then {
+    // Fallback: just pick a road in any direction
+    private _dir = random 360;
+    private _targetPos = _spawnPos getPos [5000, _dir];
+    private _nearbyRoads = _targetPos nearRoads 1000;
+    if (count _nearbyRoads > 0) then {
+        _endWaypoint = getPos (selectRandom _nearbyRoads);
+    } else {
+        _endWaypoint = _targetPos;
+    };
+};
+
+[4, format ["[DyCE] Convoy route: %1 -> %2 (%3m)", _spawnPos, _endWaypoint, round(_spawnPos distance2D _endWaypoint)]] call A3XAI_fnc_log;
 
 // ============================================================
 // CREATE MISSION DATA
@@ -105,20 +163,43 @@ private _missionData = createHashMapFromArray [
 ];
 
 // ============================================================
-// SPAWN VEHICLES
+// SPAWN VEHICLES (DyCE-Style: Use actual road positions)
 // ============================================================
 private _vehicleCount = (_vehicleCountRange select 0) + floor(random ((_vehicleCountRange select 1) - (_vehicleCountRange select 0) + 1));
 private _allGroups = [];
 private _allVehicles = [];
 private _allLoot = [];
-private _currentPos = _spawnPos;
+
+// Get road positions for each vehicle (DyCE style)
+private _usedRoads = [];
+if (count _vehicleSpawnPoints == 0) then {
+    _vehicleSpawnPoints = _spawnPos nearRoads 150;
+};
 
 for "_i" from 0 to (_vehicleCount - 1) do {
     // Select vehicle class
     private _vehicleClass = selectRandom _vehicleClasses;
 
-    // Calculate spawn position (line formation behind lead)
-    private _vehSpawnPos = _currentPos getPos [50 * _i, 180];
+    // DyCE-style: Use actual road positions for vehicle placement
+    private _vehSpawnPos = _spawnPos;
+    if (count _vehicleSpawnPoints > _i) then {
+        // Use actual road position
+        private _roadObj = _vehicleSpawnPoints select _i;
+        _vehSpawnPos = getPos _roadObj;
+
+        // Get road direction for vehicle alignment
+        private _roadDir = getDir _roadObj;
+        if (_roadDir == 0) then {
+            // Try to get road info for proper direction
+            private _roadInfo = getRoadInfo _roadObj;
+            if (count _roadInfo > 0) then {
+                _roadDir = (_roadInfo select 3);
+            };
+        };
+    } else {
+        // Fallback: Offset from spawn position on road
+        _vehSpawnPos = _spawnPos getPos [50 * _i, 180];
+    };
 
     // Spawn vehicle
     private _vehicle = createVehicle [_vehicleClass, _vehSpawnPos, [], 0, "NONE"];
@@ -184,30 +265,49 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _group setVariable ["DyCE_speedLimit", _speedLimit];
 
     // ========================================
-    // GENERATE WAYPOINTS (Ground routes)
+    // GENERATE WAYPOINTS (DyCE-Style Road Routes)
     // ========================================
-    private _waypointCount = 8;
-    private _routeLength = 3000;
+    // Use the pre-calculated _endWaypoint (4km+ away)
+    // Generate intermediate waypoints along roads
 
-    private _waypoints = [_vehSpawnPos, _routeLength, _waypointCount] call A3XAI_fnc_generateRoute;
+    private _waypoints = [];
 
-    if (count _waypoints < 3) then {
-        // Fallback route
-        for "_w" from 1 to _waypointCount do {
-            private _wpPos = _vehSpawnPos getPos [500 * _w, (45 * _w) % 360];
-            _waypoints pushBack _wpPos;
+    // Method 1: Try A3XAI route generator first
+    private _generatedRoute = [_vehSpawnPos, 4000, 6] call A3XAI_fnc_generateRoute;
+    if (count _generatedRoute >= 3) then {
+        _waypoints = _generatedRoute;
+    } else {
+        // Method 2: DyCE-style - find roads between spawn and endpoint
+        private _dir = _vehSpawnPos getDir _endWaypoint;
+        private _totalDist = _vehSpawnPos distance2D _endWaypoint;
+
+        for "_w" from 1 to 6 do {
+            private _dist = (_totalDist / 7) * _w;
+            private _wpTestPos = _vehSpawnPos getPos [_dist, _dir];
+            private _nearbyRoads = _wpTestPos nearRoads 500;
+
+            if (count _nearbyRoads > 0) then {
+                _waypoints pushBack (getPos (selectRandom _nearbyRoads));
+            } else {
+                _waypoints pushBack _wpTestPos;
+            };
         };
     };
 
+    // Add the endpoint as final waypoint
+    _waypoints pushBack _endWaypoint;
+
+    // Create waypoints
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "LIMITED";
         _wp setWaypointFormation "COLUMN";
+        _wp setWaypointCompletionRadius 50;
     } forEach _waypoints;
 
-    // Cycle back
-    private _wp = _group addWaypoint [_waypoints select 0, 0];
+    // Cycle back to start
+    private _wp = _group addWaypoint [_spawnPos, 0];
     _wp setWaypointType "CYCLE";
 
     // ========================================
@@ -238,7 +338,8 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     // ========================================
     private _lootBox = "Box_East_Support_F" createVehicle (position _vehicle);
     _lootBox attachTo [_vehicle, [0, -0.5, 0.3]];
-    [_lootBox, _difficulty, "convoy"] call A3XAI_fnc_spawnLoot;
+    // Pass convoy type for type-specific loot (includes Exile concrete kits)
+    [_lootBox, _difficulty, _convoyType] call A3XAI_fnc_spawnLoot;
 
     _lootBox addEventHandler ["ContainerOpened", {
         params ["_container", "_player"];

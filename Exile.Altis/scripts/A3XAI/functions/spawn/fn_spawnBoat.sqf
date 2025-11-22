@@ -39,6 +39,7 @@ if (_boatClass == "") then {
 
 // Spawn boat
 private _boat = createVehicle [_boatClass, _pos, [], 0, "NONE"];
+_boat allowDamage false;  // v3.12: IMMEDIATE vehicle protection during crew loading
 _boat setDir (random 360);
 _boat setFuel 1;
 _boat lock 2;

@@ -21,6 +21,9 @@ class CfgFunctions {
             class getRandomPos {};
             class inBlacklist {};
             class findSafePos {};
+            class freezeManager {};      // v3.9: DMS-style AI freezing
+            class safeCleanup {};        // v3.9: Player-safe cleanup
+            class cleanupManager {};     // v3.9: Cleanup queue processor
         };
 
         class Spawn {
@@ -114,6 +117,24 @@ class CfgA3XAI {
 
     A3XAI_spawnDistanceMin = 500;               // Min spawn distance from players (meters)
     A3XAI_spawnDistanceMax = 2000;              // Max spawn distance from players (meters)
+
+    // ================================================================
+    // v3.9: AI FREEZING SYSTEM (from DMS/VEMF)
+    // Freezes AI simulation when no players nearby - MAJOR performance boost
+    // ================================================================
+
+    A3XAI_freezingEnabled = 1;                  // Enable AI freezing (1=yes, 0=no)
+    A3XAI_freezeDistance = 3500;                // Freeze AI beyond this distance (meters)
+    A3XAI_unfreezeDistance = 3000;              // Unfreeze AI within this distance (meters)
+    A3XAI_freezeCheckInterval = 15;             // Check interval (seconds) - don't set too low
+    A3XAI_offloadToHC = 1;                      // Offload unfrozen AI to Headless Client (1=yes, 0=no)
+
+    // ================================================================
+    // v3.9: SAFE CLEANUP SYSTEM (from DMS)
+    // Prevents cleanup near players
+    // ================================================================
+
+    A3XAI_cleanupPlayerRadius = 25;             // Don't cleanup within this radius of players (meters)
 
     // ================================================================
     // SPAWN COOLDOWN SETTINGS

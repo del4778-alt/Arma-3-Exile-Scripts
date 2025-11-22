@@ -244,6 +244,20 @@ diag_log format ["[A3XAI] %1 blacklist zones configured", count A3XAI_blacklistZ
 diag_log "[A3XAI] Monitoring systems started";
 
 // ============================================
+// v3.9: PERFORMANCE OPTIMIZATIONS (from DMS/VEMF)
+// ============================================
+
+// AI Freeze Manager - disables simulation for distant AI
+if (missionNamespace getVariable ["A3XAI_freezingEnabled", true]) then {
+    [] spawn A3XAI_fnc_freezeManager;
+    diag_log "[A3XAI] AI freeze manager started (distant AI will be frozen)";
+};
+
+// Safe Cleanup Manager - player proximity checks
+[] spawn A3XAI_fnc_cleanupManager;
+diag_log "[A3XAI] Safe cleanup manager started";
+
+// ============================================
 // HC DETECTION
 // ============================================
 

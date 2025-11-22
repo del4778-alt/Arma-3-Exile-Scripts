@@ -4335,65 +4335,13 @@ class CfgInteractionMenus
 		targetType = 2;
 		target = "Exile_Animal_Abstract";
 
-		class Actions
-		{
+		class Actions 
+		{			
 			class Gut: ExileAbstractAction
 			{
 				title = "Gut Animal";
 				condition = "!(alive ExileClientInteractionObject) && (ExileClientInteractionObject getVariable ['CanBeGutted', false])";
 				action = "['GutAnimal', ExileClientInteractionObject] call ExileClient_action_execute";
-			};
-		};
-	};
-
-	/*
-		Ground loot/items - Look at to loot interaction
-		Allows picking up items by looking at them and pressing scroll wheel
-	*/
-	class GroundItem
-	{
-		targetType = 2;
-		target = "WeaponHolderSimulated";
-
-		class Actions
-		{
-			class TakeAll: ExileAbstractAction
-			{
-				title = "Take All";
-				condition = "true";
-				action = "[ExileClientInteractionObject, player] call ExileClient_util_containerTransfer";
-			};
-		};
-	};
-
-	class GroundWeapon
-	{
-		targetType = 2;
-		target = "GroundWeaponHolder";
-
-		class Actions
-		{
-			class TakeAll: ExileAbstractAction
-			{
-				title = "Take All";
-				condition = "true";
-				action = "[ExileClientInteractionObject, player] call ExileClient_util_containerTransfer";
-			};
-		};
-	};
-
-	class WeaponHolder
-	{
-		targetType = 2;
-		target = "WeaponHolder";
-
-		class Actions
-		{
-			class TakeAll: ExileAbstractAction
-			{
-				title = "Take All";
-				condition = "true";
-				action = "[ExileClientInteractionObject, player] call ExileClient_util_containerTransfer";
 			};
 		};
 	};

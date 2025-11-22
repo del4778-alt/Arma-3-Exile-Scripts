@@ -2,6 +2,12 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.2: Highway Patrol System
+        - Highway patrols spawn between Exile spawn zones
+        - Up to 4 highway patrols active at once
+        - New patrol every 5 minutes
+        - Dynamic routes on major road corridors
+
     v3.1: Mission Scheduler
         - Wait 3 minutes after first player for server to settle
         - Spawn 3 missions at startup
@@ -28,6 +34,14 @@ private _firstPlayerTime = -1;
 // Legacy compatibility
 private _lastMissionSpawn = 0;
 private _missionSpawnInterval = 600;
+
+// ============================================
+// HIGHWAY PATROL CONFIGURATION
+// ============================================
+private _highwayPatrolInterval = 300;    // Spawn highway patrol every 5 minutes
+private _lastHighwayPatrol = 0;
+private _maxHighwayPatrols = 4;          // Max concurrent highway patrols
+private _highwayPatrolsSpawned = 0;
 
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
@@ -214,6 +228,41 @@ while {A3XAI_enabled} do {
     };
 
     // ============================================
+    // 4. HIGHWAY PATROLS (Every 5 minutes)
+    // ============================================
+    // Spawn enemy vehicle patrols on highways between Exile spawn zones
+    // These are separate from regular missions and provide road encounters
+
+    if ((time - _lastHighwayPatrol) >= _highwayPatrolInterval) then {
+        // Count current highway patrols
+        private _currentHighwayPatrols = A3XAI_activeMissions select {
+            (_x getOrDefault ["type", ""]) == "highwayPatrol"
+        };
+
+        if (count _currentHighwayPatrols < _maxHighwayPatrols) then {
+            // Spawn a new highway patrol
+            private _difficulty = selectRandom ["easy", "medium", "medium", "hard"];
+
+            // Empty position = let fn_highwayPatrol pick random highway route
+            private _result = [A3XAI_fnc_highwayPatrol, [[], _difficulty], "highwayPatrol"] call A3XAI_fnc_safeCall;
+
+            if (!isNil "_result" && {count _result > 0}) then {
+                _highwayPatrolsSpawned = _highwayPatrolsSpawned + 1;
+                private _route = _result getOrDefault ["route", ["unknown", "unknown"]];
+                [3, format ["Highway patrol spawned: %1-%2 route (%3) [%4/%5 active]",
+                    _route select 0, _route select 1, _difficulty,
+                    (count _currentHighwayPatrols) + 1, _maxHighwayPatrols]] call A3XAI_fnc_log;
+            } else {
+                [2, "Failed to spawn highway patrol"] call A3XAI_fnc_log;
+            };
+        } else {
+            [4, format ["Highway patrol limit reached (%1/%2)", count _currentHighwayPatrols, _maxHighwayPatrols]] call A3XAI_fnc_log;
+        };
+
+        _lastHighwayPatrol = time;
+    };
+
+    // ============================================
     // MISSION SCHEDULER v3.1
     // ============================================
 
@@ -253,6 +302,24 @@ while {A3XAI_enabled} do {
         _missionsInitialized = true;
         _lastMissionCheck = time;
         [3, format ["=== INITIAL SPAWN COMPLETE: %1 missions active ===", count A3XAI_activeMissions]] call A3XAI_fnc_log;
+
+        // Spawn initial highway patrols
+        [3, "=== SPAWNING INITIAL HIGHWAY PATROLS ==="] call A3XAI_fnc_log;
+        private _initialPatrols = 2;  // Start with 2 highway patrols
+        for "_p" from 1 to _initialPatrols do {
+            private _difficulty = selectRandom ["easy", "medium"];
+            private _result = [A3XAI_fnc_highwayPatrol, [[], _difficulty], "highwayPatrol"] call A3XAI_fnc_safeCall;
+
+            if (!isNil "_result" && {count _result > 0}) then {
+                _highwayPatrolsSpawned = _highwayPatrolsSpawned + 1;
+                private _route = _result getOrDefault ["route", ["unknown", "unknown"]];
+                [3, format ["[%1/%2] Highway patrol: %3-%4 (%5)",
+                    _p, _initialPatrols, _route select 0, _route select 1, _difficulty]] call A3XAI_fnc_log;
+            };
+            sleep 2;
+        };
+        _lastHighwayPatrol = time;
+        [3, format ["=== HIGHWAY PATROLS ACTIVE: %1 ===", _highwayPatrolsSpawned]] call A3XAI_fnc_log;
     };
 
     // SCHEDULED MISSION CHECK: Replace completed missions

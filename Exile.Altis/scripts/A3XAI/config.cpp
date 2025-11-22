@@ -84,6 +84,7 @@ class CfgFunctions {
             class outpost {};        // Military outpost mission
             class supplyDrop {};     // Supply drop mission
             class invasion {};       // Town invasion mission (VEMF-style)
+            class highwayPatrol {};  // Highway patrol between spawn zones
         };
 
         class HC {

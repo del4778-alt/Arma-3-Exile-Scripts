@@ -1769,11 +1769,63 @@ fn_setupPlayerHandlers = {
         };
     }];
 
-    // ✅ NEW: Player GetOut event - Recover overflow AI
+    // ✅ NEW: Player GetOut event - Recover overflow AI + Auto-repair
     _player addEventHandler ["GetOutMan", {
         params ["_unit", "_role", "_vehicle", "_turret"];
 
         diag_log format ["[AI RECRUIT] Player %1 exited %2", name _unit, typeOf _vehicle];
+
+        // ============================================
+        // AUTO-REPAIR: AI repairs damaged vehicle on exit
+        // ============================================
+        if (!isNull _vehicle && {damage _vehicle > 0.1}) then {
+            private _recruitAI = RECRUIT_AI select {alive _x && {(_x distance _vehicle) < 50}};
+
+            if (count _recruitAI > 0) then {
+                // Select closest AI to repair
+                private _repairer = _recruitAI select 0;
+                private _vehicleDamage = damage _vehicle;
+
+                diag_log format ["[AI RECRUIT] Vehicle damaged (%.0f%%) - %1 will repair", _vehicleDamage * 100, name _repairer];
+
+                // Have AI repair the vehicle
+                [_repairer, _vehicle] spawn {
+                    params ["_ai", "_veh"];
+
+                    // Move to vehicle
+                    _ai doMove (position _veh);
+
+                    // Wait for arrival or timeout
+                    private _timeout = time + 15;
+                    waitUntil {sleep 0.5; (_ai distance _veh) < 5 || time > _timeout || !alive _ai};
+
+                    if (alive _ai && !isNull _veh) then {
+                        // Play repair animation
+                        _ai playAction "Medic";
+
+                        // Repair over time (simulate)
+                        private _repairTime = 3 + (damage _veh * 5);  // 3-8 seconds based on damage
+                        sleep _repairTime;
+
+                        // Full repair
+                        if (alive _ai && !isNull _veh) then {
+                            _veh setDamage 0;
+                            _veh setFuel (fuel _veh max 0.3);  // Ensure some fuel
+
+                            // Repair all hit points (wheels, engine, etc)
+                            {
+                                _veh setHitPointDamage [_x, 0];
+                            } forEach (getAllHitPointsDamage _veh select 0);
+
+                            diag_log format ["[AI RECRUIT] %1 repaired vehicle - now at 100%%", name _ai];
+
+                            // Notify player
+                            format ["%1 has repaired the vehicle", name _ai] remoteExec ["systemChat", owner (vehicle _ai getVariable ["RECRUIT_owner", _ai])];
+                        };
+                    };
+                };
+            };
+        };
 
         // Check if there are overflow AI to recover
         private _overflowAI = _vehicle getVariable ["RECRUIT_overflowAI", []];

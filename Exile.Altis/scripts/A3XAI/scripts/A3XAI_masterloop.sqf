@@ -2,6 +2,12 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.5: Infantry Spawn Improvements
+        - Reduced startup delay from 180s to 60s
+        - Increased infantry spawn chance from 60% to 80%
+        - Added 4 initial infantry patrols at startup
+        - Infantry now spawns faster and more reliably
+
     v3.4: Ground-only DyCE (no helis/tanks)
         - Armed convoys, troop transports, supply trucks
         - Police/Gendarmerie themed units
@@ -30,7 +36,7 @@ waitUntil {!isNil "A3XAI_initialized" && {A3XAI_initialized}};
 // MISSION SCHEDULER CONFIGURATION
 // ============================================
 private _loopInterval = 30;              // Main loop runs every 30 seconds
-private _startupDelay = 180;             // 3 minutes (180 seconds) startup delay
+private _startupDelay = 60;              // 1 minute (60 seconds) startup delay (was 180)
 private _maxConcurrentMissions = 3;      // Max missions active at once
 private _missionCheckInterval = 900;     // Check/spawn missions every 15 minutes
 private _lastMissionCheck = 0;
@@ -168,8 +174,8 @@ while {A3XAI_enabled} do {
     // Prioritize different spawn types
     private _spawnAttempts = 0;
 
-    // 1. Random Infantry Spawns (60% chance)
-    if (random 1 < 0.6 && _spawnAttempts < _maxSpawnsThisCycle) then {
+    // 1. Random Infantry Spawns (80% chance - increased from 60%)
+    if (random 1 < 0.8 && _spawnAttempts < _maxSpawnsThisCycle) then {
         // Select random player
         private _player = selectRandom _players;
         if (!isNull _player) then {
@@ -407,6 +413,29 @@ while {A3XAI_enabled} do {
 
         _dyceInitialized = true;
     };
+
+    // Spawn initial roaming infantry patrols
+    [3, "=== SPAWNING INITIAL INFANTRY PATROLS ==="] call A3XAI_fnc_log;
+    private _initialInfantry = 4;  // Start with 4 infantry patrols
+    for "_inf" from 1 to _initialInfantry do {
+        private _player = selectRandom _players;
+        if (!isNull _player) then {
+            private _distance = A3XAI_spawnDistanceMin + random (A3XAI_spawnDistanceMax - A3XAI_spawnDistanceMin);
+            private _dir = (360 / _initialInfantry) * _inf + random 30;  // Spread around player
+            private _spawnPos = (position _player) getPos [_distance, _dir];
+
+            if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
+                private _difficulty = selectRandom ["easy", "medium", "hard"];
+                private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, 4, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
+
+                if (!isNil "_result" && {count _result > 0}) then {
+                    [3, format ["[%1/%2] Initial infantry patrol spawned (%3) at %4", _inf, _initialInfantry, _difficulty, _spawnPos]] call A3XAI_fnc_log;
+                };
+            };
+        };
+        sleep 1;
+    };
+    [3, format ["=== INITIAL INFANTRY PATROLS: %1 ===", _initialInfantry]] call A3XAI_fnc_log;
 
     // SCHEDULED MISSION CHECK: Replace completed missions
     if ((time - _lastMissionCheck) >= _missionCheckInterval) then {

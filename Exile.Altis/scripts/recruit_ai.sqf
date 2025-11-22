@@ -1,6 +1,17 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.33 - COMMAND RESPONSIVENESS FIX
+    ELITE AI RECRUIT SYSTEM v7.35 - EAST + WEST ENEMY TARGETING
     🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, responds to commands
+
+    CHANGES IN v7.35:
+    - 🆕 WEST TARGETING: Recruited AI now also target WEST (Zombies) as enemies
+    - 🆕 DUAL FACTION: Both EAST (A3XAI) and WEST (Zombies) are hostile
+    - 🆕 FORCE REVEAL: All EAST + WEST enemies within 200m are automatically revealed
+
+    CHANGES IN v7.34:
+    - 🆕 EXPLICIT EAST TARGETING: Recruited AI now explicitly detect and engage EAST AI
+    - 🆕 COMBAT ENGAGEMENT: FSM now uses doFire command to force engagement on threats
+    - 🆕 UNIFIED FACTION: All enemy AI (A3XAI + DyCE) are EAST side for consistent targeting
+    - ✅ FIXED: Recruited AI not attacking DyCE convoy AI
 
     CHANGES IN v7.33:
     - 🆕 COMMAND RESPONSIVENESS: AI now respond IMMEDIATELY to player commands
@@ -45,8 +56,8 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.33 (Command Responsiveness Fix)...";
-diag_log "[AI RECRUIT] 🔥 AI NOW RESPOND TO COMMANDS IMMEDIATELY!";
+diag_log "[AI RECRUIT] Starting v7.35 (EAST + WEST Enemy Targeting)...";
+diag_log "[AI RECRUIT] 🔥 AI TARGET EAST (A3XAI) + WEST (Zombies) AS ENEMIES!";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -299,22 +310,44 @@ RECRUIT_fnc_ShareEnemyKnowledge = {
 RECRUIT_fnc_FSM_AnalyzeThreat = {
     params ["_unit"];
 
-    // 🔥 v7.32: EXTENDED RANGE - Scan for enemies at 800m (was 300m)
+    // 🔥 v7.35: EXTENDED RANGE - Scan for enemies at 800m
     private _maxDist = 800;
+
+    // Primary threat detection: EAST (A3XAI) + WEST (Zombies) as enemies
     private _threats = _unit nearEntities [["CAManBase"], _maxDist] select {
-        side _x != side _unit && alive _x && _unit knowsAbout _x > 0.05
+        alive _x && {
+            private _enemySide = side _x;
+            // Explicitly target EAST (A3XAI) and WEST (Zombies)
+            (_enemySide == EAST) ||
+            (_enemySide == WEST) ||
+            (_enemySide != side _unit && _enemySide != RESISTANCE && _unit knowsAbout _x > 0.05)
+        }
     };
 
-    // Also check for very close enemies regardless of knowledge
-    private _veryClose = _unit nearEntities [["CAManBase"], 50] select {
-        side _x != side _unit && alive _x
+    // 🔥 v7.35: Force detection of ALL EAST + WEST units within 200m regardless of knowledge
+    private _nearbyEnemies = _unit nearEntities [["CAManBase"], 200] select {
+        alive _x && (side _x == EAST || side _x == WEST)
     };
 
-    // Merge both lists
+    // Merge enemies and force reveal
     {
         if (!(_x in _threats)) then {
             _threats pushBack _x;
-            _unit reveal [_x, 4.0];  // 🔥 v7.32: Increased from 2.0 to 4.0 (instant full knowledge)
+        };
+        // Always reveal enemies at max knowledge
+        _unit reveal [_x, 4.0];
+    } forEach _nearbyEnemies;
+
+    // Also check for very close enemies regardless of side/knowledge
+    private _veryClose = _unit nearEntities [["CAManBase"], 50] select {
+        side _x != side _unit && alive _x && side _x != RESISTANCE
+    };
+
+    // Merge close enemies
+    {
+        if (!(_x in _threats)) then {
+            _threats pushBack _x;
+            _unit reveal [_x, 4.0];
         };
     } forEach _veryClose;
 
@@ -404,11 +437,22 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _playerGroup setFormation "LINE";  // Spread out in combat
             _unit setUnitPos "AUTO";
 
-            // 🔥 v7.32: Force engagement using assignedTarget
-            private _target = assignedTarget _unit;
-            if (!isNull _target) then {
-                _unit doWatch _target;
-                _unit doTarget _target;
+            // 🔥 v7.34: Force engagement on detected threats (not just assignedTarget)
+            private _closestThreat = _threatInfo select 1;
+            if (!isNull _closestThreat && alive _closestThreat) then {
+                // Reveal enemy to AI at max knowledge
+                _unit reveal [_closestThreat, 4.0];
+                // Force target and fire
+                _unit doTarget _closestThreat;
+                _unit doFire _closestThreat;
+                _unit doWatch _closestThreat;
+            } else {
+                // Fallback to engine-assigned target
+                private _target = assignedTarget _unit;
+                if (!isNull _target) then {
+                    _unit doWatch _target;
+                    _unit doTarget _target;
+                };
             };
         };
 
@@ -714,6 +758,88 @@ RECRUIT_fnc_VerifyAndRetryGetIn = {
         diag_log "[AI RECRUIT] Verifying EAD registration after getIn verification";
         [_veh] call RECRUIT_fnc_ForceEADReregister;
     };
+};
+
+// ====================================================================================
+// NEW: Vehicle Immobilization Monitor - Auto-repair when vehicle can't move
+// ====================================================================================
+RECRUIT_fnc_VehicleImmobilizationMonitor = {
+    params ["_player", "_veh"];
+
+    if (isNull _player || isNull _veh) exitWith {};
+
+    private _uid = getPlayerUID _player;
+
+    diag_log format ["[AI RECRUIT] Starting vehicle immobilization monitor for %1", typeOf _veh];
+
+    while {!isNull _veh && !isNull _player && vehicle _player == _veh} do {
+        sleep 3;
+
+        // Check if vehicle is immobilized (wheels/tracks/engine damaged)
+        private _canMove = true;
+        private _hitPoints = getAllHitPointsDamage _veh;
+
+        if (count _hitPoints >= 3) then {
+            private _hitNames = _hitPoints select 0;
+            private _hitDamages = _hitPoints select 2;
+
+            {
+                private _name = toLower _x;
+                private _damage = _hitDamages select _forEachIndex;
+
+                // Check critical components
+                if (_damage > 0.9) then {
+                    if ("wheel" in _name || "engine" in _name || "fuel" in _name || "track" in _name) then {
+                        _canMove = false;
+                    };
+                };
+            } forEach _hitNames;
+        };
+
+        // Also check if vehicle is completely stopped with high damage
+        if (speed _veh < 2 && damage _veh > 0.5) then {
+            _canMove = false;
+        };
+
+        // If immobilized, trigger auto-repair
+        if (!_canMove) then {
+            diag_log format ["[AI RECRUIT] Vehicle %1 immobilized - initiating auto-repair", typeOf _veh];
+
+            // Get player's AI
+            private _allAI = all_recruited_ai_map getOrDefault [_uid, []];
+            private _availableAI = _allAI select {alive _x};
+
+            if (count _availableAI > 0) then {
+                private _repairer = _availableAI select 0;
+
+                // Notify player
+                "Vehicle immobilized! AI repairing..." remoteExec ["systemChat", 0];
+
+                // Quick repair (AI uses setDamage - no toolkit needed)
+                sleep 2;  // Brief delay for "repair"
+
+                if (!isNull _veh) then {
+                    // Full repair
+                    _veh setDamage 0;
+                    _veh setFuel (fuel _veh max 0.3);
+
+                    // Repair all hit points
+                    private _hitPointNames = (getAllHitPointsDamage _veh) select 0;
+                    {
+                        _veh setHitPointDamage [_x, 0];
+                    } forEach _hitPointNames;
+
+                    private _msg = format ["%1 repaired the vehicle!", name _repairer];
+                    _msg remoteExec ["systemChat", 0];
+                    _msg remoteExec ["hint", 0];
+
+                    diag_log format ["[AI RECRUIT] %1 auto-repaired immobilized vehicle", name _repairer];
+                };
+            };
+        };
+    };
+
+    diag_log "[AI RECRUIT] Vehicle immobilization monitor ended";
 };
 
 // ====================================================================================
@@ -1765,6 +1891,9 @@ fn_setupPlayerHandlers = {
                         diag_log format ["[AI RECRUIT] Player entered %1 - EAD already active", typeOf _veh];
                     };
                 };
+
+                // 🔥 v7.34: Start vehicle immobilization monitor for auto-repair
+                [_player, _veh] spawn RECRUIT_fnc_VehicleImmobilizationMonitor;
             };
         };
     }];
@@ -1779,7 +1908,10 @@ fn_setupPlayerHandlers = {
         // AUTO-REPAIR: AI repairs damaged vehicle on exit
         // ============================================
         if (!isNull _vehicle && {damage _vehicle > 0.1}) then {
-            private _recruitAI = RECRUIT_AI select {alive _x && {(_x distance _vehicle) < 50}};
+            // 🔥 v7.34 FIX: Get AI from player's map, not undefined RECRUIT_AI
+            private _uid = getPlayerUID _unit;
+            private _allAI = all_recruited_ai_map getOrDefault [_uid, []];
+            private _recruitAI = _allAI select {alive _x && {(_x distance _vehicle) < 50}};
 
             if (count _recruitAI > 0) then {
                 // Select closest AI to repair
@@ -1788,12 +1920,14 @@ fn_setupPlayerHandlers = {
 
                 diag_log format ["[AI RECRUIT] Vehicle damaged (%.0f%%) - %1 will repair", _vehicleDamage * 100, name _repairer];
 
-                // Have AI repair the vehicle
-                [_repairer, _vehicle] spawn {
-                    params ["_ai", "_veh"];
+                // Have AI repair the vehicle (AI can run setDamage - no toolkit needed)
+                [_repairer, _vehicle, _unit] spawn {
+                    params ["_ai", "_veh", "_player"];
 
-                    // Move to vehicle
-                    _ai doMove (position _veh);
+                    // Move to vehicle if not already close
+                    if (_ai distance _veh > 5) then {
+                        _ai doMove (position _veh);
+                    };
 
                     // Wait for arrival or timeout
                     private _timeout = time + 15;
@@ -1820,7 +1954,9 @@ fn_setupPlayerHandlers = {
                             diag_log format ["[AI RECRUIT] %1 repaired vehicle - now at 100%%", name _ai];
 
                             // Notify player
-                            format ["%1 has repaired the vehicle", name _ai] remoteExec ["systemChat", owner (vehicle _ai getVariable ["RECRUIT_owner", _ai])];
+                            private _msg = format ["%1 has repaired the vehicle!", name _ai];
+                            _msg remoteExec ["systemChat", 0];
+                            _msg remoteExec ["hint", 0];
                         };
                     };
                 };
@@ -2051,7 +2187,14 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.33 - COMMAND RESPONSIVENESS FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.35 - EAST + WEST ENEMY TARGETING";
+diag_log "";
+diag_log "  🆕 v7.35 EAST + WEST TARGETING:";
+diag_log "    - EAST (A3XAI + DyCE) = Enemy AI";
+diag_log "    - WEST (Ravage Zombies) = Zombies";
+diag_log "    - RESISTANCE (Players + Recruits + Patrols) = Friendly";
+diag_log "    - Force reveal enemies within 200m (instant knowledge)";
+diag_log "    - Combat state uses doFire for forced engagement";
 diag_log "";
 diag_log "  🆕 v7.33 COMMAND FIXES:";
 diag_log "    - AI RESPOND TO COMMANDS IMMEDIATELY (no more double commands!)";

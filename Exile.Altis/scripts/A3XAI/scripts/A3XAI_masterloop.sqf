@@ -2,6 +2,18 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.6: Town-based Infantry & Player Scaling
+        - Infantry now spawns in towns/villages (like original A3XAI)
+        - Dynamic AI limit: 50 base + 20 per player online
+        - Only 2 initial infantry patrols (reduced from 4)
+        - Expanded town list: Kavala, Zaros, Pyrgos, Sofia, Syrta, Athira, Rodopoli, Agios Dionysios
+
+    v3.5: Infantry Spawn Improvements
+        - Reduced startup delay from 180s to 60s
+        - Increased infantry spawn chance from 60% to 80%
+        - Added initial infantry patrols at startup
+        - Infantry now spawns faster and more reliably
+
     v3.4: Ground-only DyCE (no helis/tanks)
         - Armed convoys, troop transports, supply trucks
         - Police/Gendarmerie themed units
@@ -30,7 +42,7 @@ waitUntil {!isNil "A3XAI_initialized" && {A3XAI_initialized}};
 // MISSION SCHEDULER CONFIGURATION
 // ============================================
 private _loopInterval = 30;              // Main loop runs every 30 seconds
-private _startupDelay = 180;             // 3 minutes (180 seconds) startup delay
+private _startupDelay = 60;              // 1 minute (60 seconds) startup delay (was 180)
 private _maxConcurrentMissions = 3;      // Max missions active at once
 private _missionCheckInterval = 900;     // Check/spawn missions every 15 minutes
 private _lastMissionCheck = 0;
@@ -139,9 +151,9 @@ while {A3XAI_enabled} do {
     A3XAI_activeCells = _newActiveCells;
 
     // ============================================
-    // CHECK CURRENT AI COUNT
+    // CHECK CURRENT AI COUNT (Dynamic per-player scaling)
     // ============================================
-    // Count AI with A3XAI variables OR units in EAST groups (more reliable than config side check)
+    // Count AI with A3XAI variables OR units in EAST groups
     private _currentAI = count (allUnits select {
         alive _x && {
             (_x getVariable ["A3XAI_unit", false]) ||
@@ -150,12 +162,19 @@ while {A3XAI_enabled} do {
         }
     });
 
-    if (_currentAI >= A3XAI_maxAIGlobal) then {
-        [4, format ["At AI limit (%1/%2) - skipping spawns", _currentAI, A3XAI_maxAIGlobal]] call A3XAI_fnc_log;
+    // Dynamic AI limit: base + (per player * player count)
+    // Example: 50 base + (20 * 1 player) = 70 max AI for 1 player
+    //          50 base + (20 * 5 players) = 150 max AI for 5 players
+    private _playerCount = count _players;
+    private _perPlayerAI = if (!isNil "A3XAI_maxAIPerPlayer") then {A3XAI_maxAIPerPlayer} else {20};
+    private _dynamicMaxAI = A3XAI_maxAIGlobal + (_perPlayerAI * _playerCount);
+
+    if (_currentAI >= _dynamicMaxAI) then {
+        [4, format ["At AI limit (%1/%2 for %3 players) - skipping spawns", _currentAI, _dynamicMaxAI, _playerCount]] call A3XAI_fnc_log;
         continue;
     };
 
-    private _availableSlots = A3XAI_maxAIGlobal - _currentAI;
+    private _availableSlots = _dynamicMaxAI - _currentAI;
 
     // ============================================
     // SPAWN NEW AI
@@ -168,15 +187,35 @@ while {A3XAI_enabled} do {
     // Prioritize different spawn types
     private _spawnAttempts = 0;
 
-    // 1. Random Infantry Spawns (60% chance)
-    if (random 1 < 0.6 && _spawnAttempts < _maxSpawnsThisCycle) then {
-        // Select random player
-        private _player = selectRandom _players;
-        if (!isNull _player) then {
-            // Find position between min and max distance
-            private _distance = A3XAI_spawnDistanceMin + random (A3XAI_spawnDistanceMax - A3XAI_spawnDistanceMin);
+    // 1. Random Infantry Spawns (80% chance) - Spawn in towns/villages like original A3XAI
+    if (random 1 < 0.8 && _spawnAttempts < _maxSpawnsThisCycle) then {
+        // Get towns/villages from Exile spawn zones or map locations
+        private _spawnLocations = if (!isNil "DyCE_SpawnZones") then {
+            DyCE_SpawnZones
+        } else {
+            // Fallback Altis towns - expanded list
+            createHashMapFromArray [
+                ["Kavala", [3874, 13281, 0]],
+                ["Zaros", [9927, 12083, 0]],
+                ["Pyrgos", [17138, 12719, 0]],
+                ["Sofia", [25713, 21330, 0]],
+                ["Syrta", [8613, 18272, 0]],
+                ["Athira", [14526, 18873, 0]],
+                ["Rodopoli", [14298, 14786, 0]],
+                ["Agios Dionysios", [18693, 14728, 0]]
+            ]
+        };
+
+        private _townNames = keys _spawnLocations;
+        if (count _townNames > 0) then {
+            // Pick random town
+            private _townName = selectRandom _townNames;
+            private _townPos = _spawnLocations get _townName;
+
+            // Find spawn position within town area (50-150m from center)
+            private _distance = 50 + random 100;
             private _dir = random 360;
-            private _spawnPos = (position _player) getPos [_distance, _dir];
+            private _spawnPos = _townPos getPos [_distance, _dir];
 
             // Validate and spawn
             if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
@@ -185,34 +224,48 @@ while {A3XAI_enabled} do {
 
                 if (!isNil "_result") then {
                     _spawnAttempts = _spawnAttempts + 1;
-                    [4, format ["Spawned infantry patrol at %1 (%2)", _spawnPos, _difficulty]] call A3XAI_fnc_log;
+                    [4, format ["Spawned infantry patrol in %1 (%2)", _townName, _difficulty]] call A3XAI_fnc_log;
                 };
             };
         };
     };
 
-    // 2. Vehicle Patrols (25% chance)
+    // 2. Vehicle Patrols (25% chance) - Spawn near Exile towns, cycle between them
     if (random 1 < 0.25 && _spawnAttempts < _maxSpawnsThisCycle) then {
         // Check if we haven't hit vehicle limit
         if (count A3XAI_activeVehicles < 10) then {
-            private _player = selectRandom _players;
-            if (!isNull _player) then {
-                private _distance = A3XAI_spawnDistanceMin + 500;
-                private _dir = random 360;
-                private _spawnPos = (position _player) getPos [_distance, _dir];
+            // Use Exile spawn zone towns for vehicle patrol routes
+            private _spawnZones = if (!isNil "DyCE_SpawnZones") then {
+                DyCE_SpawnZones
+            } else {
+                // Fallback Altis towns
+                createHashMapFromArray [
+                    ["Kavala", [3874, 13281, 0]],
+                    ["Zaros", [9927, 12083, 0]],
+                    ["Pyrgos", [17138, 12719, 0]],
+                    ["Sofia", [25713, 21330, 0]],
+                    ["Syrta", [8613, 18272, 0]]
+                ]
+            };
 
-                // Must be near road
-                private _roads = _spawnPos nearRoads 200;
+            private _townNames = keys _spawnZones;
+            if (count _townNames >= 2) then {
+                // Pick random start town
+                private _startTown = selectRandom _townNames;
+                private _startPos = _spawnZones get _startTown;
+
+                // Find road near start town
+                private _roads = _startPos nearRoads 500;
                 if (count _roads > 0) then {
                     private _road = _roads select 0;
-                    _spawnPos = position _road;
+                    private _spawnPos = position _road;
 
                     private _difficulty = selectRandom ["easy", "medium", "hard"];
                     private _result = [A3XAI_fnc_spawnVehicle, [_spawnPos, _difficulty], "spawnVehicle"] call A3XAI_fnc_safeCall;
 
                     if (!isNil "_result") then {
                         _spawnAttempts = _spawnAttempts + 1;
-                        [4, format ["Spawned vehicle patrol at %1 (%2)", _spawnPos, _difficulty]] call A3XAI_fnc_log;
+                        [4, format ["Spawned vehicle patrol near %1 (%2)", _startTown, _difficulty]] call A3XAI_fnc_log;
                     };
                 };
             };
@@ -407,6 +460,52 @@ while {A3XAI_enabled} do {
 
         _dyceInitialized = true;
     };
+
+    // Spawn initial roaming infantry patrols in towns/villages (2 groups of 4)
+    [3, "=== SPAWNING INITIAL INFANTRY PATROLS (in towns) ==="] call A3XAI_fnc_log;
+    private _initialInfantry = 2;  // 2 infantry patrols in random towns
+
+    // Get spawn locations (towns)
+    private _infantrySpawnLocations = if (!isNil "DyCE_SpawnZones") then {
+        DyCE_SpawnZones
+    } else {
+        createHashMapFromArray [
+            ["Kavala", [3874, 13281, 0]],
+            ["Zaros", [9927, 12083, 0]],
+            ["Pyrgos", [17138, 12719, 0]],
+            ["Sofia", [25713, 21330, 0]],
+            ["Syrta", [8613, 18272, 0]],
+            ["Athira", [14526, 18873, 0]],
+            ["Rodopoli", [14298, 14786, 0]],
+            ["Agios Dionysios", [18693, 14728, 0]]
+        ]
+    };
+
+    private _infantryTownNames = keys _infantrySpawnLocations;
+    private _shuffledTowns = _infantryTownNames call BIS_fnc_arrayShuffle;
+
+    for "_inf" from 0 to (_initialInfantry - 1) do {
+        if (_inf < count _shuffledTowns) then {
+            private _townName = _shuffledTowns select _inf;
+            private _townPos = _infantrySpawnLocations get _townName;
+
+            // Spawn within town (50-150m from center)
+            private _distance = 50 + random 100;
+            private _dir = random 360;
+            private _spawnPos = _townPos getPos [_distance, _dir];
+
+            if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
+                private _difficulty = selectRandom ["easy", "medium", "hard"];
+                private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, 4, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
+
+                if (!isNil "_result" && {count _result > 0}) then {
+                    [3, format ["[%1/%2] Initial infantry patrol in %3 (%4)", _inf + 1, _initialInfantry, _townName, _difficulty]] call A3XAI_fnc_log;
+                };
+            };
+        };
+        sleep 1;
+    };
+    [3, format ["=== INITIAL INFANTRY PATROLS: %1 (in towns) ===", _initialInfantry]] call A3XAI_fnc_log;
 
     // SCHEDULED MISSION CHECK: Replace completed missions
     if ((time - _lastMissionCheck) >= _missionCheckInterval) then {

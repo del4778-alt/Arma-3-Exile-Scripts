@@ -118,11 +118,41 @@ _group setSpeedMode "NORMAL";
     _x enableAI "ALL";
 } forEach (units _group);
 
-// Generate route
-private _waypoints = [_roadPos, 1500, 10] call A3XAI_fnc_generateRoute;
+// Generate route between Exile spawn zone towns
+private _spawnZones = if (!isNil "DyCE_SpawnZones") then {
+    DyCE_SpawnZones
+} else {
+    createHashMapFromArray [
+        ["Kavala", [3874, 13281, 0]],
+        ["Zaros", [9927, 12083, 0]],
+        ["Pyrgos", [17138, 12719, 0]],
+        ["Sofia", [25713, 21330, 0]],
+        ["Syrta", [8613, 18272, 0]]
+    ]
+};
+
+private _townNames = keys _spawnZones;
+private _waypoints = [];
+
+// Build route through multiple towns
+if (count _townNames >= 2) then {
+    // Shuffle towns for random patrol order
+    private _shuffled = _townNames call BIS_fnc_arrayShuffle;
+
+    // Add waypoints to each town
+    {
+        private _townPos = _spawnZones get _x;
+        private _roads = _townPos nearRoads 300;
+        if (count _roads > 0) then {
+            _waypoints pushBack (position (_roads select 0));
+        } else {
+            _waypoints pushBack _townPos;
+        };
+    } forEach _shuffled;
+};
 
 // Add waypoints
-if (count _waypoints > 0) then {
+if (count _waypoints > 1) then {
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
@@ -130,19 +160,36 @@ if (count _waypoints > 0) then {
         _wp setWaypointFormation "COLUMN";
     } forEach _waypoints;
 
+    // Cycle back to first waypoint
     private _wp = _group addWaypoint [_waypoints select 0, 0];
     _wp setWaypointType "CYCLE";
-} else {
-    // Fallback: simple patrol around spawn
-    for "_i" from 0 to 3 do {
-        private _wpPos = _roadPos getPos [500, 90 * _i];
-        private _wp = _group addWaypoint [_wpPos, 0];
-        _wp setWaypointType "MOVE";
-        _wp setWaypointSpeed "LIMITED";
-    };
 
-    private _wp = _group addWaypoint [_roadPos, 0];
-    _wp setWaypointType "CYCLE";
+    [4, format ["Vehicle patrol route: %1 towns", count _waypoints]] call A3XAI_fnc_log;
+} else {
+    // Fallback: use generated route
+    private _generatedWaypoints = [_roadPos, 1500, 10] call A3XAI_fnc_generateRoute;
+
+    if (count _generatedWaypoints > 0) then {
+        {
+            private _wp = _group addWaypoint [_x, 0];
+            _wp setWaypointType "MOVE";
+            _wp setWaypointSpeed "LIMITED";
+        } forEach _generatedWaypoints;
+
+        private _wp = _group addWaypoint [_generatedWaypoints select 0, 0];
+        _wp setWaypointType "CYCLE";
+    } else {
+        // Final fallback: simple patrol around spawn
+        for "_i" from 0 to 3 do {
+            private _wpPos = _roadPos getPos [500, 90 * _i];
+            private _wp = _group addWaypoint [_wpPos, 0];
+            _wp setWaypointType "MOVE";
+            _wp setWaypointSpeed "LIMITED";
+        };
+
+        private _wp = _group addWaypoint [_roadPos, 0];
+        _wp setWaypointType "CYCLE";
+    };
 };
 
 // Initialize vehicle

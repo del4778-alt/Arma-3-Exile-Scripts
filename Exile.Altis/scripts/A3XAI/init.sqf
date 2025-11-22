@@ -80,7 +80,8 @@ if (isNil "A3XAI_debugMode") then {A3XAI_debugMode = (A3XAI_logLevel > 2)};  // 
 if (isNil "A3XAI_gridSize") then {A3XAI_gridSize = 1000};
 if (isNil "A3XAI_spawnDistanceMin") then {A3XAI_spawnDistanceMin = 500};
 if (isNil "A3XAI_spawnDistanceMax") then {A3XAI_spawnDistanceMax = 2000};
-if (isNil "A3XAI_maxAIGlobal") then {A3XAI_maxAIGlobal = 150};
+if (isNil "A3XAI_maxAIGlobal") then {A3XAI_maxAIGlobal = 50};       // Base max AI (was 150)
+if (isNil "A3XAI_maxAIPerPlayer") then {A3XAI_maxAIPerPlayer = 20}; // Additional AI per player
 if (isNil "A3XAI_minServerFPS") then {A3XAI_minServerFPS = 20};
 
 // Spatial grid for O(1) spawn lookups
@@ -141,24 +142,32 @@ diag_log "[A3XAI] Global variables initialized";
 // SETUP FACTION RELATIONS
 // ============================================
 
-// ✅ FIX: Set EAST faction as hostile to all other sides
-// This ensures A3XAI (EAST) units:
-//   - Attack zombies (CIVILIAN from Ravage)
-//   - Attack players if configured (RESISTANCE/WEST)
-//   - Are properly recognized as hostile
+// ✅ FIX: Set faction hostility for all AI systems
+// EAST = A3XAI + DyCE (enemy AI)
+// WEST = Zombies (Ravage)
+// RESISTANCE = Players + Recruited AI + Patrol AI
 
-EAST setFriend [WEST, 0];          // Hostile to WEST (BLUFOR)
-EAST setFriend [RESISTANCE, 0];     // Hostile to RESISTANCE (players)
-EAST setFriend [INDEPENDENT, 0];    // Hostile to INDEPENDENT (AAF/GUER)
-EAST setFriend [CIVILIAN, 0];       // Hostile to CIVILIAN (zombies from Ravage)
+// EAST (A3XAI) hostile to everyone
+EAST setFriend [WEST, 0];          // A3XAI hostile to Zombies
+EAST setFriend [RESISTANCE, 0];     // A3XAI hostile to players/recruits
+EAST setFriend [INDEPENDENT, 0];    // A3XAI hostile to Independent
+EAST setFriend [CIVILIAN, 0];       // A3XAI hostile to civilians
 
-// Make sure other sides recognize EAST as hostile (bidirectional)
-WEST setFriend [EAST, 0];
-RESISTANCE setFriend [EAST, 0];
+// WEST (Zombies) hostile to everyone
+WEST setFriend [EAST, 0];           // Zombies hostile to A3XAI
+WEST setFriend [RESISTANCE, 0];     // Zombies hostile to players/recruits
+WEST setFriend [INDEPENDENT, 0];    // Zombies hostile to Independent
+WEST setFriend [CIVILIAN, 0];       // Zombies hostile to civilians
+
+// RESISTANCE (Players/Recruits) hostile to enemies
+RESISTANCE setFriend [EAST, 0];     // Players hostile to A3XAI
+RESISTANCE setFriend [WEST, 0];     // Players hostile to Zombies
+
+// Other factions
 INDEPENDENT setFriend [EAST, 0];
 CIVILIAN setFriend [EAST, 0];
 
-diag_log "[A3XAI] Faction relations configured: EAST hostile to all sides";
+diag_log "[A3XAI] Faction relations: EAST (A3XAI) + WEST (Zombies) hostile to RESISTANCE (Players)";
 
 // ============================================
 // DETECT DEPENDENCIES

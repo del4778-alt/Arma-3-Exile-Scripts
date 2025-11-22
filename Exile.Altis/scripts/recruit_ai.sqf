@@ -1,10 +1,14 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.34 - EAST ENEMY TARGETING FIX
+    ELITE AI RECRUIT SYSTEM v7.35 - EAST + WEST ENEMY TARGETING
     🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, responds to commands
+
+    CHANGES IN v7.35:
+    - 🆕 WEST TARGETING: Recruited AI now also target WEST (Zombies) as enemies
+    - 🆕 DUAL FACTION: Both EAST (A3XAI) and WEST (Zombies) are hostile
+    - 🆕 FORCE REVEAL: All EAST + WEST enemies within 200m are automatically revealed
 
     CHANGES IN v7.34:
     - 🆕 EXPLICIT EAST TARGETING: Recruited AI now explicitly detect and engage EAST AI
-    - 🆕 FORCE REVEAL: All EAST enemies within 200m are automatically revealed
     - 🆕 COMBAT ENGAGEMENT: FSM now uses doFire command to force engagement on threats
     - 🆕 UNIFIED FACTION: All enemy AI (A3XAI + DyCE) are EAST side for consistent targeting
     - ✅ FIXED: Recruited AI not attacking DyCE convoy AI
@@ -52,8 +56,8 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.34 (EAST Enemy Targeting Fix)...";
-diag_log "[AI RECRUIT] 🔥 AI NOW EXPLICITLY TARGET EAST (A3XAI + DyCE) ENEMIES!";
+diag_log "[AI RECRUIT] Starting v7.35 (EAST + WEST Enemy Targeting)...";
+diag_log "[AI RECRUIT] 🔥 AI TARGET EAST (A3XAI) + WEST (Zombies) AS ENEMIES!";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -306,32 +310,33 @@ RECRUIT_fnc_ShareEnemyKnowledge = {
 RECRUIT_fnc_FSM_AnalyzeThreat = {
     params ["_unit"];
 
-    // 🔥 v7.34: EXTENDED RANGE - Scan for enemies at 800m
+    // 🔥 v7.35: EXTENDED RANGE - Scan for enemies at 800m
     private _maxDist = 800;
 
-    // Primary threat detection: EAST side (A3XAI + DyCE enemies)
+    // Primary threat detection: EAST (A3XAI) + WEST (Zombies) as enemies
     private _threats = _unit nearEntities [["CAManBase"], _maxDist] select {
         alive _x && {
             private _enemySide = side _x;
-            // Explicitly target EAST (all enemy AI) OR any non-friendly side
+            // Explicitly target EAST (A3XAI) and WEST (Zombies)
             (_enemySide == EAST) ||
+            (_enemySide == WEST) ||
             (_enemySide != side _unit && _enemySide != RESISTANCE && _unit knowsAbout _x > 0.05)
         }
     };
 
-    // 🔥 v7.34: Force detection of ALL EAST units within 200m regardless of knowledge
-    private _nearbyEAST = _unit nearEntities [["CAManBase"], 200] select {
-        alive _x && side _x == EAST
+    // 🔥 v7.35: Force detection of ALL EAST + WEST units within 200m regardless of knowledge
+    private _nearbyEnemies = _unit nearEntities [["CAManBase"], 200] select {
+        alive _x && (side _x == EAST || side _x == WEST)
     };
 
-    // Merge EAST enemies and force reveal
+    // Merge enemies and force reveal
     {
         if (!(_x in _threats)) then {
             _threats pushBack _x;
         };
-        // Always reveal EAST enemies at max knowledge
+        // Always reveal enemies at max knowledge
         _unit reveal [_x, 4.0];
-    } forEach _nearbyEAST;
+    } forEach _nearbyEnemies;
 
     // Also check for very close enemies regardless of side/knowledge
     private _veryClose = _unit nearEntities [["CAManBase"], 50] select {
@@ -2182,13 +2187,14 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.34 - EAST ENEMY TARGETING FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.35 - EAST + WEST ENEMY TARGETING";
 diag_log "";
-diag_log "  🆕 v7.34 EAST TARGETING:";
-diag_log "    - Recruited AI explicitly detect EAST side enemies";
-diag_log "    - Force reveal EAST within 200m (instant knowledge)";
+diag_log "  🆕 v7.35 EAST + WEST TARGETING:";
+diag_log "    - EAST (A3XAI + DyCE) = Enemy AI";
+diag_log "    - WEST (Ravage Zombies) = Zombies";
+diag_log "    - RESISTANCE (Players + Recruits + Patrols) = Friendly";
+diag_log "    - Force reveal enemies within 200m (instant knowledge)";
 diag_log "    - Combat state uses doFire for forced engagement";
-diag_log "    - A3XAI + DyCE = EAST = Hostile to RESISTANCE (players/recruits)";
 diag_log "";
 diag_log "  🆕 v7.33 COMMAND FIXES:";
 diag_log "    - AI RESPOND TO COMMANDS IMMEDIATELY (no more double commands!)";

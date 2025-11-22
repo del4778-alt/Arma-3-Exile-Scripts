@@ -110,20 +110,22 @@ if (isNil "PATROL_FactionsConfigured") then {
     PATROL_FactionsConfigured = true;
     publicVariable "PATROL_FactionsConfigured";
 
-    // ✅ FIXED: RESISTANCE (patrol + players) vs EAST (A3XAI mission AI)
+    // ✅ v8.3: RESISTANCE (patrol + players) vs EAST (A3XAI) and WEST (Zombies)
     // RESISTANCE should NOT be hostile to itself!
-    SIDE_RES setFriend [SIDE_E, 0];     // Patrol AI hostile to mission AI
-    SIDE_E setFriend [SIDE_RES, 0];     // Mission AI hostile to patrol AI
-    SIDE_E setFriend [SIDE_W, 0];       // Mission AI hostile to WEST
-    SIDE_W setFriend [SIDE_E, 0];       // WEST hostile to mission AI
+    SIDE_RES setFriend [SIDE_E, 0];     // Patrol AI hostile to A3XAI
+    SIDE_RES setFriend [SIDE_W, 0];     // Patrol AI hostile to Zombies
+    SIDE_E setFriend [SIDE_RES, 0];     // A3XAI hostile to patrol AI
+    SIDE_E setFriend [SIDE_W, 0];       // A3XAI hostile to Zombies
+    SIDE_W setFriend [SIDE_E, 0];       // Zombies hostile to A3XAI
+    SIDE_W setFriend [SIDE_RES, 0];     // Zombies hostile to patrol AI/players
 
     // NOTE: Players are RESISTANCE side in Exile
     // Patrol AI (RESISTANCE) should NOT attack players (RESISTANCE) - same side!
 
-    ["Faction relations configured: RESISTANCE vs EAST"] call BIS_fnc_log;
+    ["Faction relations configured: RESISTANCE vs EAST + WEST"] call BIS_fnc_log;
 };
 
-["Initializing v8.2 - ALL FIXES APPLIED..."] call BIS_fnc_log;
+["Initializing v8.3 - EAST + WEST targeting..."] call BIS_fnc_log;
 
 // ============================================
 // UTILITY FUNCTIONS (OPTIMIZED)
@@ -136,10 +138,10 @@ DEFENDER_fnc_isValidTarget = {
     params ["_u", "_t"];
     if (!alive _t || isNull _t) exitWith {false};
 
-    // ✅ FIXED: Only target EAST (mission AI) - never target RESISTANCE (players/recruits)
+    // ✅ v8.3: Target EAST (A3XAI) and WEST (Zombies) - never target RESISTANCE
     // Patrol AI should PROTECT players, not attack them
     if (side _t == SIDE_RES) exitWith {false};  // Never target friendlies
-    if (side _t != SIDE_E) exitWith {false};    // Only target EAST (A3XAI)
+    if (side _t != SIDE_E && side _t != SIDE_W) exitWith {false};  // Only target EAST or WEST
 
     if (side _t getFriend side _u >= 0.6) exitWith {false};
     if ((_t isKindOf "LandVehicle" || _t isKindOf "Air") && {count crew _t == 0}) exitWith {false};

@@ -27,10 +27,8 @@ _unit setVariable ["A3XAI_unit", true, true];
 _unit setVariable ["A3XAI_difficulty", _difficulty, true];
 _unit setVariable ["A3XAI_spawnTime", time];
 
-// ✅ ZOMBIE PROTECTION - Make zombies ignore mission AI
-// This prevents zombies from killing mission AI before players arrive
-// NOTE: A3XAI units SHOULD still spawn zombies when killed BY PLAYERS - this helps players!
-_unit setVariable ["RVG_ZedIgnore", true, true];  // Ravage zombies ignore this unit
+// ✅ v3.0: Zombies are WEST, mission AI are EAST - faction hostility handles combat
+// No more RVG_ZedIgnore needed - zombies WILL attack mission AI and vice versa
 
 // Add to VCOM exclusion if VCOM is present
 if (!isNil "Vcm_ActivateAI") then {
@@ -53,9 +51,8 @@ _unit enableStamina true;
 // Set unit ready
 _unit setUnitPos "AUTO";
 
-// ✅ Combat mode: YELLOW (hold fire until fired upon)
-// This prevents AI from engaging zombies first, saves ammo for players
-// AI will still defend themselves when attacked
-(group _unit) setCombatMode "YELLOW";
+// ✅ v3.0: Combat mode RED - engage all enemies (including zombies)
+// Zombies are WEST, mission AI are EAST - they will fight each other
+(group _unit) setCombatMode "RED";
 
 true

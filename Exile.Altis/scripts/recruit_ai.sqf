@@ -1,6 +1,13 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.33 - COMMAND RESPONSIVENESS FIX
+    ELITE AI RECRUIT SYSTEM v7.34 - EAST ENEMY TARGETING FIX
     🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, responds to commands
+
+    CHANGES IN v7.34:
+    - 🆕 EXPLICIT EAST TARGETING: Recruited AI now explicitly detect and engage EAST AI
+    - 🆕 FORCE REVEAL: All EAST enemies within 200m are automatically revealed
+    - 🆕 COMBAT ENGAGEMENT: FSM now uses doFire command to force engagement on threats
+    - 🆕 UNIFIED FACTION: All enemy AI (A3XAI + DyCE) are EAST side for consistent targeting
+    - ✅ FIXED: Recruited AI not attacking DyCE convoy AI
 
     CHANGES IN v7.33:
     - 🆕 COMMAND RESPONSIVENESS: AI now respond IMMEDIATELY to player commands
@@ -45,8 +52,8 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.33 (Command Responsiveness Fix)...";
-diag_log "[AI RECRUIT] 🔥 AI NOW RESPOND TO COMMANDS IMMEDIATELY!";
+diag_log "[AI RECRUIT] Starting v7.34 (EAST Enemy Targeting Fix)...";
+diag_log "[AI RECRUIT] 🔥 AI NOW EXPLICITLY TARGET EAST (A3XAI + DyCE) ENEMIES!";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -299,22 +306,43 @@ RECRUIT_fnc_ShareEnemyKnowledge = {
 RECRUIT_fnc_FSM_AnalyzeThreat = {
     params ["_unit"];
 
-    // 🔥 v7.32: EXTENDED RANGE - Scan for enemies at 800m (was 300m)
+    // 🔥 v7.34: EXTENDED RANGE - Scan for enemies at 800m
     private _maxDist = 800;
+
+    // Primary threat detection: EAST side (A3XAI + DyCE enemies)
     private _threats = _unit nearEntities [["CAManBase"], _maxDist] select {
-        side _x != side _unit && alive _x && _unit knowsAbout _x > 0.05
+        alive _x && {
+            private _enemySide = side _x;
+            // Explicitly target EAST (all enemy AI) OR any non-friendly side
+            (_enemySide == EAST) ||
+            (_enemySide != side _unit && _enemySide != RESISTANCE && _unit knowsAbout _x > 0.05)
+        }
     };
 
-    // Also check for very close enemies regardless of knowledge
-    private _veryClose = _unit nearEntities [["CAManBase"], 50] select {
-        side _x != side _unit && alive _x
+    // 🔥 v7.34: Force detection of ALL EAST units within 200m regardless of knowledge
+    private _nearbyEAST = _unit nearEntities [["CAManBase"], 200] select {
+        alive _x && side _x == EAST
     };
 
-    // Merge both lists
+    // Merge EAST enemies and force reveal
     {
         if (!(_x in _threats)) then {
             _threats pushBack _x;
-            _unit reveal [_x, 4.0];  // 🔥 v7.32: Increased from 2.0 to 4.0 (instant full knowledge)
+        };
+        // Always reveal EAST enemies at max knowledge
+        _unit reveal [_x, 4.0];
+    } forEach _nearbyEAST;
+
+    // Also check for very close enemies regardless of side/knowledge
+    private _veryClose = _unit nearEntities [["CAManBase"], 50] select {
+        side _x != side _unit && alive _x && side _x != RESISTANCE
+    };
+
+    // Merge close enemies
+    {
+        if (!(_x in _threats)) then {
+            _threats pushBack _x;
+            _unit reveal [_x, 4.0];
         };
     } forEach _veryClose;
 
@@ -404,11 +432,22 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _playerGroup setFormation "LINE";  // Spread out in combat
             _unit setUnitPos "AUTO";
 
-            // 🔥 v7.32: Force engagement using assignedTarget
-            private _target = assignedTarget _unit;
-            if (!isNull _target) then {
-                _unit doWatch _target;
-                _unit doTarget _target;
+            // 🔥 v7.34: Force engagement on detected threats (not just assignedTarget)
+            private _closestThreat = _threatInfo select 1;
+            if (!isNull _closestThreat && alive _closestThreat) then {
+                // Reveal enemy to AI at max knowledge
+                _unit reveal [_closestThreat, 4.0];
+                // Force target and fire
+                _unit doTarget _closestThreat;
+                _unit doFire _closestThreat;
+                _unit doWatch _closestThreat;
+            } else {
+                // Fallback to engine-assigned target
+                private _target = assignedTarget _unit;
+                if (!isNull _target) then {
+                    _unit doWatch _target;
+                    _unit doTarget _target;
+                };
             };
         };
 
@@ -2051,7 +2090,13 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.33 - COMMAND RESPONSIVENESS FIX";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.34 - EAST ENEMY TARGETING FIX";
+diag_log "";
+diag_log "  🆕 v7.34 EAST TARGETING:";
+diag_log "    - Recruited AI explicitly detect EAST side enemies";
+diag_log "    - Force reveal EAST within 200m (instant knowledge)";
+diag_log "    - Combat state uses doFire for forced engagement";
+diag_log "    - A3XAI + DyCE = EAST = Hostile to RESISTANCE (players/recruits)";
 diag_log "";
 diag_log "  🆕 v7.33 COMMAND FIXES:";
 diag_log "    - AI RESPOND TO COMMANDS IMMEDIATELY (no more double commands!)";

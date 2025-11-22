@@ -98,6 +98,9 @@ for "_i" from 0 to (_defenderCount - 1) do {
     private _unitType = "O_Soldier_F";  // FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST)
     private _unit = _group createUnit [_unitType, _defPos, [], 0, "NONE"];
 
+    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+    _unit allowDamage false;
+
     // Initialize AI
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;

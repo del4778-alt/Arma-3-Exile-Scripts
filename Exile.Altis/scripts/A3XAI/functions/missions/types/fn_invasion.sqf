@@ -94,6 +94,9 @@ for "_g" from 0 to (_groupCount - 1) do {
         private _unitPos = _spawnPos getPos [3 + random 5, random 360];
         private _unit = _group createUnit ["O_Soldier_F", _unitPos, [], 0, "NONE"];
 
+        // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+        _unit allowDamage false;
+
         [_unit, _difficulty] call A3XAI_fnc_initAI;
         [_unit, _difficulty] call A3XAI_fnc_setAISkill;
         [_unit, _difficulty] call A3XAI_fnc_equipAI;
@@ -148,6 +151,9 @@ for "_d" from 0 to (_defenderCount - 1) do {
     // Create defender group (single unit)
     private _group = createGroup [EAST, true];
     private _unit = _group createUnit ["O_Soldier_F", _defPos, [], 0, "NONE"];
+
+    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+    _unit allowDamage false;
 
     _unit setPos _defPos;
     _unit setUnitPos "MIDDLE";  // Crouched/kneeling

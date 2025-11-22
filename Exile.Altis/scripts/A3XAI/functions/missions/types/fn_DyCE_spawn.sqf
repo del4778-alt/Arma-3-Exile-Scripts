@@ -228,6 +228,10 @@ for "_i" from 0 to (_vehicleCount - 1) do {
         private _unitType = "O_Soldier_F";
         private _unit = _group createUnit [_unitType, _vehSpawnPos, [], 0, "CAN_COLLIDE"];
 
+        // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+        // Must happen before anything else to prevent instant death from collision/terrain
+        _unit allowDamage false;
+
         // Temporarily disable AI during setup (DyCE style)
         _unit disableAI "ALL";
 

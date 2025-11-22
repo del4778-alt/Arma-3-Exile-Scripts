@@ -89,6 +89,9 @@ private _paratroopers = [];
 for "_i" from 0 to (_paradropCount - 1) do {
     private _para = _paraGroup createUnit ["O_Soldier_F", _heliSpawn, [], 0, "NONE"];
 
+    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+    _para allowDamage false;
+
     // Initialize AI
     [_para, _difficulty] call A3XAI_fnc_initAI;
     [_para, _difficulty] call A3XAI_fnc_setAISkill;

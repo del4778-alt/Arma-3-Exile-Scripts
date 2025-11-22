@@ -48,6 +48,9 @@ private _crewCount = 3; // Pilot + copilot + gunner
 for "_i" from 0 to (_crewCount - 1) do {
     private _unit = _group createUnit ["O_helipilot_F", _spawnPos, [], 0, "NONE"];  // FIX: Changed from I_helipilot_F (INDEPENDENT) to O_helipilot_F (EAST)
 
+    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+    _unit allowDamage false;
+
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;
     [_unit, _difficulty] call A3XAI_fnc_equipAI;

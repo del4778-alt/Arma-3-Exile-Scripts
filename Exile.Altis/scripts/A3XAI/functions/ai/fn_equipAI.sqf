@@ -1,9 +1,10 @@
 /*
-    A3XAI Elite - Equip AI Unit
-    Equips AI with weapons and gear based on difficulty
+    A3XAI Elite - Equip AI Unit (POLICE FORCE EDITION)
+    Equips AI with police/gendarmerie gear - hunting escaped prisoners!
 
-    NOTE: Uses cached item lists from fn_validateLootTables.sqf which
-    scans Exile's flat CfgExileArsenal structure by classname prefix.
+    All A3XAI units are dressed as police/gendarmerie since:
+    - Player side is RESISTANCE (escaped prisoners)
+    - AI side is EAST (police hunting them down)
 
     Parameters:
         0: OBJECT - AI unit
@@ -27,29 +28,148 @@ removeBackpack _unit;
 removeHeadgear _unit;
 removeGoggles _unit;
 
-// Use Exile trader tables if available, otherwise fallback
+// ============================================================
+// POLICE FORCE UNIFORMS (All black/dark blue)
+// ============================================================
+private _policeUniforms = [
+    // Gendarmerie (primary police force)
+    "U_B_GEN_Commander_F",          // Gendarmerie Commander - black
+    "U_B_GEN_Soldier_F",            // Gendarmerie Soldier - black
+
+    // CTRG Black Ops (tactical police)
+    "U_B_CTRG_Soldier_F",           // CTRG Black uniform
+    "U_B_CTRG_Soldier_2_F",         // CTRG Black variant
+    "U_B_CTRG_Soldier_3_F",         // CTRG Black variant
+
+    // Combat uniforms (dark variants)
+    "U_B_CombatUniform_mcam_vest",  // Combat with vest
+    "U_I_CombatUniform_shortsleeve", // Short sleeve dark
+
+    // Special units
+    "U_B_Wetsuit",                  // Tactical wetsuit (SWAT style)
+    "U_B_survival_uniform"          // Survival uniform dark
+];
+
+// ============================================================
+// POLICE VESTS (Tactical/Plate carriers - black)
+// ============================================================
+private _policeVests = [
+    // Plate carriers (heavy tactical)
+    "V_PlateCarrier1_blk",          // Plate Carrier Black
+    "V_PlateCarrier2_blk",          // Plate Carrier Black v2
+    "V_PlateCarrierSpec_blk",       // Special Plate Carrier Black
+    "V_PlateCarrierGL_blk",         // Plate Carrier GL Black
+
+    // Tactical vests
+    "V_TacVest_blk",                // Tactical Vest Black
+    "V_TacVestIR_blk",              // Tactical Vest IR Black
+    "V_TacVestCamo_khk",            // Tactical Vest (fallback)
+
+    // Chest rigs
+    "V_Chestrig_blk",               // Chest Rig Black
+    "V_HarnessO_brn",               // Harness (tactical)
+    "V_HarnessOGL_brn"              // Harness with GL
+];
+
+// ============================================================
+// POLICE HEADGEAR (Caps, berets, helmets)
+// ============================================================
+private _policeHeadgear = [
+    // Berets (classic police/military)
+    "H_Beret_blk",                  // Black Beret
+    "H_Beret_gen_F",                // Gendarmerie Beret
+
+    // Caps
+    "H_Cap_blk",                    // Black Cap
+    "H_Cap_blk_Raven",              // Black Cap Raven
+    "H_Cap_headphones",             // Cap with headphones
+
+    // Military caps
+    "H_MilCap_gen_F",               // Gendarmerie Military Cap
+    "H_MilCap_blue",                // Blue Military Cap
+
+    // Combat helmets (tactical units)
+    "H_HelmetB_plain_blk",          // Combat Helmet Black
+    "H_HelmetSpecB_blk",            // Special Helmet Black
+    "H_HelmetB_TI_tna_F",           // Tactical Helmet
+
+    // Balaclavas (SWAT style)
+    "H_Booniehat_khk_hs",           // Boonie (undercover)
+    "H_Watchcap_blk"                // Watch Cap Black
+];
+
+// ============================================================
+// POLICE GLASSES (Tactical/Aviator)
+// ============================================================
+private _policeGlasses = [
+    "G_Aviator",                    // Aviator Sunglasses (classic cop)
+    "G_Tactical_Clear",             // Tactical Glasses Clear
+    "G_Tactical_Black",             // Tactical Glasses Black
+    "G_Combat",                     // Combat Goggles
+    "G_Lowprofile",                 // Low Profile Glasses
+    "G_Shades_Black",               // Black Shades
+    "G_Balaclava_blk"               // Balaclava (SWAT)
+];
+
+// ============================================================
+// POLICE BACKPACKS (Tactical black)
+// ============================================================
+private _policeBackpacks = [
+    "B_AssaultPack_blk",            // Assault Pack Black
+    "B_Kitbag_cbr",                 // Kitbag
+    "B_TacticalPack_blk",           // Tactical Pack Black
+    "B_FieldPack_blk",              // Field Pack Black
+    "B_Carryall_cbr",               // Carryall
+    "B_Bergen_blk"                  // Bergen Black
+];
+
+// ============================================================
+// APPLY POLICE UNIFORM
+// ============================================================
+private _uniform = selectRandom _policeUniforms;
+_unit forceAddUniform _uniform;
+
+// Add vest
+private _vest = selectRandom _policeVests;
+_unit addVest _vest;
+
+// Add headgear
+private _headgear = selectRandom _policeHeadgear;
+_unit addHeadgear _headgear;
+
+// Add glasses (70% chance)
+if (random 1 < 0.7) then {
+    private _glasses = selectRandom _policeGlasses;
+    _unit addGoggles _glasses;
+};
+
+// Add backpack for hard+ difficulty
+if (_difficulty in ["hard", "extreme"]) then {
+    private _backpack = selectRandom _policeBackpacks;
+    _unit addBackpack _backpack;
+};
+
+// ============================================================
+// WEAPONS (Use Exile trader tables or fallback)
+// ============================================================
 private _useExile = !A3XAI_useFallbackLoot;
 
-// Get weapon from cached lists (populated by fn_validateLootTables.sqf)
+// Get weapon from cached lists
 private _weapon = "";
 if (_useExile) then {
-    // Select weapon category based on difficulty
     private _weapons = switch (_difficulty) do {
         case "easy": {
-            // Just rifles
             if (!isNil "A3XAI_exileRifles" && {count A3XAI_exileRifles > 0}) then {
                 A3XAI_exileRifles
             } else {[]};
         };
         case "medium": {
-            // Rifles + LMGs
             private _pool = [];
             if (!isNil "A3XAI_exileRifles") then {_pool append A3XAI_exileRifles};
             if (!isNil "A3XAI_exileLMGs" && {random 1 < 0.3}) then {_pool append A3XAI_exileLMGs};
             _pool
         };
         case "hard": {
-            // Rifles + LMGs + Snipers
             private _pool = [];
             if (!isNil "A3XAI_exileRifles") then {_pool append A3XAI_exileRifles};
             if (!isNil "A3XAI_exileLMGs" && {random 1 < 0.4}) then {_pool append A3XAI_exileLMGs};
@@ -57,7 +177,6 @@ if (_useExile) then {
             _pool
         };
         case "extreme": {
-            // Heavy focus on LMGs + Snipers
             private _pool = [];
             if (!isNil "A3XAI_exileLMGs") then {_pool append A3XAI_exileLMGs};
             if (!isNil "A3XAI_exileSnipers") then {_pool append A3XAI_exileSnipers};
@@ -73,7 +192,6 @@ if (_useExile) then {
         _weapon = selectRandom _weapons;
     };
 } else {
-    // Use fallback loot
     private _lootPool = A3XAI_fallbackLootPools getOrDefault [_difficulty, A3XAI_fallbackLootPools get "medium"];
     private _weapons = _lootPool getOrDefault ["weapons", []];
     if (count _weapons > 0) then {
@@ -83,17 +201,13 @@ if (_useExile) then {
 
 // Add weapon and magazines
 if (_weapon != "") then {
-    // Get compatible magazines from game config
     private _magazines = getArray (configFile >> "CfgWeapons" >> _weapon >> "magazines");
     if (count _magazines > 0) then {
         private _magazine = _magazines select 0;
-        // Add magazines BEFORE weapon so weapon auto-loads first mag
         for "_i" from 0 to 5 do {
             _unit addMagazine _magazine;
         };
     };
-
-    // Add weapon AFTER magazines (auto-loads first mag)
     _unit addWeapon _weapon;
 };
 
@@ -102,7 +216,6 @@ if (_difficulty in ["medium", "hard", "extreme"]) then {
     private _pistol = "";
 
     if (_useExile) then {
-        // Use cached pistol list
         if (!isNil "A3XAI_exilePistols" && {count A3XAI_exilePistols > 0}) then {
             _pistol = selectRandom A3XAI_exilePistols;
         };
@@ -116,7 +229,6 @@ if (_difficulty in ["medium", "hard", "extreme"]) then {
     if (_pistol != "") then {
         private _pistolMags = getArray (configFile >> "CfgWeapons" >> _pistol >> "magazines");
         if (count _pistolMags > 0) then {
-            // Add pistol mags BEFORE pistol
             for "_i" from 0 to 2 do {
                 _unit addMagazine (_pistolMags select 0);
             };
@@ -130,7 +242,6 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
     private _launcher = "";
 
     if (_useExile) then {
-        // Use cached launcher list (if available)
         if (!isNil "A3XAI_exileLaunchers" && {count A3XAI_exileLaunchers > 0}) then {
             _launcher = selectRandom A3XAI_exileLaunchers;
         };
@@ -150,72 +261,34 @@ if (_difficulty == "extreme" && random 1 < 0.2) then {
     };
 };
 
-// Add uniform from cached list
-private _uniforms = if (_useExile && {!isNil "A3XAI_exileUniforms"}) then {
-    A3XAI_exileUniforms
-} else {
-    A3XAI_fallbackLoot getOrDefault ["uniforms", []]
-};
+// ============================================================
+// POLICE EQUIPMENT
+// ============================================================
 
-if (count _uniforms > 0) then {
-    _unit forceAddUniform (selectRandom _uniforms);
-};
-
-// Add vest from cached list
-private _vests = if (_useExile && {!isNil "A3XAI_exileVests"}) then {
-    A3XAI_exileVests
-} else {
-    A3XAI_fallbackLoot getOrDefault ["vests", []]
-};
-
-if (count _vests > 0) then {
-    _unit addVest (selectRandom _vests);
-};
-
-// Add headgear from cached list
-private _headgear = if (_useExile && {!isNil "A3XAI_exileHeadgear"}) then {
-    A3XAI_exileHeadgear
-} else {
-    A3XAI_fallbackLoot getOrDefault ["headgear", []]
-};
-
-if (count _headgear > 0) then {
-    _unit addHeadgear (selectRandom _headgear);
-};
-
-// Add backpack for hard+ difficulty
-if (_difficulty in ["hard", "extreme"]) then {
-    private _backpacks = if (_useExile && {!isNil "A3XAI_exileBackpacks"}) then {
-        A3XAI_exileBackpacks
-    } else {
-        A3XAI_fallbackLoot getOrDefault ["backpacks", []]
-    };
-
-    if (count _backpacks > 0) then {
-        _unit addBackpack (selectRandom _backpacks);
-    };
-};
-
-// Add items
 // FirstAidKit
 _unit addItem "FirstAidKit";
 
-// Map/GPS for hard+
+// Map/GPS for hard+ (police have better equipment)
 if (_difficulty in ["hard", "extreme"]) then {
     _unit linkItem "ItemMap";
     _unit linkItem "ItemGPS";
+    _unit linkItem "NVGoggles_OPFOR";  // Police have NVGs
 } else {
     _unit linkItem "ItemMap";
     _unit linkItem "ItemCompass";
 };
 
-// Radio
+// Radio (all police have radios)
 _unit linkItem "ItemRadio";
 
-// Grenades
+// Grenades (flashbangs for police)
 _unit addMagazine "HandGrenade";
 if (_difficulty in ["hard", "extreme"]) then {
-    _unit addMagazine "HandGrenade";
+    _unit addMagazine "SmokeShell";
+    _unit addMagazine "SmokeShellGreen";
 };
+
+// Mark as police unit
+_unit setVariable ["A3XAI_policeUnit", true];
 
 true

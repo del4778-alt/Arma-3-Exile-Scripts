@@ -99,29 +99,29 @@ DyCE_ConvoyTypes = createHashMapFromArray [
             "ivory_challenger_marked"
         ]],
         ["uniforms", [
-            "U_IG_Guerilla1_1",
-            "U_IG_Guerilla2_1",
-            "U_IG_Guerilla3_1"
+            "U_B_GEN_Commander_F",      // Gendarmerie Commander
+            "U_B_GEN_Soldier_F",        // Gendarmerie Soldier
+            "U_B_CTRG_Soldier_F"        // CTRG Black (tactical police)
         ]],
         ["vests", [
-            "V_TacVest_khk",
-            "V_Chestrig_khk",
-            "V_BandollierB_khk"
+            "V_TacVest_blk",            // Tactical Vest Black
+            "V_PlateCarrier1_blk",      // Plate Carrier Black
+            "V_Chestrig_blk"            // Chest Rig Black
         ]],
         ["lootRange", [50, 150]],       // Poptabs range
         ["difficulty", "medium"]
     ]],
 
     // ----------------------------------------
-    // TROOP CONVOY - Heavy military transport
+    // TROOP CONVOY - Heavy police transport
     // ----------------------------------------
     ["troopConvoy", createHashMapFromArray [
-        ["name", "Military Convoy"],
+        ["name", "Police Convoy"],
         ["markerColor", "ColorBlack"],
         ["markerType", "mil_destroy"],
         ["speedLimit", 50],
         ["spawnAltitude", 0],
-        ["alertMessage", "Military convoy spotted - high value target!"],
+        ["alertMessage", "Police convoy spotted - heavy resistance expected!"],
         ["vehicleCount", [3, 4]],       // 3-4 vehicles
         ["crewPerVehicle", [3, 4]],     // 3-4 crew (more troops)
         ["vehicles", [
@@ -131,28 +131,28 @@ DyCE_ConvoyTypes = createHashMapFromArray [
             "ivory_suburban_marked"
         ]],
         ["uniforms", [
-            "U_B_CTRG_1",
-            "U_B_CTRG_2",
-            "U_B_CTRG_3"
+            "U_B_GEN_Commander_F",      // Gendarmerie Commander
+            "U_B_GEN_Soldier_F",        // Gendarmerie Soldier
+            "U_B_CTRG_Soldier_2_F"      // CTRG Black variant
         ]],
         ["vests", [
-            "V_PlateCarrier1_rgr",
-            "V_PlateCarrier2_rgr"
+            "V_PlateCarrier2_blk",      // Plate Carrier Black v2
+            "V_PlateCarrierSpec_blk"    // Special Plate Carrier Black
         ]],
         ["lootRange", [100, 250]],
         ["difficulty", "hard"]
     ]],
 
     // ----------------------------------------
-    // HELICOPTER PATROL - Air reconnaissance
+    // HELICOPTER PATROL - Police Air Unit
     // ----------------------------------------
     ["heliPatrol", createHashMapFromArray [
-        ["name", "Helicopter Patrol"],
+        ["name", "Police Air Unit"],
         ["markerColor", "ColorBlue"],
         ["markerType", "mil_dot"],
         ["speedLimit", 150],
         ["spawnAltitude", 150],         // Spawn at altitude
-        ["alertMessage", "Enemy helicopter patrol detected!"],
+        ["alertMessage", "Police helicopter patrol detected!"],
         ["vehicleCount", [1, 2]],       // 1-2 helicopters
         ["crewPerVehicle", [2, 3]],     // Pilot + gunners
         ["vehicles", [
@@ -161,19 +161,20 @@ DyCE_ConvoyTypes = createHashMapFromArray [
             "Exile_Chopper_Mohawk_FIA"
         ]],
         ["uniforms", [
-            "U_B_CombatUniform_mcam",
-            "U_B_HeliPilotCoveralls"
+            "U_B_HeliPilotCoveralls",   // Pilot coveralls
+            "U_B_GEN_Soldier_F",        // Gendarmerie (door gunners)
+            "U_B_CTRG_Soldier_3_F"      // CTRG Black variant
         ]],
         ["vests", [
-            "V_TacVest_blk",
-            "V_Chestrig_blk"
+            "V_TacVest_blk",            // Tactical Vest Black
+            "V_PlateCarrierGL_blk"      // Plate Carrier GL Black
         ]],
         ["lootRange", [75, 200]],
         ["difficulty", "extreme"]
     ]],
 
     // ----------------------------------------
-    // HIGHWAY PATROL - Road interception
+    // HIGHWAY PATROL - Police Road Interception
     // ----------------------------------------
     ["highwayPatrol", createHashMapFromArray [
         ["name", "Highway Patrol"],
@@ -192,27 +193,27 @@ DyCE_ConvoyTypes = createHashMapFromArray [
             "Exile_Car_Offroad_Armed_Guerilla01"
         ]],
         ["uniforms", [
-            "U_O_CombatUniform_ocamo",
-            "U_O_CombatUniform_oucamo"
+            "U_B_GEN_Commander_F",      // Gendarmerie Commander
+            "U_B_GEN_Soldier_F"         // Gendarmerie Soldier
         ]],
         ["vests", [
-            "V_TacVest_oli",
-            "V_BandollierB_oli"
+            "V_TacVest_blk",            // Tactical Vest Black
+            "V_TacVestIR_blk"           // Tactical Vest IR Black
         ]],
         ["lootRange", [25, 100]],
         ["difficulty", "medium"]
     ]],
 
     // ----------------------------------------
-    // SUPPLY TRUCK - Slow but high value
+    // SUPPLY TRUCK - Police Evidence/Supply Transport
     // ----------------------------------------
     ["supplyTruck", createHashMapFromArray [
-        ["name", "Supply Truck"],
+        ["name", "Police Supply Truck"],
         ["markerColor", "ColorYellow"],
         ["markerType", "mil_box"],
         ["speedLimit", 40],
         ["spawnAltitude", 0],
-        ["alertMessage", "Enemy supply truck intercepted on radar!"],
+        ["alertMessage", "Police supply convoy detected!"],
         ["vehicleCount", [2, 2]],       // 2 vehicles (escort + truck)
         ["crewPerVehicle", [2, 2]],
         ["vehicles", [
@@ -220,11 +221,12 @@ DyCE_ConvoyTypes = createHashMapFromArray [
             "Exile_Car_Offroad_Armed_Guerilla02"
         ]],
         ["uniforms", [
-            "U_IG_Guerilla2_2",
-            "U_IG_Guerilla3_2"
+            "U_B_GEN_Soldier_F",        // Gendarmerie Soldier
+            "U_B_CTRG_Soldier_F"        // CTRG Black
         ]],
         ["vests", [
-            "V_Chestrig_khk"
+            "V_Chestrig_blk",           // Chest Rig Black
+            "V_TacVest_blk"             // Tactical Vest Black
         ]],
         ["lootRange", [150, 300]],      // High value cargo
         ["difficulty", "easy"]

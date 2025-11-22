@@ -64,15 +64,17 @@ if (call DEFENDER_fnc_vcomCheck) then {
 // PREPROCESSOR MACROS
 // ============================================
 
-// FIX: Changed from RESISTANCE to EAST to match A3XAI side (prevents AI infighting)
-#define SIDE_RES EAST
+// ✅ FIXED: Patrol AI are RESISTANCE (same as players) - they PROTECT spawn zones!
+// EAST = A3XAI mission AI (enemies)
+// RESISTANCE = Players + Patrol AI + Recruit AI (friendlies)
+#define SIDE_RES RESISTANCE
 #define SIDE_W WEST
 #define SIDE_E EAST
 #define VAR_AUDIO "DEFENDER_audioEH"
 #define VAR_MAGS "DEFENDER_startMags"
 #define VAR_LOWAMMO "DEFENDER_lowAmmo"
-// FIX: Changed from I_Soldier_F (INDEPENDENT) to O_Soldier_F (EAST) to match A3XAI
-#define UNIT_TYPE "O_Soldier_F"
+// ✅ FIXED: Use RESISTANCE unit type (I = Independent/Guerilla = RESISTANCE side)
+#define UNIT_TYPE "I_Soldier_F"
 #define DETECT_RAD 1500
 #define AUDIO_RAD 2000
 #define COVER_DIST 50
@@ -108,14 +110,17 @@ if (isNil "PATROL_FactionsConfigured") then {
     PATROL_FactionsConfigured = true;
     publicVariable "PATROL_FactionsConfigured";
 
-    SIDE_RES setFriend [SIDE_W, 0];
-    SIDE_W setFriend [SIDE_RES, 0];
-    SIDE_RES setFriend [SIDE_E, 0];
-    SIDE_E setFriend [SIDE_RES, 0];
-    SIDE_E setFriend [SIDE_W, 0];
-    SIDE_W setFriend [SIDE_E, 0];
+    // ✅ FIXED: RESISTANCE (patrol + players) vs EAST (A3XAI mission AI)
+    // RESISTANCE should NOT be hostile to itself!
+    SIDE_RES setFriend [SIDE_E, 0];     // Patrol AI hostile to mission AI
+    SIDE_E setFriend [SIDE_RES, 0];     // Mission AI hostile to patrol AI
+    SIDE_E setFriend [SIDE_W, 0];       // Mission AI hostile to WEST
+    SIDE_W setFriend [SIDE_E, 0];       // WEST hostile to mission AI
 
-    ["Faction relations configured"] call BIS_fnc_log;
+    // NOTE: Players are RESISTANCE side in Exile
+    // Patrol AI (RESISTANCE) should NOT attack players (RESISTANCE) - same side!
+
+    ["Faction relations configured: RESISTANCE vs EAST"] call BIS_fnc_log;
 };
 
 ["Initializing v8.2 - ALL FIXES APPLIED..."] call BIS_fnc_log;
@@ -130,7 +135,12 @@ DEFENDER_fnc_isUnitValid = {!isNil "_this" && {!isNull _this} && {alive _this}};
 DEFENDER_fnc_isValidTarget = {
     params ["_u", "_t"];
     if (!alive _t || isNull _t) exitWith {false};
-    if (side _t != SIDE_W && side _t != SIDE_E) exitWith {false};
+
+    // ✅ FIXED: Only target EAST (mission AI) - never target RESISTANCE (players/recruits)
+    // Patrol AI should PROTECT players, not attack them
+    if (side _t == SIDE_RES) exitWith {false};  // Never target friendlies
+    if (side _t != SIDE_E) exitWith {false};    // Only target EAST (A3XAI)
+
     if (side _t getFriend side _u >= 0.6) exitWith {false};
     if ((_t isKindOf "LandVehicle" || _t isKindOf "Air") && {count crew _t == 0}) exitWith {false};
 

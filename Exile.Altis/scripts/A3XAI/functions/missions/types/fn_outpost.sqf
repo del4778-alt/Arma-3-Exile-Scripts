@@ -149,15 +149,16 @@ for "_i" from 0 to (_defenderCount - 1) do {
 private _staticCrew = [];
 for "_i" from 0 to (count _staticPositions - 1) min (_defenderCount - 1) do {
     private _staticPos = _staticPositions select _i;
-    private _nearestUnits = (units _group) select {!isNull objectParent _x && _x distance2D _staticPos < 30};
-    if (count _nearestUnits == 0) continue;
+    private _nearestUnits = (units _group) select {isNull objectParent _x && _x distance2D _staticPos < 30};
 
-    private _gunner = _nearestUnits select 0;
-    private _static = nearestObject [_staticPos, "StaticWeapon"];
-    if (!isNull _static) then {
-        _gunner assignAsGunner _static;
-        _gunner moveInGunner _static;
-        _staticCrew pushBack _gunner;
+    if (count _nearestUnits > 0) then {
+        private _gunner = _nearestUnits select 0;
+        private _static = nearestObject [_staticPos, "StaticWeapon"];
+        if (!isNull _static) then {
+            _gunner assignAsGunner _static;
+            _gunner moveInGunner _static;
+            _staticCrew pushBack _gunner;
+        };
     };
 };
 
@@ -195,7 +196,7 @@ if (_difficulty in ["hard", "extreme"]) then {
         private _vehicle = createVehicle [_vehClass, _vehPos, [], 0, "NONE"];
         _vehicle setDir (random 360);
         _vehicle setFuel 0.7;
-        _vehicle lock 2;
+        _vehicle lock 0;  // Always unlocked
 
         [_vehicle] call A3XAI_fnc_initVehicle;
         _vehicles pushBack _vehicle;
@@ -274,47 +275,47 @@ A3XAI_activeMissions pushBack _missionData;
 
         // Check last reinforcement time
         private _lastCheck = _missionData get "lastReinforcementCheck";
-        if (time - _lastCheck < _reinforcementDelay) then {continue};
+        if (time - _lastCheck >= _reinforcementDelay) then {
+            // Check AI count
+            private _aliveCount = {alive _x} count units _group;
+            if (_aliveCount < _reinforcementThreshold) then {
+                // Spawn reinforcements!
+                [2, format ["Outpost '%1' spawning reinforcements (wave %2) - AI count: %3/%4",
+                    _missionData get "name", _waves + 1, _aliveCount, _reinforcementThreshold]] call A3XAI_fnc_log;
 
-        // Check AI count
-        private _aliveCount = {alive _x} count units _group;
-        if (_aliveCount >= _reinforcementThreshold) then {continue};
+                private _spawnLocs = _missionData get "spawnLocations";
+                for "_i" from 0 to (_reinforcementCount - 1) do {
+                    private _spawnPos = selectRandom _spawnLocs;
+                    private _spawnPoint = [_spawnPos, 0, 20, 5, 0, 0.3, 0] call BIS_fnc_findSafePos;
 
-        // Spawn reinforcements!
-        [2, format ["Outpost '%1' spawning reinforcements (wave %2) - AI count: %3/%4",
-            _missionData get "name", _waves + 1, _aliveCount, _reinforcementThreshold]] call A3XAI_fnc_log;
+                    private _unit = _group createUnit ["O_Soldier_F", _spawnPoint, [], 0, "NONE"];
 
-        private _spawnLocs = _missionData get "spawnLocations";
-        for "_i" from 0 to (_reinforcementCount - 1) do {
-            private _spawnPos = selectRandom _spawnLocs;
-            private _spawnPoint = [_spawnPos, 0, 20, 5, 0, 0.3, 0] call BIS_fnc_findSafePos;
+                    // Initialize reinforcement AI
+                    [_unit, _difficulty] call A3XAI_fnc_initAI;
+                    [_unit, _difficulty] call A3XAI_fnc_setAISkill;
+                    [_unit, _difficulty] call A3XAI_fnc_equipAI;
+                    [_unit] call A3XAI_fnc_addAIEventHandlers;
 
-            private _unit = _group createUnit ["O_Soldier_F", _spawnPoint, [], 0, "NONE"];
+                    // Spawn smoke for visibility
+                    if (_i == 0) then {
+                        "SmokeShellGreen" createVehicle _spawnPoint;
+                    };
 
-            // Initialize reinforcement AI
-            [_unit, _difficulty] call A3XAI_fnc_initAI;
-            [_unit, _difficulty] call A3XAI_fnc_setAISkill;
-            [_unit, _difficulty] call A3XAI_fnc_equipAI;
-            [_unit] call A3XAI_fnc_addAIEventHandlers;
+                    sleep 0.5;
+                };
 
-            // Spawn smoke for visibility
-            if (_i == 0) then {
-                "SmokeShellGreen" createVehicle _spawnPoint;
-            };
+                // Update mission data
+                _missionData set ["reinforcementWaves", _waves + 1];
+                _missionData set ["lastReinforcementCheck", time];
 
-            sleep 0.5;
-        };
-
-        // Update mission data
-        _missionData set ["reinforcementWaves", _waves + 1];
-        _missionData set ["lastReinforcementCheck", time];
-
-        // Notify players
-        if (A3XAI_enableMissionNotifications) then {
-            private _msg = format ["Enemy reinforcements arriving at outpost! (Wave %1/%2)", _waves + 1, _maxWaves];
-            [_msg] remoteExec ["systemChat", -2];
-        };
-    };
+                // Notify players
+                if (A3XAI_enableMissionNotifications) then {
+                    private _msg = format ["Enemy reinforcements arriving at outpost! (Wave %1/%2)", _waves + 1, _maxWaves];
+                    [_msg] remoteExec ["systemChat", -2];
+                };
+            };  // end aliveCount check
+        };  // end reinforcementDelay check
+    };  // end while
 };
 
 // Send notification

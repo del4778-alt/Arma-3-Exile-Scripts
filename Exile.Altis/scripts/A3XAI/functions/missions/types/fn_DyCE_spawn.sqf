@@ -453,9 +453,13 @@ DyCE_ActiveConvoys pushBack _missionData;
 DyCE_LastSpawnTime = time;
 DyCE_TotalSpawned = DyCE_TotalSpawned + 1;
 
+// Calculate total AI count
+private _totalAI = 0;
+{_totalAI = _totalAI + count units _x} forEach _allGroups;
+
 [3, format ["[DyCE] %1 spawned: %2 vehicles, %3 AI at %4",
     _name, count _allVehicles,
-    {count units _x} count _allGroups,
+    _totalAI,
     _spawnPos]] call A3XAI_fnc_log;
 
 _missionData

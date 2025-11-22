@@ -8,12 +8,14 @@
 
     Returns:
         HASHMAP - Mission data
+
+    v2.0: Enhanced AI spawning with verification
 */
 
 params ["_pos", "_difficulty"];
 
 private _missionName = format ["Camp_%1", floor(random 9999)];
-[3, format ["Spawning camp mission at %1 (difficulty: %2)", _pos, _difficulty]] call A3XAI_fnc_log;
+[3, format ["=== CAMP MISSION START: %1 at %2 (%3) ===", _missionName, _pos, _difficulty]] call A3XAI_fnc_log;
 
 // Validate spawn position
 if !([_pos, "land"] call A3XAI_fnc_isValidSpawnPos) exitWith {
@@ -198,6 +200,12 @@ if (A3XAI_enableMissionNotifications) then {
     remoteExec ["systemChat", -2];
 };
 
-[3, format ["Camp mission '%1' spawned with %2 defenders", _missionName, _defenderCount]] call A3XAI_fnc_log;
+// Verify AI actually spawned
+private _actualAI = count units _group;
+if (_actualAI == 0) then {
+    [1, format ["CAMP MISSION FAILED: %1 - No AI spawned (expected %2)", _missionName, _defenderCount]] call A3XAI_fnc_log;
+} else {
+    [3, format ["=== CAMP MISSION SUCCESS: %1 - %2/%3 defenders spawned ===", _missionName, _actualAI, _defenderCount]] call A3XAI_fnc_log;
+};
 
 _missionData

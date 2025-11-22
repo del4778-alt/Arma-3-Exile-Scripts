@@ -10,14 +10,18 @@
 
     Returns:
         HASHMAP - Spawn data or empty hashmap on failure
+
+    v2.0: Enhanced logging and DMS-style spawn verification
 */
 
 params ["_pos", ["_unitCount", 4], ["_difficulty", "medium"], ["_static", false]];
 
+[4, format ["SpawnInfantry: Attempting to spawn %1 units at %2 (%3)", _unitCount, _pos, _difficulty]] call A3XAI_fnc_log;
+
 // Validate spawn
 private _canSpawn = [_pos] call A3XAI_fnc_canSpawn;
 if (!(_canSpawn select 0)) exitWith {
-    [4, format ["Cannot spawn infantry: %1", _canSpawn select 1]] call A3XAI_fnc_log;
+    [2, format ["SpawnInfantry BLOCKED: %1", _canSpawn select 1]] call A3XAI_fnc_log;
     createHashMap
 };
 
@@ -130,6 +134,12 @@ if (A3XAI_HCConnected && count A3XAI_HCClients > 0) then {
     [_group] call A3XAI_fnc_offloadGroup;
 };
 
-[4, format ["Spawned infantry group (%1 units, %2) at %3", _unitCount, _difficulty, _pos]] call A3XAI_fnc_log;
+// Final verification
+private _actualUnits = count units _group;
+if (_actualUnits == 0) then {
+    [1, format ["SpawnInfantry FAILED: Group created but 0 units spawned at %1", _pos]] call A3XAI_fnc_log;
+} else {
+    [3, format ["SpawnInfantry SUCCESS: %1/%2 units spawned at %3 (%4)", _actualUnits, _unitCount, _pos, _difficulty]] call A3XAI_fnc_log;
+};
 
 _spawnData

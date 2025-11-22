@@ -27,8 +27,10 @@ _unit setVariable ["A3XAI_unit", true, true];
 _unit setVariable ["A3XAI_difficulty", _difficulty, true];
 _unit setVariable ["A3XAI_spawnTime", time];
 
-// NOTE: A3XAI units SHOULD spawn zombies when killed - this helps players!
-// Only hostages (A3XAI_hostage) are excluded from zombie spawns
+// ✅ ZOMBIE PROTECTION - Make zombies ignore mission AI
+// This prevents zombies from killing mission AI before players arrive
+// NOTE: A3XAI units SHOULD still spawn zombies when killed BY PLAYERS - this helps players!
+_unit setVariable ["RVG_ZedIgnore", true, true];  // Ravage zombies ignore this unit
 
 // Add to VCOM exclusion if VCOM is present
 if (!isNil "Vcm_ActivateAI") then {
@@ -50,5 +52,10 @@ _unit enableStamina true;
 
 // Set unit ready
 _unit setUnitPos "AUTO";
+
+// ✅ Combat mode: YELLOW (hold fire until fired upon)
+// This prevents AI from engaging zombies first, saves ammo for players
+// AI will still defend themselves when attacked
+(group _unit) setCombatMode "YELLOW";
 
 true

@@ -1,6 +1,12 @@
 /* =====================================================================================
-    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.5 APEX EDITION
+    ELITE AI DRIVING SYSTEM (EAD) – VERSION 9.6 APEX EDITION
     RECRUIT_AI EXCLUSIVE - HIGH PERFORMANCE
+
+    ✅ v9.6 NEW FEATURES:
+        🆕 WAYPOINT FOLLOWING - AI now drives toward player-set waypoints!
+        🆕 DYNAMIC TOP SPEED - Uses vehicle's actual maxSpeed (90% on asphalt)
+        🆕 RELAXED BRAKING - Only slow for close obstacles (10m instead of 20m)
+        🆕 IMPROVED STEERING - Waypoint bias + obstacle avoidance combined
 
     ✅ RECRUIT_AI EXCLUSIVE MODE:
         ✅ Only works with vehicles flagged by recruit_ai.sqf
@@ -8,18 +14,16 @@
         ✅ No interference with A3XAI, mission AI, or other AI systems
         ✅ Activated via RECRUIT_fnc_ForceEADReregister only
 
-    ✅ COMPREHENSIVE RAY COVERAGE - 33 RAYS:
+    ✅ COMPREHENSIVE RAY COVERAGE - 41 RAYS:
         ✅ 5 front-center rays (dead center + small offsets)
         ✅ 7 front-left rays (10° to 40° sweep)
         ✅ 7 front-right rays (10° to 40° sweep)
-        ✅ 4 side detection rays (45° and 60° L/R)
-        ✅ 4 corner detection rays (70° and 85° L/R)
+        ✅ 8 side detection rays (45° to 60° L/R) - Extended for 90° turns
+        ✅ 8 corner detection rays (65° to 88° L/R) - Extended for 90° turns
         ✅ 6 near-side rays (90° to 120° L/R)
-        ✅ NO LOD reduction - always full coverage
-        ✅ Extended ranges: 150m main, 100m wide, 80m side
 
     ✅ HIGH-SPEED PERFORMANCE:
-        ✅ 200-250 km/h on straights and mild turns
+        ✅ 90% of vehicle's actual top speed on asphalt
         ✅ Enhanced steering for 90-degree corners
         ✅ Predictive collision detection
         ✅ Combat evasive serpentine maneuvers
@@ -35,10 +39,17 @@
 EAD_CFG = createHashMapFromArray [
     ["TICK", 0.06],                     // ✅ Optimized tick rate
 
-    // ✅ TUNED SPEED PROFILES - Per user request
-    ["HIGHWAY_BASE", 200],              // 200 km/h on asphalt (was 250)
+    // ✅ v9.6: DYNAMIC SPEED - Uses vehicle's actual top speed
+    // Target 90% of vehicle's maxSpeed on asphalt
+    ["USE_VEHICLE_TOPSPEED", true],     // 🆕 Use vehicle's actual maxSpeed
+    ["TOPSPEED_MULTIPLIER", 0.90],      // 🆕 90% of vehicle top speed on asphalt
+    ["HIGHWAY_BASE", 200],              // Fallback if config read fails
     ["CITY_BASE", 90],                  // 90 km/h in cities (was 130)
     ["OFFROAD_MULT", 0.75],             // 75% speed off-road (was 0.85)
+
+    // ✅ v9.6: WAYPOINT FOLLOWING - EAD now drives toward player waypoints
+    ["WAYPOINT_ENABLED", true],         // 🆕 Enable waypoint detection
+    ["WAYPOINT_ARRIVE_DIST", 15],       // 🆕 Distance to consider "arrived" at waypoint
 
     // ✅ REDUCED SCAN DISTANCES - Shorter lookahead = more aggressive driving
     // At 200km/h = 55m/s, 50m gives ~1s reaction time
@@ -158,6 +169,108 @@ EAD_fnc_isA3XAIVehicle = {
 
     // NOT excluded - safe to enhance (includes A3XAI Elite Edition!)
     false
+};
+
+/* =====================================================================================
+    SECTION 3A — VEHICLE TOP SPEED DETECTION (v9.6)
+===================================================================================== */
+
+// 🆕 v9.6: Get vehicle's actual top speed from config
+EAD_fnc_getVehicleTopSpeed = {
+    params ["_veh"];
+
+    private _type = typeOf _veh;
+    private _cached = _veh getVariable ["EAD_cachedTopSpeed", -1];
+
+    if (_cached > 0) exitWith {_cached};
+
+    // Read maxSpeed from vehicle config
+    private _maxSpeed = getNumber (configFile >> "CfgVehicles" >> _type >> "maxSpeed");
+
+    // Fallback if config read fails
+    if (_maxSpeed <= 0) then {
+        _maxSpeed = EAD_CFG get "HIGHWAY_BASE";
+        diag_log format ["[EAD] WARNING: Could not read maxSpeed for %1, using fallback %2", _type, _maxSpeed];
+    } else {
+        diag_log format ["[EAD] Vehicle %1 maxSpeed: %2 km/h", _type, _maxSpeed];
+    };
+
+    _veh setVariable ["EAD_cachedTopSpeed", _maxSpeed];
+    _maxSpeed
+};
+
+/* =====================================================================================
+    SECTION 3B — WAYPOINT DETECTION (v9.6)
+===================================================================================== */
+
+// 🆕 v9.6: Get current waypoint position for driver's group
+EAD_fnc_getWaypointTarget = {
+    params ["_veh"];
+
+    if !(EAD_CFG get "WAYPOINT_ENABLED") exitWith {[]};
+
+    private _driver = driver _veh;
+    if (isNull _driver) exitWith {[]};
+
+    private _grp = group _driver;
+    if (isNull _grp) exitWith {[]};
+
+    // Check for player command via group waypoints
+    private _wpCount = count waypoints _grp;
+    if (_wpCount == 0) exitWith {[]};
+
+    private _currentWP = currentWaypoint _grp;
+    if (_currentWP >= _wpCount) exitWith {[]};
+
+    private _wpPos = waypointPosition [_grp, _currentWP];
+
+    // Skip if waypoint is at origin (invalid)
+    if (_wpPos isEqualTo [0,0,0]) exitWith {[]};
+
+    // Check distance to waypoint
+    private _distToWP = _veh distance2D _wpPos;
+
+    // If arrived at waypoint, skip
+    if (_distToWP < (EAD_CFG get "WAYPOINT_ARRIVE_DIST")) exitWith {
+        // Complete waypoint
+        [_grp, _currentWP] setWaypointPosition [getPos _veh, 0];
+        diag_log format ["[EAD] Arrived at waypoint, distance: %1m", round _distToWP];
+        []
+    };
+
+    _wpPos
+};
+
+// 🆕 v9.6: Calculate steering bias toward waypoint
+EAD_fnc_waypointSteeringBias = {
+    params ["_veh", "_wpPos"];
+
+    if (count _wpPos < 2) exitWith {0};
+
+    private _vehPos = getPos _veh;
+    private _vehDir = getDir _veh;
+
+    // Calculate angle to waypoint
+    private _dx = (_wpPos select 0) - (_vehPos select 0);
+    private _dy = (_wpPos select 1) - (_vehPos select 1);
+    private _targetAngle = (_dx atan2 _dy);
+
+    // Normalize to 0-360
+    if (_targetAngle < 0) then {_targetAngle = _targetAngle + 360};
+
+    // Calculate angle difference
+    private _angleDiff = _targetAngle - _vehDir;
+
+    // Normalize to -180 to 180
+    while {_angleDiff > 180} do {_angleDiff = _angleDiff - 360};
+    while {_angleDiff < -180} do {_angleDiff = _angleDiff + 360};
+
+    // Return steering bias (-1 to 1 range, scaled for smooth steering)
+    // Positive = turn right, Negative = turn left
+    private _steerBias = _angleDiff / 90;  // Full steering at 90 degree offset
+    _steerBias = _steerBias max -1 min 1;
+
+    _steerBias
 };
 
 /* =====================================================================================
@@ -537,7 +650,14 @@ EAD_fnc_speedBrain = {
 
     _terrain params ["_isRoad","_slope","_dense"];
 
-    private _base = EAD_CFG get "HIGHWAY_BASE";
+    // 🆕 v9.6: Use vehicle's actual top speed instead of fixed value
+    private _base = if (EAD_CFG get "USE_VEHICLE_TOPSPEED") then {
+        private _topSpeed = [_veh] call EAD_fnc_getVehicleTopSpeed;
+        _topSpeed * (EAD_CFG get "TOPSPEED_MULTIPLIER")  // 90% of top speed
+    } else {
+        EAD_CFG get "HIGHWAY_BASE"
+    };
+
     if (!_isRoad) then {_base = _base * (_profile get "offroad")};
     if (_dense) then {_base = _base * 0.92};
 
@@ -575,12 +695,12 @@ EAD_fnc_obstacleLimit = {
     private _f0ObsType = _s get "F0_OBS";
     if (_f0ObsType == "INFANTRY" && _m > 15) exitWith {_cur};
 
-    // ✅ TUNED: Obstacle braking for shorter scan distances (50m main)
-    // More aggressive close-range braking, less far-range braking
-    if (_m < 20) then {_cur = _cur * 0.85};  // 85% at 20m (start slowing)
-    if (_m < 12) then {_cur = _cur * 0.60};  // 60% at 12m (significant slow)
-    if (_m < 6) then {_cur = _cur * 0.35};   // 35% at 6m (hard brake)
-    if (_m < 3) then {_cur = _cur * 0.15};   // 15% at 3m (emergency stop)
+    // ✅ v9.6: RELAXED obstacle braking - Only slow for CLOSE obstacles
+    // At 90% top speed we need less aggressive braking to maintain speed
+    // Only brake hard when obstacles are actually close
+    if (_m < 10) then {_cur = _cur * 0.70};  // 70% at 10m (start slowing)
+    if (_m < 6) then {_cur = _cur * 0.45};   // 45% at 6m (significant slow)
+    if (_m < 3) then {_cur = _cur * 0.20};   // 20% at 3m (hard brake)
 
     // 🆕 Predictive collision avoidance (from v10.2)
     private _predictResult = [_veh, _cur] call EAD_fnc_predictiveCollision;
@@ -857,6 +977,22 @@ EAD_fnc_vectorDrive = {
 
     private _dir = getDir _veh;
 
+    // 🆕 v9.6: WAYPOINT STEERING - Drive toward player waypoint if set
+    private _wpPos = [_veh] call EAD_fnc_getWaypointTarget;
+    private _wpBias = 0;
+    private _hasWaypoint = count _wpPos > 0;
+
+    if (_hasWaypoint) then {
+        _wpBias = [_veh, _wpPos] call EAD_fnc_waypointSteeringBias;
+        // Log waypoint following (once per 5 seconds to avoid spam)
+        private _lastWPLog = _veh getVariable ["EAD_lastWPLog", 0];
+        if (time - _lastWPLog > 5) then {
+            private _distToWP = _veh distance2D _wpPos;
+            diag_log format ["[EAD] Following waypoint: %1m away, steering bias: %2", round _distToWP, _wpBias toFixed 2];
+            _veh setVariable ["EAD_lastWPLog", time];
+        };
+    };
+
     // ✅ USE NEW RAY LABELS - More precise side detection with L2/R2
     private _center = ((_s get "L") - (_s get "R")) * 0.004;
     _center = _center + (((_s get "L2") - (_s get "R2")) * 0.002);
@@ -886,7 +1022,15 @@ EAD_fnc_vectorDrive = {
         };
     };
 
-    private _bias = (_center + (_path * 0.018) + _drift + _near) max -0.25 min 0.25;
+    // 🆕 v9.6: Combine all steering inputs including waypoint
+    // Waypoint has high weight (0.4) when set, obstacle avoidance overrides if needed
+    private _waypointWeight = if (_hasWaypoint) then {0.4} else {0};
+    private _obstacleWeight = 1.0 - (_waypointWeight * 0.5);  // Reduce obstacle weight slightly when following waypoint
+
+    private _baseBias = (_center + (_path * 0.018) + _drift + _near) * _obstacleWeight;
+    private _waypointBiasScaled = _wpBias * _waypointWeight;
+
+    private _bias = (_baseBias + _waypointBiasScaled) max -0.35 min 0.35;  // Increased range for sharper turns
     private _newDir = _dir + (_bias * _steeringMultiplier);
 
     // ✅ FIX: Removed invalid setVehicleTurnSpeed command (doesn't exist in Arma 3)
@@ -1094,7 +1238,7 @@ EAD_fnc_registerDriver = {
         uiSleep 600;
 
         diag_log format [
-            "[EAD 9.5 APEX] Vehicles:%1 | A3XAI Excluded:%2 | Avg:%3ms | Max:%4ms",
+            "[EAD 9.6 APEX] Vehicles:%1 | A3XAI Excluded:%2 | Avg:%3ms | Max:%4ms",
             EAD_Stats get "totalVehicles",
             EAD_Stats get "a3xaiExcluded",
             ((EAD_Stats get "avgTickTime") * 1000) toFixed 2,
@@ -1106,20 +1250,19 @@ EAD_fnc_registerDriver = {
 };
 
 diag_log "======================================================";
-diag_log "[EAD 9.5 APEX EDITION] INITIALIZED";
-diag_log "[EAD 9.5] ✅ 250 km/h supercar speeds (realistic)";
-diag_log "[EAD 9.5] ✅ 4-height forward raycasting";
-diag_log "[EAD 9.5] ✅ Top-down obstacle detection";
-diag_log "[EAD 9.5] ✅ Apex curve cutting + racing line";
-diag_log "[EAD 9.5] ✅ Aggressive bridge mode (4s no-brake)";
-diag_log "[EAD 9.5] 🆕 Predictive collision detection";
-diag_log "[EAD 9.5] 🆕 Combat evasive serpentine maneuvers";
-diag_log "[EAD 9.5] 🆕 Dynamic LOD raycasting (performance)";
-diag_log "[EAD 9.5] 🆕 Enhanced stuck recovery (3 methods)";
-diag_log "[EAD 9.5] 🆕 Obstacle type detection";
-diag_log "[EAD 9.5] 🆕 OLD A3XAI EXCLUSION (backwards compatibility)";
-diag_log "[EAD 9.5] ✅ A3XAI ELITE EDITION ENHANCED (new mission folder version)";
-diag_log "[EAD 9.5] ✅ Enhances: A3XAI Elite, Recruit AI, Patrol AI, Mission AI";
+diag_log "[EAD 9.6 APEX EDITION] INITIALIZED";
+diag_log "[EAD 9.6] 🆕 WAYPOINT FOLLOWING - AI drives to player waypoints!";
+diag_log "[EAD 9.6] 🆕 DYNAMIC TOP SPEED - 90% of vehicle's actual maxSpeed";
+diag_log "[EAD 9.6] 🆕 RELAXED BRAKING - Only slow at 10m (was 20m)";
+diag_log "[EAD 9.6] ✅ 41-ray comprehensive coverage";
+diag_log "[EAD 9.6] ✅ 4-height forward raycasting";
+diag_log "[EAD 9.6] ✅ Top-down obstacle detection";
+diag_log "[EAD 9.6] ✅ Apex curve cutting + racing line";
+diag_log "[EAD 9.6] ✅ Aggressive bridge mode (5s no-brake + speed boost)";
+diag_log "[EAD 9.6] ✅ Predictive collision detection";
+diag_log "[EAD 9.6] ✅ Combat evasive serpentine maneuvers";
+diag_log "[EAD 9.6] ✅ Enhanced stuck recovery (3 methods)";
+diag_log "[EAD 9.6] ✅ RECRUIT_AI EXCLUSIVE - No A3XAI interference";
 diag_log "======================================================";
 
 /* =====================================================================================

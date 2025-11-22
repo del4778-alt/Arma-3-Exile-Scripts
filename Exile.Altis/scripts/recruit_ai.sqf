@@ -583,6 +583,11 @@ RECRUIT_fnc_HandleVehicleSeats = {
         // Start overflow recovery monitor
         [_player, _veh, _overflowAI] spawn RECRUIT_fnc_OverflowRecoveryMonitor;
     };
+
+    // ✅ NEW: Start getIn verification for assigned AI (ensures they actually board)
+    if (count _assignedAI > 0) then {
+        [_veh, _assignedAI] spawn RECRUIT_fnc_VerifyAndRetryGetIn;
+    };
 };
 
 // ====================================================================================
@@ -637,6 +642,112 @@ RECRUIT_fnc_OverflowRecoveryMonitor = {
     };
 
     diag_log "[AI RECRUIT] Overflow recovery monitor ended";
+};
+
+// ====================================================================================
+// NEW: GetIn Verification and Retry - Ensures AI actually get in vehicle
+// ====================================================================================
+RECRUIT_fnc_VerifyAndRetryGetIn = {
+    params ["_veh", "_assignedAI"];
+
+    if (isNull _veh || count _assignedAI == 0) exitWith {};
+
+    diag_log format ["[AI RECRUIT] Starting getIn verification for %1 AI", count _assignedAI];
+
+    // Wait a bit for AI to start boarding
+    sleep 3;
+
+    private _maxRetries = 3;
+    private _retryDelay = 2;
+
+    {
+        private _ai = _x;
+        private _forEachIndex = _forEachIndex;
+
+        if (!isNull _ai && alive _ai) then {
+            private _inVehicle = vehicle _ai == _veh;
+            private _retries = 0;
+
+            // Retry loop if AI not in vehicle
+            while {!_inVehicle && _retries < _maxRetries && alive _ai && !isNull _veh} do {
+                _retries = _retries + 1;
+                diag_log format ["[AI RECRUIT] ⚠ %1 not in vehicle - retry %2/%3", name _ai, _retries, _maxRetries];
+
+                // Reset AI and force getIn
+                _ai enableAI "MOVE";
+                _ai enableAI "PATH";
+
+                // Move AI closer to vehicle if too far
+                if (_ai distance2D _veh > 20) then {
+                    _ai setPos (getPos _veh);
+                    sleep 0.5;
+                };
+
+                // Re-assign based on original role
+                private _role = assignedVehicleRole _ai;
+                if (count _role == 0 || (_role select 0) == "") then {
+                    // No assignment - assign as cargo
+                    _ai assignAsCargo _veh;
+                };
+
+                [_ai] orderGetIn true;
+                _ai action ["GetInCargo", _veh];
+
+                sleep _retryDelay;
+                _inVehicle = vehicle _ai == _veh;
+            };
+
+            if (_inVehicle) then {
+                diag_log format ["[AI RECRUIT] ✓ %1 successfully in vehicle", name _ai];
+            } else {
+                diag_log format ["[AI RECRUIT] ✗ %1 FAILED to board after %2 retries - teleporting", name _ai, _maxRetries];
+                // Last resort - force move into vehicle
+                _ai moveInAny _veh;
+            };
+        };
+    } forEach _assignedAI;
+
+    // After all AI boarded, verify driver and ensure EAD is active
+    sleep 1;
+    private _driver = driver _veh;
+    if (!isNull _driver && !isPlayer _driver) then {
+        diag_log "[AI RECRUIT] Verifying EAD registration after getIn verification";
+        [_veh] call RECRUIT_fnc_ForceEADReregister;
+    };
+};
+
+// ====================================================================================
+// NEW: Bridge/Stuck Recovery for AI Recruit vehicles
+// ====================================================================================
+RECRUIT_fnc_CheckBridgeStuck = {
+    params ["_veh", "_player"];
+
+    if (isNull _veh || isNull _player) exitWith {false};
+
+    private _vehSpeed = speed _veh;
+    private _onBridge = _veh getVariable ["EAD_onBridge", false];
+    private _lastPos = _veh getVariable ["RECRUIT_lastBridgePos", [0,0,0]];
+    private _currentPos = getPos _veh;
+
+    // Check if stuck on bridge (low speed + on bridge + not moving)
+    if (_onBridge && _vehSpeed < 10) then {
+        private _distMoved = _lastPos distance2D _currentPos;
+
+        if (_distMoved < 2) then {
+            // Stuck - apply forward boost
+            diag_log "[AI RECRUIT] Bridge stuck detected - applying forward boost";
+            private _dir = getDir _veh;
+            private _vel = [sin _dir * 15, cos _dir * 15, 0];
+            _veh setVelocity _vel;
+            true
+        } else {
+            false
+        };
+    } else {
+        false
+    };
+
+    _veh setVariable ["RECRUIT_lastBridgePos", _currentPos];
 };
 
 // ====================================================================================

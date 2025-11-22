@@ -58,9 +58,11 @@ EAD_CFG = createHashMapFromArray [
     ["CURVE_GENTLE_MULT", 1.00],        // Changed from 0.98 (no slowdown on gentle curves)
     ["CURVE_SHARP_MULT", 0.75],         // Increased from 0.65 (less aggressive braking on sharp turns)
 
-    // ✅ AGGRESSIVE BRIDGE MODE
+    // ✅ AGGRESSIVE BRIDGE MODE - Speed boost instead of brakes
     ["BRIDGE_SIDE_OFFSET", 5],
-    ["BRIDGE_NO_BRAKE_TIME", 4.0],
+    ["BRIDGE_NO_BRAKE_TIME", 5.0],      // Increased from 4.0 - 5 seconds of no braking
+    ["BRIDGE_SPEED_BOOST", 1.25],       // 25% speed boost on bridges
+    ["BRIDGE_STRAIGHT_WHEELS", true],   // Keep wheels straight on bridges
 
     // 🆕 PREDICTIVE COLLISION (from v10.2)
     ["PREDICT_ENABLED", true],
@@ -593,14 +595,34 @@ EAD_fnc_applyBridgeMode = {
         private _bridgeEnterTime = _veh getVariable ["EAD_bridgeEnterTime", 0];
         if (_bridgeEnterTime == 0) then {
             _veh setVariable ["EAD_bridgeEnterTime", _now];
-            _veh setVariable ["EAD_bridgeSpeed", speed _veh max _spd];
+            // Store entry speed with boost applied
+            private _boostMult = EAD_CFG get "BRIDGE_SPEED_BOOST";
+            _veh setVariable ["EAD_bridgeSpeed", (speed _veh max _spd) * _boostMult];
+            diag_log format ["[EAD] Bridge detected - applying %1x speed boost", _boostMult];
         };
 
         if ((_now - _bridgeEnterTime) < (EAD_CFG get "BRIDGE_NO_BRAKE_TIME")) then {
-            private _maintainSpeed = _veh getVariable ["EAD_bridgeSpeed", _spd];
-            _spd = _maintainSpeed max _spd;
+            // Apply boosted speed
+            private _boostedSpeed = _veh getVariable ["EAD_bridgeSpeed", _spd];
+            _spd = _boostedSpeed max _spd;
             _veh setVariable ["EAD_onBridge", true];
             _veh setVariable ["EAD_bridgeNoBrake", true];
+
+            // ✅ FIX: Keep wheels straight on bridge - prevent turning into water
+            if (EAD_CFG get "BRIDGE_STRAIGHT_WHEELS") then {
+                private _driver = driver _veh;
+                if (!isNull _driver && !isPlayer _driver) then {
+                    // Force vehicle to maintain current heading
+                    private _dir = getDir _veh;
+                    private _vel = velocity _veh;
+                    private _speed = vectorMagnitude _vel;
+                    if (_speed > 5) then {
+                        // Apply velocity in current direction (straight ahead)
+                        private _newVel = [sin _dir * _speed, cos _dir * _speed, _vel select 2];
+                        _veh setVelocity _newVel;
+                    };
+                };
+            };
         } else {
             _veh setVariable ["EAD_bridgeNoBrake", false];
         };

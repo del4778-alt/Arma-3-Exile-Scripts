@@ -94,6 +94,9 @@ private _turretIndex = 0;
 for "_i" from 0 to (_crewCount - 1) do {
     private _unit = _group createUnit ["O_Soldier_F", _roadPos, [], 0, "CAN_COLLIDE"];
 
+    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+    _unit allowDamage false;
+
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;
     [_unit, _difficulty] call A3XAI_fnc_equipAI;

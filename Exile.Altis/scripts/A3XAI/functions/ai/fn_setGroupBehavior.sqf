@@ -72,11 +72,24 @@ switch (_mode) do {
     };
 };
 
-// Enable all AI features for all units in group
+// ✅ v3.7: Enable ALL AI features for all units in group (was missing MOVE, PATH, ANIM, FSM)
+// This is critical to prevent frozen/stuck AI
 {
-    _x enableAI "TARGET";
-    _x enableAI "AUTOTARGET";
-    _x enableAI "AUTOCOMBAT";
+    _x enableAI "ALL";         // Master enable (covers everything)
+    _x enableAI "MOVE";        // Movement
+    _x enableAI "PATH";        // Pathfinding
+    _x enableAI "ANIM";        // Animations
+    _x enableAI "FSM";         // Finite state machine (behavior)
+    _x enableAI "TARGET";      // Targeting
+    _x enableAI "AUTOTARGET";  // Auto-targeting enemies
+    _x enableAI "AUTOCOMBAT";  // Automatic combat response
+    _x enableAI "COVER";       // Taking cover
+    _x enableAI "SUPPRESSION"; // Suppressive fire
+    _x enableAI "CHECKVISIBLE";// Visual checks
+
+    // ✅ v3.7: Additional fixes for frozen AI
+    _x setUnitPos "AUTO";      // Automatic stance (not stuck crouched)
+    _x allowFleeing 0;         // Never flee (stay in combat)
 } forEach units _group;
 
 // Mark group as A3XAI

@@ -138,6 +138,9 @@ for "_i" from 0 to (_defenderCount - 1) do {
     private _unitType = "O_Soldier_F";
     private _unit = _group createUnit [_unitType, _defPos, [], 0, "NONE"];
 
+    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+    _unit allowDamage false;
+
     // Initialize AI
     [_unit, _difficulty] call A3XAI_fnc_initAI;
     [_unit, _difficulty] call A3XAI_fnc_setAISkill;
@@ -289,6 +292,9 @@ A3XAI_activeMissions pushBack _missionData;
                     private _spawnPoint = [_spawnPos, 0, 20, 5, 0, 0.3, 0] call BIS_fnc_findSafePos;
 
                     private _unit = _group createUnit ["O_Soldier_F", _spawnPoint, [], 0, "NONE"];
+
+                    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+                    _unit allowDamage false;
 
                     // Initialize reinforcement AI
                     [_unit, _difficulty] call A3XAI_fnc_initAI;

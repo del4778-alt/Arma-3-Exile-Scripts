@@ -253,11 +253,20 @@ addMissionEventHandler ["EntityKilled", {
     };
 
     // ========== PART 2: ZOMBIE RESURRECTION ==========
+    // ✅ v3.7: Fix side detection - use stored variable since group may be deleted on death
+    // When unit dies and group is auto-deleted, side _killed returns CIVILIAN
+    // Instead, check for A3XAI_unit variable or DyCE_unit variable to determine true side
+    private _isA3XAI = _killed getVariable ["A3XAI_unit", false];
+    private _isDyCE = _killed getVariable ["DyCE_unit", false];
+    private _correctedSide = if (_isA3XAI || _isDyCE) then {EAST} else {side _killed};
+
     if (_debug) then {
         diag_log "=================================================";
         diag_log format ["[RMG:Ravage:DEBUG] EntityKilled fired: %1", name _killed];
         diag_log format ["  - Type: %1", typeOf _killed];
-        diag_log format ["  - Side: %1", side _killed];
+        diag_log format ["  - Side (raw): %1", side _killed];
+        diag_log format ["  - Side (corrected): %1", _correctedSide];
+        diag_log format ["  - Is A3XAI: %1, Is DyCE: %2", _isA3XAI, _isDyCE];
         diag_log format ["  - Is CAManBase: %1", _killed isKindOf "CAManBase"];
         diag_log format ["  - Is Player: %1", isPlayer _killed];
     };
@@ -293,7 +302,8 @@ addMissionEventHandler ["EntityKilled", {
         private _allowSpawn = true;
         private _zombieSide = ["zombieSide"] call RMG_Ravage_get;
 
-        if (side _killed == _zombieSide) then {
+        // ✅ v3.7: Use corrected side for zombie check
+        if (_correctedSide == _zombieSide) then {
             private _resCount = _killed getVariable ["RMG_ResurrectionCount", 0];
             private _maxRes = ["maxZombieResurrections"] call RMG_Ravage_get;
 
@@ -321,11 +331,12 @@ addMissionEventHandler ["EntityKilled", {
 
         // Check if side is allowed to resurrect
         private _sides = ["spawnFromSides"] call RMG_Ravage_get;
-        private _killedSide = side _killed;
+        // ✅ v3.7: Use corrected side (not raw side which may be CIV after group deletion)
+        private _killedSide = _correctedSide;
 
         if (_debug) then {
             diag_log format ["  - Allowed sides: %1", _sides];
-            diag_log format ["  - Killed side: %1", _killedSide];
+            diag_log format ["  - Killed side (corrected): %1", _killedSide];
             diag_log format ["  - Side match: %1", _killedSide in _sides];
             diag_log format ["  - Allow spawn: %1", _allowSpawn];
         };

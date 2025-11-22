@@ -114,12 +114,25 @@ private _hostageTypes = ["C_man_1", "C_man_polo_1_F", "C_man_polo_2_F", "C_Man_c
 
 for "_i" from 0 to (_hostageCount - 1) do {
     private _hostagePos = _rescuePos getPos [3, (360 / _hostageCount) * _i];
-    private _hostage = (selectRandom _hostageTypes) createUnit [_hostagePos, createGroup CIVILIAN, "this disableAI 'MOVE'; this setVariable ['A3XAI_hostage', true];"];
+
+    // ✅ FIX: Set captive in init string so it's applied BEFORE AI can target
+    private _hostage = (selectRandom _hostageTypes) createUnit [_hostagePos, createGroup CIVILIAN, "this disableAI 'MOVE'; this setCaptive true; this setVariable ['A3XAI_hostage', true, true];"];
 
     _hostage setDamage 0.25; // Injured
-    _hostage setCaptive true;
+    _hostage setCaptive true;  // Redundant but ensures it's set
     _hostage setVariable ["A3XAI_hostage", true, true];
     _hostage setVariable ["A3XAI_mission", _missionName, true];
+
+    // ✅ FIX: Add zombie protection - hostages should NOT spawn zombies when killed
+    _hostage setVariable ["NoRessurect", true, true];
+    _hostage setVariable ["RVG_ZedIgnore", true, true];
+    _hostage setVariable ["RYANZOMBIES_ignore", true, true];
+
+    // ✅ FIX: Make guards explicitly not target this hostage
+    {
+        _x reveal [_hostage, 0];  // Guards don't know about hostage
+        _x forgetTarget _hostage;
+    } forEach units _group;
 
     // Add rescue action
     _hostage addAction [

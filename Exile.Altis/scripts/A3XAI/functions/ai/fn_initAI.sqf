@@ -22,10 +22,13 @@ _unit disableAI "CHECKVISIBLE";
 _unit allowFleeing 0;  // Never flee
 _unit enableGunLights "forceOn";  // Gun lights for night combat
 
-// Set side
+// Set A3XAI marker variables
 _unit setVariable ["A3XAI_unit", true, true];
 _unit setVariable ["A3XAI_difficulty", _difficulty, true];
 _unit setVariable ["A3XAI_spawnTime", time];
+
+// NOTE: A3XAI units SHOULD spawn zombies when killed - this helps players!
+// Only hostages (A3XAI_hostage) are excluded from zombie spawns
 
 // Add to VCOM exclusion if VCOM is present
 if (!isNil "Vcm_ActivateAI") then {

@@ -268,18 +268,16 @@ addMissionEventHandler ["EntityKilled", {
             diag_log format ["[RMG:Ravage] Recruit AI death ignored: %1 (no zombie spawn)", name _killed];
         };
 
-        // ✅ A3XAI exclusion - Don't resurrect A3XAI units as zombies
-        // A3XAI spawns AI with specific variables/group ownership
-        private _isA3XAI = (_killed getVariable ["A3XAI_Ignore", false]) || {
-            !isNull (group _killed) && {(group _killed) getVariable ["A3XAI_Group", false]}
-        };
+        // ✅ A3XAI hostage exclusion - Don't spawn zombies from mission hostages
+        // NOTE: Regular A3XAI units (EAST) SHOULD spawn zombies - this helps players!
+        private _isHostage = _killed getVariable ["A3XAI_hostage", false];
 
         if (_debug) then {
-            diag_log format ["  - A3XAI Unit: %1", _isA3XAI];
+            diag_log format ["  - A3XAI Hostage: %1", _isHostage];
         };
 
-        if (_isA3XAI) exitWith {
-            diag_log format ["[RMG:Ravage] A3XAI unit death ignored: %1 (no zombie spawn)", name _killed];
+        if (_isHostage) exitWith {
+            diag_log format ["[RMG:Ravage] A3XAI hostage death ignored: %1 (no zombie spawn)", name _killed];
         };
 
         // ✅ v2.7: Check zombie resurrection limit (prevents infinite loops)
@@ -478,7 +476,8 @@ if (["ambientEnabled"] call _get) then {
                 private _n = floor ( (_size select 0) + random ((_size select 1) - (_size select 0) + 1) );
                 private _clsPool = ["ambientClasses"] call _get;
 
-                private _grp = createGroup [resistance, true];
+                // FIX: Changed from resistance to EAST to match A3XAI (prevents AI infighting)
+                private _grp = createGroup [EAST, true];
                 for "_i" from 1 to _n do {
                     private _c = selectRandom _clsPool;
                     _grp createUnit [_c, _pos, [], 5, "NONE"];
@@ -529,7 +528,7 @@ diag_log "[RMG:Ravage] - Zombie resurrection: ACTIVE WITH LIMITS";
 diag_log format ["[RMG:Ravage] - Max resurrections per zombie: %1", ["maxZombieResurrections"] call RMG_Ravage_get];
 diag_log "[RMG:Ravage] - Zombies: CIVILIAN side (zombie_bolter, zombie_walker, zombie_runner)";
 diag_log "[RMG:Ravage] - Recruit AI exclusion: ENABLED (no resurrection)";
-diag_log "[RMG:Ravage] - Spawn sides: EAST, WEST, RESISTANCE, CIVILIAN";
+diag_log "[RMG:Ravage] - Spawn sides: EAST, CIVILIAN (ambient bandits now EAST to match A3XAI)";
 diag_log "[RMG:Ravage] - Zombie kill rewards: ACTIVE";
 diag_log "[RMG:Ravage] - Ambient bandits: ACTIVE";
 diag_log "[RMG:Ravage] - Faction hostility: ALL vs CIVILIAN zombies";

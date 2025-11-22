@@ -44,7 +44,7 @@ private _missionName = format ["DyCE_%1_%2", _convoyType, floor(random 9999)];
 [3, format ["[DyCE] Spawning %1 (%2)", _name, _difficulty]] call A3XAI_fnc_log;
 
 // ============================================================
-// FIND SPAWN POSITION
+// FIND SPAWN POSITION (Ground vehicles only)
 // ============================================================
 if (count _spawnPos == 0) then {
     // Auto-select spawn position based on convoy type
@@ -53,57 +53,36 @@ if (count _spawnPos == 0) then {
         private _route = selectRandom DyCE_HighwayRoutes;
         _spawnPos = _route select 2;  // Midpoint
     } else {
-        if (_convoyType == "heliPatrol") then {
-            // Air patrol - spawn anywhere on map
-            private _players = allPlayers select {alive _x};
-            if (count _players > 0) then {
-                private _player = selectRandom _players;
-                private _distance = 1500 + random 1500;
-                private _dir = random 360;
-                _spawnPos = (position _player) getPos [_distance, _dir];
+        // Ground convoy - find road near player
+        private _players = allPlayers select {alive _x};
+        if (count _players > 0) then {
+            private _player = selectRandom _players;
+            private _searchRadius = DyCE_Config get "playerProximityCheck";
+            private _minDist = DyCE_Config get "minDistanceFromPlayers";
+
+            // Find road away from player
+            private _distance = _minDist + random (_searchRadius - _minDist);
+            private _dir = random 360;
+            private _testPos = (position _player) getPos [_distance, _dir];
+            private _roads = _testPos nearRoads (DyCE_Config get "vehicleSpawnSearchRadius");
+
+            if (count _roads > 0) then {
+                _spawnPos = getPos (selectRandom _roads);
             } else {
-                _spawnPos = [] call A3XAI_fnc_getMapCenter;
+                _spawnPos = _testPos;
             };
         } else {
-            // Ground convoy - find road
-            private _players = allPlayers select {alive _x};
-            if (count _players > 0) then {
-                private _player = selectRandom _players;
-                private _searchRadius = DyCE_Config get "playerProximityCheck";
-                private _minDist = DyCE_Config get "minDistanceFromPlayers";
-
-                // Find road away from player
-                private _distance = _minDist + random (_searchRadius - _minDist);
-                private _dir = random 360;
-                private _testPos = (position _player) getPos [_distance, _dir];
-                private _roads = _testPos nearRoads (DyCE_Config get "vehicleSpawnSearchRadius");
-
-                if (count _roads > 0) then {
-                    _spawnPos = getPos (selectRandom _roads);
-                } else {
-                    _spawnPos = _testPos;
-                };
-            } else {
-                _spawnPos = [] call A3XAI_fnc_getMapCenter;
-            };
+            _spawnPos = [] call A3XAI_fnc_getMapCenter;
         };
     };
 };
 
-// Apply spawn altitude
-if (_spawnAltitude > 0) then {
-    _spawnPos set [2, _spawnAltitude];
-};
-
-// Validate spawn for ground vehicles
-if (_spawnAltitude == 0) then {
-    private _roads = _spawnPos nearRoads 300;
-    if (count _roads > 0) then {
-        _spawnPos = getPos (_roads select 0);
-    } else {
-        [2, format ["[DyCE] No road found for %1 at %2", _convoyType, _spawnPos]] call A3XAI_fnc_log;
-        if !(_convoyType == "heliPatrol") exitWith {};
-    };
+// Validate spawn - find nearest road
+private _roads = _spawnPos nearRoads 300;
+if (count _roads > 0) then {
+    _spawnPos = getPos (_roads select 0);
+} else {
+    [2, format ["[DyCE] No road found for %1 at %2, using position anyway", _convoyType, _spawnPos]] call A3XAI_fnc_log;
 };
 
 // ============================================================
@@ -138,14 +117,8 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     // Select vehicle class
     private _vehicleClass = selectRandom _vehicleClasses;
 
-    // Calculate spawn position (spacing)
-    private _vehSpawnPos = if (_spawnAltitude > 0) then {
-        // Air vehicles - horizontal spacing
-        _currentPos getPos [100 * _i, 90];
-    } else {
-        // Ground vehicles - line formation behind
-        _currentPos getPos [50 * _i, 180];
-    };
+    // Calculate spawn position (line formation behind lead)
+    private _vehSpawnPos = _currentPos getPos [50 * _i, 180];
 
     // Spawn vehicle
     private _vehicle = createVehicle [_vehicleClass, _vehSpawnPos, [], 0, "NONE"];
@@ -157,11 +130,6 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _vehicle setDir (random 360);
     _vehicle setFuel (0.8 + random 0.2);
     _vehicle lock 2;
-
-    // Set altitude for helicopters
-    if (_spawnAltitude > 0) then {
-        _vehicle setPos [_vehSpawnPos select 0, _vehSpawnPos select 1, _spawnAltitude];
-    };
 
     // ========================================
     // CREATE CREW
@@ -191,22 +159,17 @@ for "_i" from 0 to (_vehicleCount - 1) do {
         _unit setVariable ["DyCE_unit", true];
         _unit setVariable ["A3XAI_mission", _missionName];
 
-        // Assign to vehicle
+        // Assign to vehicle (ground vehicles only)
         if (_j == 0) then {
             _unit assignAsDriver _vehicle;
             _unit moveInDriver _vehicle;
         } else {
-            if (_vehicle isKindOf "Helicopter" || _vehicle isKindOf "Plane") then {
+            if (_j == 1 && {getNumber (configFile >> "CfgVehicles" >> _vehicleClass >> "hasGunner") > 0}) then {
+                _unit assignAsGunner _vehicle;
+                _unit moveInGunner _vehicle;
+            } else {
                 _unit assignAsCargo _vehicle;
                 _unit moveInAny _vehicle;
-            } else {
-                if (_j == 1 && {getNumber (configFile >> "CfgVehicles" >> _vehicleClass >> "hasGunner") > 0}) then {
-                    _unit assignAsGunner _vehicle;
-                    _unit moveInGunner _vehicle;
-                } else {
-                    _unit assignAsCargo _vehicle;
-                    _unit moveInAny _vehicle;
-                };
             };
         };
     };
@@ -217,58 +180,35 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _group setBehaviour "AWARE";
     _group setCombatMode "YELLOW";
     _group setFormation "COLUMN";
-
-    if (_spawnAltitude > 0) then {
-        // Air patrol behavior
-        _group setSpeedMode "NORMAL";
-    } else {
-        _group setSpeedMode "LIMITED";
-        _group setVariable ["DyCE_speedLimit", _speedLimit];
-    };
+    _group setSpeedMode "LIMITED";
+    _group setVariable ["DyCE_speedLimit", _speedLimit];
 
     // ========================================
-    // GENERATE WAYPOINTS
+    // GENERATE WAYPOINTS (Ground routes)
     // ========================================
     private _waypointCount = 8;
     private _routeLength = 3000;
 
-    if (_spawnAltitude == 0) then {
-        // Ground route
-        private _waypoints = [_vehSpawnPos, _routeLength, _waypointCount] call A3XAI_fnc_generateRoute;
+    private _waypoints = [_vehSpawnPos, _routeLength, _waypointCount] call A3XAI_fnc_generateRoute;
 
-        if (count _waypoints < 3) then {
-            // Fallback route
-            for "_w" from 1 to _waypointCount do {
-                private _wpPos = _vehSpawnPos getPos [500 * _w, (45 * _w) % 360];
-                _waypoints pushBack _wpPos;
-            };
+    if (count _waypoints < 3) then {
+        // Fallback route
+        for "_w" from 1 to _waypointCount do {
+            private _wpPos = _vehSpawnPos getPos [500 * _w, (45 * _w) % 360];
+            _waypoints pushBack _wpPos;
         };
-
-        {
-            private _wp = _group addWaypoint [_x, 0];
-            _wp setWaypointType "MOVE";
-            _wp setWaypointSpeed "LIMITED";
-            _wp setWaypointFormation "COLUMN";
-        } forEach _waypoints;
-
-        // Cycle back
-        private _wp = _group addWaypoint [_waypoints select 0, 0];
-        _wp setWaypointType "CYCLE";
-    } else {
-        // Air patrol route (circular)
-        for "_w" from 0 to 7 do {
-            private _angle = _w * 45;
-            private _wpPos = _vehSpawnPos getPos [1500, _angle];
-            _wpPos set [2, _spawnAltitude];
-
-            private _wp = _group addWaypoint [_wpPos, 0];
-            _wp setWaypointType "MOVE";
-            _wp setWaypointSpeed "NORMAL";
-        };
-
-        private _wp = _group addWaypoint [_vehSpawnPos, 0];
-        _wp setWaypointType "CYCLE";
     };
+
+    {
+        private _wp = _group addWaypoint [_x, 0];
+        _wp setWaypointType "MOVE";
+        _wp setWaypointSpeed "LIMITED";
+        _wp setWaypointFormation "COLUMN";
+    } forEach _waypoints;
+
+    // Cycle back
+    private _wp = _group addWaypoint [_waypoints select 0, 0];
+    _wp setWaypointType "CYCLE";
 
     // ========================================
     // INITIALIZE VEHICLE WITH A3XAI
@@ -277,7 +217,7 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     [_vehicle] call A3XAI_fnc_addVehicleEventHandlers;
 
     // EAD integration for ground vehicles
-    if (_spawnAltitude == 0 && A3XAI_EAD_available && A3XAI_EAD_enabled) then {
+    if (A3XAI_EAD_available && A3XAI_EAD_enabled) then {
         private _driver = driver _vehicle;
         if (!isNull _driver) then {
             private _result = [EAD_fnc_registerDriver, [_driver, _vehicle], "EAD_dyce"] call A3XAI_fnc_safeCall;
@@ -311,22 +251,58 @@ for "_i" from 0 to (_vehicleCount - 1) do {
 };
 
 // ============================================================
-// CREATE MARKER (if enabled)
+// CREATE MARKER
 // ============================================================
-if (DyCE_Config get "enableMarkers" && _alertMessage != "") then {
+if (DyCE_Config get "enableMarkers") then {
+    // Main marker
     private _marker = createMarker [_missionName, _spawnPos];
     _marker setMarkerType _markerType;
     _marker setMarkerColor _markerColor;
-    _marker setMarkerText format ["%1 (%2)", _name, _difficulty];
-    _missionData set ["markers", [_marker]];
+    _marker setMarkerText format ["%1", _name];
+    _marker setMarkerSize [1, 1];
+
+    // Area marker (circle around mission)
+    private _areaMarker = createMarker [format ["%1_area", _missionName], _spawnPos];
+    _areaMarker setMarkerShape "ELLIPSE";
+    _areaMarker setMarkerSize [300, 300];
+    _areaMarker setMarkerColor _markerColor;
+    _areaMarker setMarkerAlpha 0.3;
+    _areaMarker setMarkerBrush "SolidBorder";
+
+    _missionData set ["markers", [_marker, _areaMarker]];
+
+    // Update marker position as convoy moves
+    [_missionData, _missionName, _allVehicles] spawn {
+        params ["_missionData", "_missionName", "_vehicles"];
+        while {(_missionData get "status") == "active"} do {
+            sleep 10;
+            private _aliveVehicles = _vehicles select {alive _x};
+            if (count _aliveVehicles > 0) then {
+                private _leadVeh = _aliveVehicles select 0;
+                private _pos = getPos _leadVeh;
+                _missionName setMarkerPos _pos;
+                (format ["%1_area", _missionName]) setMarkerPos _pos;
+            };
+        };
+    };
 };
 
 // ============================================================
-// SEND NOTIFICATION
+// SEND EXILE TOAST NOTIFICATION
 // ============================================================
 if (DyCE_Config get "enableNotifications" && _alertMessage != "") then {
-    private _msg = format ["[DyCE] %1", _alertMessage];
-    [_msg] remoteExec ["systemChat", 0];
+    // Use Exile's toast notification system
+    private _toastTitle = "POLICE ACTIVITY";
+    private _toastText = _alertMessage;
+
+    // Format: ["toastRequest", [type, [title, text]]]
+    // Types: "SuccessTitleAndText", "ErrorTitleAndText", "InfoTitleAndText", "WarningTitleAndText"
+    ["toastRequest", ["WarningTitleAndText", [_toastTitle, _toastText]]] remoteExec ["ExileClient_gui_toaster_addTemplateToast", 0];
+
+    // Also show hint with position info
+    private _posGrid = mapGridPosition _spawnPos;
+    private _hintMsg = format ["<t size='1.2' color='#ff0000'>%1</t><br/><t size='0.9'>%2</t><br/><t size='0.8' color='#ffff00'>Grid: %3</t>", _toastTitle, _alertMessage, _posGrid];
+    [_hintMsg] remoteExec ["hint", 0];
 };
 
 // ============================================================

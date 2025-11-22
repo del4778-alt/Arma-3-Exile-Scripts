@@ -2,11 +2,11 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
-    v3.3: DyCE Integration (Dynamic Convoy Events)
-        - Armed convoys, troop transports, helicopter patrols
-        - Supply trucks with high-value loot
+    v3.4: Ground-only DyCE (no helis/tanks)
+        - Armed convoys, troop transports, supply trucks
+        - Police/Gendarmerie themed units
+        - Exile toast notifications + map markers
         - Integrated from: https://github.com/ExiledHeisenberg/DyCE
-        - Unified convoy spawner with configurable types
 
     v3.2: Highway Patrol System
         - Highway patrols spawn between Exile spawn zones
@@ -55,7 +55,7 @@ private _highwayPatrolsSpawned = 0;
 private _dyceInterval = 120;             // Check DyCE spawn every 2 minutes
 private _lastDyceCheck = 0;
 private _dyceInitialized = false;
-private _dyceConvoyTypes = ["armedConvoy", "troopConvoy", "heliPatrol", "supplyTruck"];
+private _dyceConvoyTypes = ["armedConvoy", "troopConvoy", "supplyTruck"];
 
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
@@ -281,7 +281,7 @@ while {A3XAI_enabled} do {
     // 5. DyCE DYNAMIC CONVOY EVENTS (Every 2 minutes)
     // ============================================
     // Spawn random convoy types from DyCE configuration
-    // Types: armedConvoy, troopConvoy, heliPatrol, supplyTruck
+    // Types: armedConvoy, troopConvoy, supplyTruck (ground only)
 
     if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
         if ((time - _lastDyceCheck) >= _dyceInterval) then {
@@ -302,9 +302,8 @@ while {A3XAI_enabled} do {
                 private _typeCount = {(_x getOrDefault ["type", ""]) == _convoyType} count _currentDyceEvents;
                 private _typeLimit = switch (_convoyType) do {
                     case "armedConvoy": {2};
-                    case "troopConvoy": {1};
-                    case "heliPatrol": {2};
-                    case "supplyTruck": {1};
+                    case "troopConvoy": {2};
+                    case "supplyTruck": {2};
                     default {2};
                 };
 
@@ -392,8 +391,8 @@ while {A3XAI_enabled} do {
         if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
             [3, "=== SPAWNING INITIAL DyCE CONVOYS ==="] call A3XAI_fnc_log;
 
-            // Spawn one armed convoy and one heli patrol at startup
-            private _initialDyceTypes = ["armedConvoy", "heliPatrol"];
+            // Spawn initial ground convoys at startup
+            private _initialDyceTypes = ["armedConvoy", "troopConvoy"];
             {
                 private _result = [A3XAI_fnc_DyCE_spawn, [_x, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
                 if (!isNil "_result" && {count _result > 0}) then {

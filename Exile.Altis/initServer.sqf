@@ -331,5 +331,5 @@ diag_log "[SERVER]   4. Recruit AI (drivers enabled)";
 diag_log "[SERVER] ========================================";
 diag_log "[SERVER] ACTIVE SYSTEMS:";
 diag_log "[SERVER]   - Missions: cache, invasion, convoy, crash, camp, hunter, outpost, supplyDrop";
-diag_log "[SERVER]   - DyCE: armedConvoy, troopConvoy, heliPatrol, highwayPatrol, supplyTruck";
+diag_log "[SERVER]   - DyCE: armedConvoy, troopConvoy, highwayPatrol, supplyTruck (ground only)";
 diag_log "[SERVER] ========================================";

@@ -29,9 +29,9 @@ DyCE_Config = createHashMapFromArray [
     // CONVOY LIMITS
     // ========================================
     ["maxArmedConvoys", 2],             // Max armed ground convoys
-    ["maxTroopConvoys", 1],             // Max troop transports
-    ["maxHeliPatrols", 2],              // Max helicopter patrols
+    ["maxTroopConvoys", 2],             // Max troop transports
     ["maxHighwayPatrols", 4],           // Max highway patrols (integrated)
+    ["maxSupplyTrucks", 2],             // Max supply truck convoys
     ["maxTotalDynamicEvents", 8],       // Max combined dynamic events
 
     // ========================================
@@ -61,8 +61,8 @@ DyCE_Config = createHashMapFromArray [
     // ========================================
     // NOTIFICATIONS & MARKERS
     // ========================================
-    ["enableNotifications", true],      // Send spawn notifications
-    ["enableMarkers", false],           // Show markers (false = surprise attacks)
+    ["enableNotifications", true],      // Send Exile toast notifications
+    ["enableMarkers", true],            // Show markers on map
     ["debugMode", false],               // Debug logging
 
     // ========================================
@@ -125,10 +125,11 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["vehicleCount", [3, 4]],       // 3-4 vehicles
         ["crewPerVehicle", [3, 4]],     // 3-4 crew (more troops)
         ["vehicles", [
-            "Exile_Car_BTR40_MG_Green",
-            "Exile_Car_BRDM2_HQ",
             "Exile_Car_Offroad_Armed_Guerilla01",
-            "ivory_suburban_marked"
+            "Exile_Car_Offroad_Armed_Guerilla02",
+            "Exile_Car_SUV_Armed_Black",
+            "ivory_suburban_marked",
+            "ivory_expedition_marked"
         ]],
         ["uniforms", [
             "U_B_GEN_Commander_F",      // Gendarmerie Commander
@@ -141,36 +142,6 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ]],
         ["lootRange", [100, 250]],
         ["difficulty", "hard"]
-    ]],
-
-    // ----------------------------------------
-    // HELICOPTER PATROL - Police Air Unit
-    // ----------------------------------------
-    ["heliPatrol", createHashMapFromArray [
-        ["name", "Police Air Unit"],
-        ["markerColor", "ColorBlue"],
-        ["markerType", "mil_dot"],
-        ["speedLimit", 150],
-        ["spawnAltitude", 150],         // Spawn at altitude
-        ["alertMessage", "Police helicopter patrol detected!"],
-        ["vehicleCount", [1, 2]],       // 1-2 helicopters
-        ["crewPerVehicle", [2, 3]],     // Pilot + gunners
-        ["vehicles", [
-            "Exile_Chopper_Huey_Armed_Green",
-            "Exile_Chopper_Orca_BlackCustom",
-            "Exile_Chopper_Mohawk_FIA"
-        ]],
-        ["uniforms", [
-            "U_B_HeliPilotCoveralls",   // Pilot coveralls
-            "U_B_GEN_Soldier_F",        // Gendarmerie (door gunners)
-            "U_B_CTRG_Soldier_3_F"      // CTRG Black variant
-        ]],
-        ["vests", [
-            "V_TacVest_blk",            // Tactical Vest Black
-            "V_PlateCarrierGL_blk"      // Plate Carrier GL Black
-        ]],
-        ["lootRange", [75, 200]],
-        ["difficulty", "extreme"]
     ]],
 
     // ----------------------------------------

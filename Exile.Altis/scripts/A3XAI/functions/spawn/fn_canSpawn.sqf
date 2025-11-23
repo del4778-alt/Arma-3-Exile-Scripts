@@ -46,6 +46,16 @@ if (_currentAI >= A3XAI_maxAIGlobal) exitWith {
     [false, format ["AI limit reached: %1/%2", _currentAI, A3XAI_maxAIGlobal]]
 };
 
+// ✅ v3.12: Check EAST group limit (Arma 3 has 144 groups per side limit)
+// When exceeded, createGroup silently creates wrong-faction groups causing GUER AI spawns!
+private _eastGroups = {side _x == EAST} count allGroups;
+private _groupSafetyBuffer = 20;  // Stop spawning at 124 groups to leave headroom
+private _maxEastGroups = 144 - _groupSafetyBuffer;
+if (_eastGroups >= _maxEastGroups) exitWith {
+    [1, format ["CRITICAL: EAST group limit approaching! %1/144 groups - blocking new spawns", _eastGroups]] call A3XAI_fnc_log;
+    [false, format ["EAST group limit: %1/%2 (max 144)", _eastGroups, _maxEastGroups]]
+};
+
 // Check position-specific conditions if provided
 if (count _pos > 0) then {
     // Check blacklist

@@ -92,6 +92,20 @@ private _defenderCount = switch (_difficulty) do {
 // Spawn defenders
 private _group = createGroup [EAST, true];
 
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    [1, format ["Camp '%1' FAILED: createGroup returned null - EAST group limit reached", _missionName]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+private _groupSide = side _group;
+if (_groupSide != EAST) exitWith {
+    private _eastGroups = {side _x == EAST} count allGroups;
+    deleteGroup _group;
+    [1, format ["Camp '%1' FAILED: Group created as %2 instead of EAST (EAST groups: %3/144)", _missionName, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+    createHashMap
+};
+
 for "_i" from 0 to (_defenderCount - 1) do {
     private _defPos = _campPos getPos [15 + random 10, random 360];
 

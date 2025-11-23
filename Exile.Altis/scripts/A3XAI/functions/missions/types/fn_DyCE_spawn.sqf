@@ -224,6 +224,23 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     // CREATE CREW
     // ========================================
     private _group = createGroup [DyCE_Config get "aiSide", true];
+
+    // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+    if (isNull _group) then {
+        [1, format ["[DyCE] Vehicle %1 SKIPPED: createGroup returned null - EAST group limit reached", _i]] call A3XAI_fnc_log;
+        deleteVehicle _vehicle;
+        continue;
+    };
+
+    private _groupSide = side _group;
+    if (_groupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _group;
+        deleteVehicle _vehicle;
+        [1, format ["[DyCE] Vehicle %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _i, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+        continue;
+    };
+
     private _crewCount = (_crewRange select 0) + floor(random ((_crewRange select 1) - (_crewRange select 0) + 1));
     private _crewUnits = [];
 

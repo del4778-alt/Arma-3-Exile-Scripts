@@ -84,6 +84,21 @@ _buildings = _buildings select {
 // Spawn patrol groups on streets
 for "_g" from 0 to (_groupCount - 1) do {
     private _group = createGroup [EAST, true];
+
+    // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+    if (isNull _group) then {
+        [1, format ["Invasion group %1 SKIPPED: createGroup returned null - EAST group limit reached", _g]] call A3XAI_fnc_log;
+        continue;
+    };
+
+    private _groupSide = side _group;
+    if (_groupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _group;
+        [1, format ["Invasion group %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _g, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+        continue;
+    };
+
     private _groupSize = 3 + floor(random 3);  // 3-5 AI per group
 
     // Random position in town
@@ -150,6 +165,21 @@ for "_d" from 0 to (_defenderCount - 1) do {
 
     // Create defender group (single unit)
     private _group = createGroup [EAST, true];
+
+    // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+    if (isNull _group) then {
+        [1, format ["Invasion defender %1 SKIPPED: createGroup returned null - EAST group limit reached", _d]] call A3XAI_fnc_log;
+        continue;
+    };
+
+    private _groupSide = side _group;
+    if (_groupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _group;
+        [1, format ["Invasion defender %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _d, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+        continue;
+    };
+
     private _unit = _group createUnit ["O_Soldier_F", _defPos, [], 0, "NONE"];
 
     // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
@@ -194,6 +224,21 @@ if (_difficulty in ["hard", "extreme"]) then {
         private _topPos = _positions select (count _positions - 1);  // Highest position
 
         private _group = createGroup [EAST, true];
+
+        // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+        if (isNull _group) then {
+            [1, format ["Invasion sniper %1 SKIPPED: createGroup returned null - EAST group limit reached", _s]] call A3XAI_fnc_log;
+            continue;
+        };
+
+        private _groupSide = side _group;
+        if (_groupSide != EAST) then {
+            private _eastGroups = {side _x == EAST} count allGroups;
+            deleteGroup _group;
+            [1, format ["Invasion sniper %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _s, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+            continue;
+        };
+
         private _sniper = _group createUnit ["O_sniper_F", _topPos, [], 0, "NONE"];
 
         _sniper setPos _topPos;

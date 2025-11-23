@@ -74,11 +74,17 @@ private _armedTurrets = _turretInfo select {_x select 1};  // Filter for armed t
 // Create crew
 private _group = createGroup [EAST, true];
 
-// ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
-if (!isNull _group && {side _group != EAST}) exitWith {
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    deleteVehicle _vehicle;
+    [1, format ["Cannot spawn vehicle: createGroup returned null - EAST group limit reached"]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+if (side _group != EAST) exitWith {
     deleteGroup _group;
     deleteVehicle _vehicle;
-    [1, format ["Cannot spawn vehicle: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    [1, format ["Cannot spawn vehicle: Group created as %1 instead of EAST (EAST groups: %2/144)", side _group, {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
     createHashMap
 };
 

@@ -2,6 +2,12 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.13: Town Spawn Limits & Cooldowns
+        - Per-town group limit (default 2 groups = 8 AI max per town)
+        - Per-town respawn cooldown (default 15 minutes)
+        - Tracks active groups per town, cleans up dead groups
+        - Prevents aggressive spawn stacking in towns
+
     v3.6: Town-based Infantry & Player Scaling
         - Infantry now spawns in towns/villages (like original A3XAI)
         - Dynamic AI limit: 50 base + 20 per player online
@@ -73,6 +79,73 @@ private _maxDyceConvoys = 3;             // Max 3 convoys total on map
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
 [3, "DyCE Dynamic Convoy Events enabled"] call A3XAI_fnc_log;
+
+// ============================================
+// v3.13: TOWN SPAWN LIMIT HELPERS
+// ============================================
+
+// Get current active groups in a town (removes dead/empty groups from tracking)
+private _fnc_getTownGroups = {
+    params ["_townName"];
+
+    private _groups = A3XAI_townSpawns getOrDefault [_townName, []];
+
+    // Filter out dead/empty groups
+    private _activeGroups = _groups select {
+        !isNull _x && {{alive _x} count units _x > 0}
+    };
+
+    // Update tracking with cleaned list
+    if (count _activeGroups != count _groups) then {
+        A3XAI_townSpawns set [_townName, _activeGroups];
+        [4, format ["[TownSpawn] Cleaned %1: %2 active groups (was %3)", _townName, count _activeGroups, count _groups]] call A3XAI_fnc_log;
+    };
+
+    _activeGroups
+};
+
+// Check if town can accept more spawns
+private _fnc_canSpawnInTown = {
+    params ["_townName"];
+
+    // Check cooldown first
+    private _lastSpawn = A3XAI_townCooldowns getOrDefault [_townName, 0];
+    private _timeSince = time - _lastSpawn;
+    private _cooldown = if (!isNil "A3XAI_townRespawnCooldown") then {A3XAI_townRespawnCooldown} else {900};
+
+    if (_timeSince < _cooldown) then {
+        [4, format ["[TownSpawn] %1 on cooldown (%2s remaining)", _townName, ceil(_cooldown - _timeSince)]] call A3XAI_fnc_log;
+        false
+    } else {
+        // Check group limit
+        private _activeGroups = [_townName] call _fnc_getTownGroups;
+        private _maxGroups = if (!isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown} else {2};
+
+        if (count _activeGroups >= _maxGroups) then {
+            [4, format ["[TownSpawn] %1 at group limit (%2/%3)", _townName, count _activeGroups, _maxGroups]] call A3XAI_fnc_log;
+            false
+        } else {
+            true
+        }
+    }
+};
+
+// Register a spawn to a town
+private _fnc_registerTownSpawn = {
+    params ["_townName", "_group"];
+
+    private _groups = A3XAI_townSpawns getOrDefault [_townName, []];
+    _groups pushBack _group;
+    A3XAI_townSpawns set [_townName, _groups];
+    A3XAI_townCooldowns set [_townName, time];
+
+    private _maxGroups = if (!isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown} else {2};
+    [3, format ["[TownSpawn] Registered group in %1 (%2/%3 groups)", _townName, count _groups, _maxGroups]] call A3XAI_fnc_log;
+};
+
+[3, format ["Town spawn limits: Max %1 groups per town, %2s cooldown",
+    (if (!isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown} else {2}),
+    (if (!isNil "A3XAI_townRespawnCooldown") then {A3XAI_townRespawnCooldown} else {900})]] call A3XAI_fnc_log;
 
 while {A3XAI_enabled} do {
     sleep _loopInterval;
@@ -189,6 +262,7 @@ while {A3XAI_enabled} do {
     private _spawnAttempts = 0;
 
     // 1. Random Infantry Spawns (80% chance) - Spawn in towns/villages like original A3XAI
+    // v3.13: Now respects per-town group limits and cooldowns
     if (random 1 < 0.8 && _spawnAttempts < _maxSpawnsThisCycle) then {
         // Get towns/villages from Exile spawn zones or map locations
         private _spawnLocations = if (!isNil "DyCE_SpawnZones") then {
@@ -209,24 +283,45 @@ while {A3XAI_enabled} do {
 
         private _townNames = keys _spawnLocations;
         if (count _townNames > 0) then {
-            // Pick random town
-            private _townName = selectRandom _townNames;
-            private _townPos = _spawnLocations get _townName;
+            // v3.13: Find a town that can accept spawns (not at limit, not on cooldown)
+            private _shuffledTowns = _townNames call BIS_fnc_arrayShuffle;
+            private _selectedTown = "";
+            private _selectedPos = [];
 
-            // Find spawn position within town area (50-150m from center)
-            private _distance = 50 + random 100;
-            private _dir = random 360;
-            private _spawnPos = _townPos getPos [_distance, _dir];
-
-            // Validate and spawn
-            if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
-                private _difficulty = selectRandom ["easy", "medium", "hard"];
-                private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, 4, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
-
-                if (!isNil "_result") then {
-                    _spawnAttempts = _spawnAttempts + 1;
-                    [4, format ["Spawned infantry patrol in %1 (%2)", _townName, _difficulty]] call A3XAI_fnc_log;
+            {
+                if ([_x] call _fnc_canSpawnInTown) exitWith {
+                    _selectedTown = _x;
+                    _selectedPos = _spawnLocations get _x;
                 };
+            } forEach _shuffledTowns;
+
+            // Only spawn if we found an available town
+            if (_selectedTown != "") then {
+                // Find spawn position within town area (50-150m from center)
+                private _distance = 50 + random 100;
+                private _dir = random 360;
+                private _spawnPos = _selectedPos getPos [_distance, _dir];
+
+                // Validate and spawn
+                if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
+                    private _difficulty = selectRandom ["easy", "medium", "hard"];
+                    private _groupSize = if (!isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup} else {4};
+                    private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, _groupSize, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
+
+                    if (!isNil "_result") then {
+                        _spawnAttempts = _spawnAttempts + 1;
+
+                        // v3.13: Register spawn to town tracking
+                        private _group = _result getOrDefault ["group", grpNull];
+                        if (!isNull _group) then {
+                            [_selectedTown, _group] call _fnc_registerTownSpawn;
+                        };
+
+                        [4, format ["Spawned infantry patrol in %1 (%2)", _selectedTown, _difficulty]] call A3XAI_fnc_log;
+                    };
+                };
+            } else {
+                [4, "All towns at spawn limit or on cooldown - skipping infantry spawn"] call A3XAI_fnc_log;
             };
         };
     };
@@ -442,6 +537,7 @@ while {A3XAI_enabled} do {
     };
 
     // Spawn initial roaming infantry patrols in towns/villages (2 groups of 4)
+    // v3.13: Respects per-town limits, registers to tracking
     [3, "=== SPAWNING INITIAL INFANTRY PATROLS (in towns) ==="] call A3XAI_fnc_log;
     private _initialInfantry = 2;  // 2 infantry patrols in random towns
 
@@ -463,6 +559,7 @@ while {A3XAI_enabled} do {
 
     private _infantryTownNames = keys _infantrySpawnLocations;
     private _shuffledTowns = _infantryTownNames call BIS_fnc_arrayShuffle;
+    private _initialSpawned = 0;
 
     for "_inf" from 0 to (_initialInfantry - 1) do {
         if (_inf < count _shuffledTowns) then {
@@ -476,16 +573,25 @@ while {A3XAI_enabled} do {
 
             if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
                 private _difficulty = selectRandom ["easy", "medium", "hard"];
-                private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, 4, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
+                private _groupSize = if (!isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup} else {4};
+                private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, _groupSize, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
 
                 if (!isNil "_result" && {count _result > 0}) then {
-                    [3, format ["[%1/%2] Initial infantry patrol in %3 (%4)", _inf + 1, _initialInfantry, _townName, _difficulty]] call A3XAI_fnc_log;
+                    _initialSpawned = _initialSpawned + 1;
+
+                    // v3.13: Register spawn to town tracking
+                    private _group = _result getOrDefault ["group", grpNull];
+                    if (!isNull _group) then {
+                        [_townName, _group] call _fnc_registerTownSpawn;
+                    };
+
+                    [3, format ["[%1/%2] Initial infantry patrol in %3 (%4)", _initialSpawned, _initialInfantry, _townName, _difficulty]] call A3XAI_fnc_log;
                 };
             };
         };
         sleep 1;
     };
-    [3, format ["=== INITIAL INFANTRY PATROLS: %1 (in towns) ===", _initialInfantry]] call A3XAI_fnc_log;
+    [3, format ["=== INITIAL INFANTRY PATROLS: %1 (in towns) ===", _initialSpawned]] call A3XAI_fnc_log;
 
     // SCHEDULED MISSION CHECK: Replace completed missions
     if ((time - _lastMissionCheck) >= _missionCheckInterval) then {

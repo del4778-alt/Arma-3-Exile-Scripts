@@ -161,6 +161,16 @@ class CfgA3XAI {
     A3XAI_townRespawnCooldown = 900;            // Per-town respawn cooldown (seconds) - 15 minutes
 
     // ================================================================
+    // TOWN TRIGGER SYSTEM (v3.14)
+    // AI only spawns when players enter town areas
+    // ================================================================
+
+    A3XAI_townTriggerEnabled = 1;               // Enable trigger-based spawning (1=yes, 0=no/random)
+    A3XAI_townTriggerRadius = 400;              // Spawn AI when player within this radius of town center
+    A3XAI_townDespawnRadius = 800;              // Despawn AI when all players beyond this radius
+    A3XAI_townDespawnDelay = 300;               // Delay before despawning (seconds) - 5 minutes
+
+    // ================================================================
     // AI DIFFICULTY SETTINGS
     // ================================================================
 

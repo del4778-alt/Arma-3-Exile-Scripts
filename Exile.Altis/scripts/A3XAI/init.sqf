@@ -41,6 +41,11 @@ if (isClass (missionConfigFile >> "CfgA3XAI")) then {
     if (isNumber (_cfg >> "A3XAI_maxGroupsPerTown")) then {A3XAI_maxGroupsPerTown = getNumber (_cfg >> "A3XAI_maxGroupsPerTown")};
     if (isNumber (_cfg >> "A3XAI_maxAIPerGroup")) then {A3XAI_maxAIPerGroup = getNumber (_cfg >> "A3XAI_maxAIPerGroup")};
     if (isNumber (_cfg >> "A3XAI_townRespawnCooldown")) then {A3XAI_townRespawnCooldown = getNumber (_cfg >> "A3XAI_townRespawnCooldown")};
+    // v3.14: Town trigger system settings
+    if (isNumber (_cfg >> "A3XAI_townTriggerEnabled")) then {A3XAI_townTriggerEnabled = getNumber (_cfg >> "A3XAI_townTriggerEnabled") > 0};
+    if (isNumber (_cfg >> "A3XAI_townTriggerRadius")) then {A3XAI_townTriggerRadius = getNumber (_cfg >> "A3XAI_townTriggerRadius")};
+    if (isNumber (_cfg >> "A3XAI_townDespawnRadius")) then {A3XAI_townDespawnRadius = getNumber (_cfg >> "A3XAI_townDespawnRadius")};
+    if (isNumber (_cfg >> "A3XAI_townDespawnDelay")) then {A3XAI_townDespawnDelay = getNumber (_cfg >> "A3XAI_townDespawnDelay")};
     if (isNumber (_cfg >> "A3XAI_lootDespawnTime")) then {A3XAI_lootDespawnTime = getNumber (_cfg >> "A3XAI_lootDespawnTime")};
     if (isNumber (_cfg >> "A3XAI_enableMissionMarkers")) then {A3XAI_enableMissionMarkers = getNumber (_cfg >> "A3XAI_enableMissionMarkers") > 0};
     if (isNumber (_cfg >> "A3XAI_enableMissionNotifications")) then {A3XAI_enableMissionNotifications = getNumber (_cfg >> "A3XAI_enableMissionNotifications") > 0};
@@ -108,6 +113,8 @@ A3XAI_missionCooldowns = createHashMap;
 // Tracks active groups and cooldowns per town for proper spawn limiting
 A3XAI_townSpawns = createHashMap;          // {townName -> [group1, group2, ...]}
 A3XAI_townCooldowns = createHashMap;       // {townName -> lastSpawnTime}
+// v3.14: Town trigger tracking
+A3XAI_townDespawnTimers = createHashMap;   // {townName -> timeWhenPlayersLeft}
 
 // Statistics
 A3XAI_stats = createHashMapFromArray [
@@ -153,6 +160,11 @@ if (isNil "A3XAI_spawnCooldownTime") then {A3XAI_spawnCooldownTime = 900};  // v
 if (isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown = 2};      // Max 2 groups per town
 if (isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup = 4};            // 4 AI per group (8 max per town)
 if (isNil "A3XAI_townRespawnCooldown") then {A3XAI_townRespawnCooldown = 900}; // 15 min cooldown per town
+// v3.14: Town trigger system (spawn only when players enter)
+if (isNil "A3XAI_townTriggerEnabled") then {A3XAI_townTriggerEnabled = true};  // Enable by default
+if (isNil "A3XAI_townTriggerRadius") then {A3XAI_townTriggerRadius = 400};     // 400m trigger radius
+if (isNil "A3XAI_townDespawnRadius") then {A3XAI_townDespawnRadius = 800};     // 800m despawn radius
+if (isNil "A3XAI_townDespawnDelay") then {A3XAI_townDespawnDelay = 300};       // 5 min despawn delay
 if (isNil "A3XAI_showHunterMarkers") then {A3XAI_showHunterMarkers = false};
 if (isNil "A3XAI_hunterTargetClosest") then {A3XAI_hunterTargetClosest = true};
 if (isNil "A3XAI_hostagesJoinRescuer") then {A3XAI_hostagesJoinRescuer = false};

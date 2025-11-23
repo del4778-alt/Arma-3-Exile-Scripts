@@ -46,14 +46,34 @@ if (_currentAI >= A3XAI_maxAIGlobal) exitWith {
     [false, format ["AI limit reached: %1/%2", _currentAI, A3XAI_maxAIGlobal]]
 };
 
-// ✅ v3.12: Check EAST group limit (Arma 3 has 144 groups per side limit)
+// ✅ v3.15: Check EAST group limit (Arma 3 has 144 groups per side limit)
 // When exceeded, createGroup silently creates wrong-faction groups causing GUER AI spawns!
+// ⚠️ CRITICAL: Using larger buffer (50) to prevent race conditions during simultaneous mission spawns
 private _eastGroups = {side _x == EAST} count allGroups;
-private _groupSafetyBuffer = 20;  // Stop spawning at 124 groups to leave headroom
+private _guerGroups = {side _x == RESISTANCE} count allGroups;
+private _totalGroups = count allGroups;
+private _groupSafetyBuffer = 50;  // Stop spawning at 94 groups - missions can create 10-15 groups each!
 private _maxEastGroups = 144 - _groupSafetyBuffer;
+
+// ✅ v3.15: Log group counts for debugging if getting close to limit
+if (_eastGroups >= 70) then {
+    [2, format ["⚠️ GROUP WARNING: EAST=%1/144 | GUER/RES=%2 | Total=%3", _eastGroups, _guerGroups, _totalGroups]] call A3XAI_fnc_log;
+};
+
 if (_eastGroups >= _maxEastGroups) exitWith {
-    [1, format ["CRITICAL: EAST group limit approaching! %1/144 groups - blocking new spawns", _eastGroups]] call A3XAI_fnc_log;
+    [1, format ["CRITICAL: EAST group limit! %1/144 groups - blocking new spawns (buffer: %2, GUER: %3)", _eastGroups, _groupSafetyBuffer, _guerGroups]] call A3XAI_fnc_log;
     [false, format ["EAST group limit: %1/%2 (max 144)", _eastGroups, _maxEastGroups]]
+};
+
+// ✅ v3.15: Check if spawn is in progress (prevents race condition during multi-mission spawns)
+if (!isNil "A3XAI_spawnInProgress" && {A3XAI_spawnInProgress}) then {
+    private _spawnLockTime = missionNamespace getVariable ["A3XAI_spawnLockTime", 0];
+    if ((time - _spawnLockTime) < 5) exitWith {  // 5 second max lock
+        [4, "Spawn delayed - another spawn in progress"] call A3XAI_fnc_log;
+        [false, "Spawn in progress - waiting"]
+    };
+    // Lock expired, clear it
+    A3XAI_spawnInProgress = false;
 };
 
 // Check position-specific conditions if provided

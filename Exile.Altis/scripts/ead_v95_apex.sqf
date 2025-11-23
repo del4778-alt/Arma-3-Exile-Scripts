@@ -320,8 +320,10 @@ EAD_fnc_shouldUseReducedRays = {
     (_minDist > _nearDist)
 };
 
-// ✅ 4-height batch raycast with obstacle type detection (FIXED v9.8)
-// BUG FIX: lineIntersectsSurfaces doesn't accept batch arrays - must call individually
+// ✅ OPTIMIZED RAYCAST v9.9 - Think like a driver at 150km/h
+// At high speed you need: forward vision, steering info, that's it
+// Old: 41 rays × 4 heights = 164 calls per tick (insane)
+// New: Smart rays with selective heights = ~25 calls per tick
 EAD_fnc_rayBatchAdvanced = {
     params ["_veh", "_rayDefs"];
 
@@ -329,24 +331,31 @@ EAD_fnc_rayBatchAdvanced = {
     private _dir = getDir _veh;
     private _distances = [];
     private _obstacleInfo = [];
-    private _heights = [0.15, 0.6, 1.2, 1.8]; // Ground, Low, Mid, Eye
 
     {
         _x params ["_angleOffset", "_dist"];
         private _ang = _dir + _angleOffset;
         private _vec = [sin _ang, cos _ang, 0];
+        private _absAngle = abs _angleOffset;
 
         private _minDist = _dist;
         private _obstacleType = "NONE";
         private _obstacleObject = objNull;
 
-        // Cast ray at each height level
+        // Smart height selection based on ray angle:
+        // - Forward (0-15°): Check ground + bumper height (cars, rocks, barriers)
+        // - Steering (15-45°): Ground only (walls, trees)
+        // - Peripheral (45°+): Ground only, shorter range
+        private _heights = if (_absAngle <= 15) then {
+            [0.3, 0.8]  // Bumper + hood height - catch cars, barriers, rocks
+        } else {
+            [0.4]       // Single mid-height ray for walls/trees
+        };
+
         {
-            private _heightOffset = _x;
-            private _startPos = _vehPos vectorAdd [0, 0, _heightOffset];
+            private _startPos = _vehPos vectorAdd [0, 0, _x];
             private _endPos = _startPos vectorAdd (_vec vectorMultiply _dist);
 
-            // ✅ FIXED: Call lineIntersectsSurfaces correctly for each ray
             private _hits = lineIntersectsSurfaces [_startPos, _endPos, _veh, objNull, true, 1, "GEOM", "NONE"];
 
             if (count _hits > 0) then {
@@ -357,21 +366,12 @@ EAD_fnc_rayBatchAdvanced = {
                 if (_hitDist < _minDist) then {
                     _minDist = _hitDist;
 
-                    // Detect obstacle type
                     if (count _hit > 2) then {
                         private _hitObj = _hit select 2;
                         if (!isNull _hitObj && _obstacleType == "NONE") then {
-                            if (_hitObj isKindOf "Man") then {
-                                _obstacleType = "INFANTRY";
-                                _obstacleObject = _hitObj;
-                            } else {
-                                if (_hitObj isKindOf "Car" || _hitObj isKindOf "Tank") then {
-                                    _obstacleType = "VEHICLE";
-                                    _obstacleObject = _hitObj;
-                                } else {
-                                    _obstacleType = "STATIC";
-                                };
-                            };
+                            _obstacleType = if (_hitObj isKindOf "Man") then {"INFANTRY"}
+                                else {if (_hitObj isKindOf "LandVehicle") then {"VEHICLE"} else {"STATIC"}};
+                            _obstacleObject = _hitObj;
                         };
                     };
                 };
@@ -443,72 +443,44 @@ EAD_fnc_isBridge = {
     (_hits >= 3)
 };
 
-// ✅ COMPREHENSIVE SCAN - RECRUIT AI ONLY (30+ RAYS FOR MAXIMUM COVERAGE)
+// ✅ OPTIMIZED SCAN v9.9 - Quality over quantity
+// Think like a driver: you look ahead, glance sides, that's it
+// Old: 41 rays (overkill, CPU heavy)
+// New: 15 rays (focused, fast, effective)
 EAD_fnc_scanAdaptive = {
     params ["_veh"];
 
-    private _dir = getDir _veh;
-    private _m = EAD_CFG get "DIST_MAIN";
-    private _w = EAD_CFG get "DIST_WIDE";
-    private _s = EAD_CFG get "DIST_SIDE";
-    private _c = EAD_CFG get "DIST_CORNER";
-    private _n = EAD_CFG get "DIST_NEAR";
+    private _far = EAD_CFG get "DIST_MAIN";    // 50m - forward scan
+    private _mid = EAD_CFG get "DIST_WIDE";    // 35m - steering scan
+    private _near = EAD_CFG get "DIST_SIDE";   // 15m - side scan
 
-    // ✅ MASSIVE RAY COVERAGE - 33 RAYS FOR RECRUIT AI VEHICLES
-    // No LOD system - always use full coverage for recruit_ai precision driving
+    // 15 RAYS - All you need at 150km/h:
+    // Forward cone (where you're going)
+    // Steering zone (where you might turn)
+    // Side glance (am I about to sideswipe something)
     private _rayDefinitions = [
-        // FRONT CENTER (5 rays - critical forward detection)
-        ["F0", 0, _m],              // Dead center
-        ["F0L", -3, _m],            // Slight left of center
-        ["F0R", 3, _m],             // Slight right of center
-        ["F0L2", -6, _m],           // Left-center
-        ["F0R2", 6, _m],            // Right-center
+        // FORWARD CONE - Your main focus (5 rays, long range)
+        ["F0", 0, _far],            // Dead ahead - most important
+        ["FL1", -8, _far],          // Slight left
+        ["FR1", 8, _far],           // Slight right
+        ["FL2", -16, _mid],         // Left quarter
+        ["FR2", 16, _mid],          // Right quarter
 
-        // FRONT-LEFT SWEEP (7 rays - dense coverage)
-        ["FL1", -10, _m],           // 10° left
-        ["FL2", -15, _m],           // 15° left
-        ["FL3", -20, _m],           // 20° left
-        ["FL4", -25, _w],           // 25° left (wide range)
-        ["FL5", -30, _w],           // 30° left
-        ["FL6", -35, _w],           // 35° left
-        ["FL7", -40, _s],           // 40° left (side range)
+        // STEERING ZONE - Where you'll turn into (4 rays)
+        ["L", -30, _mid],           // Left turn zone
+        ["R", 30, _mid],            // Right turn zone
+        ["CL", -50, _near],         // Sharp left (tight corners)
+        ["CR", 50, _near],          // Sharp right (tight corners)
 
-        // FRONT-RIGHT SWEEP (7 rays - dense coverage)
-        ["FR1", 10, _m],            // 10° right
-        ["FR2", 15, _m],            // 15° right
-        ["FR3", 20, _m],            // 20° right
-        ["FR4", 25, _w],            // 25° right (wide range)
-        ["FR5", 30, _w],            // 30° right
-        ["FR6", 35, _w],            // 35° right
-        ["FR7", 40, _s],            // 40° right (side range)
+        // SIDE AWARENESS - Don't sideswipe (4 rays)
+        ["NL", -75, _near],         // Left side
+        ["NR", 75, _near],          // Right side
+        ["L2", -45, _near],         // Left-forward diagonal
+        ["R2", 45, _near],          // Right-forward diagonal
 
-        // SIDE DETECTION (6 rays - roadside obstacles, extended for 90° turns)
-        ["L", 45, _s],              // 45° left
-        ["L2", 50, _s],             // 50° left - NEW: pre-turn detection
-        ["L3", 55, _s],             // 55° left - NEW: pre-turn detection
-        ["L4", 60, _s],             // 60° left
-        ["R", -45, _s],             // 45° right
-        ["R2", -50, _s],            // 50° right - NEW: pre-turn detection
-        ["R3", -55, _s],            // 55° right - NEW: pre-turn detection
-        ["R4", -60, _s],            // 60° right
-
-        // CORNER DETECTION (8 rays - tight turns, buildings flush with road)
-        ["CL", 65, _c],             // 65° left corner - NEW: earlier detection
-        ["CL2", 70, _c],            // 70° left corner
-        ["CL3", 80, _c],            // 80° left corner - NEW
-        ["CL4", 88, _c],            // 88° left corner - nearly perpendicular
-        ["CR", -65, _c],            // 65° right corner - NEW: earlier detection
-        ["CR2", -70, _c],           // 70° right corner
-        ["CR3", -80, _c],           // 80° right corner - NEW
-        ["CR4", -88, _c],           // 88° right corner - nearly perpendicular
-
-        // NEAR SIDE (6 rays - immediate hazards)
-        ["NL", 90, _n],             // 90° left (perpendicular)
-        ["NL2", 105, _n],           // 105° left
-        ["NL3", 120, _n],           // 120° left (rear quarter)
-        ["NR", -90, _n],            // 90° right (perpendicular)
-        ["NR2", -105, _n],          // 105° right
-        ["NR3", -120, _n]           // 120° right (rear quarter)
+        // WIDE CORNERS - For 90° turns only (2 rays)
+        ["CL2", -70, _near],        // Hard left
+        ["CR2", 70, _near]          // Hard right
     ];
 
     private _rayDefs = _rayDefinitions apply {[_x#1, _x#2]};
@@ -519,8 +491,6 @@ EAD_fnc_scanAdaptive = {
     {
         _x params ["_label", "_angleOffset", "_distance"];
         _map set [_label, _distances select _forEachIndex];
-
-        // 🆕 Store obstacle type info (from v10.2)
         private _obsInfo = _obstacleInfo select _forEachIndex;
         _map set [_label + "_OBS", _obsInfo select 0];
         _map set [_label + "_OBJ", _obsInfo select 1];
@@ -686,29 +656,23 @@ EAD_fnc_speedBrain = {
 EAD_fnc_obstacleLimit = {
     params ["_veh","_s","_cur"];
 
-    // ✅ CHECK ALL FORWARD-FACING RAYS (33 rays total, check critical forward ones)
+    // Check forward cone rays (the ones that matter for braking)
     private _m = selectMin [
-        _s get "F0", _s get "F0L", _s get "F0R", _s get "F0L2", _s get "F0R2",
-        _s get "FL1", _s get "FL2", _s get "FL3", _s get "FL4", _s get "FL5",
-        _s get "FR1", _s get "FR2", _s get "FR3", _s get "FR4", _s get "FR5"
+        _s get "F0",   // Dead ahead
+        _s get "FL1",  // Slight left
+        _s get "FR1",  // Slight right
+        _s get "FL2",  // Quarter left
+        _s get "FR2"   // Quarter right
     ];
 
-    // 🆕 Don't slow down for infantry if we have enough clearance (from v10.2)
+    // Don't slow for infantry if plenty of room
     private _f0ObsType = _s get "F0_OBS";
     if (_f0ObsType == "INFANTRY" && _m > 15) exitWith {_cur};
 
-    // ✅ v9.6: RELAXED obstacle braking - Only slow for CLOSE obstacles
-    // At 90% top speed we need less aggressive braking to maintain speed
-    // Only brake hard when obstacles are actually close
-    if (_m < 10) then {_cur = _cur * 0.70};  // 70% at 10m (start slowing)
-    if (_m < 6) then {_cur = _cur * 0.45};   // 45% at 6m (significant slow)
-    if (_m < 3) then {_cur = _cur * 0.20};   // 20% at 3m (hard brake)
-
-    // 🆕 Predictive collision avoidance (from v10.2)
-    private _predictResult = [_veh, _cur] call EAD_fnc_predictiveCollision;
-    if ((_predictResult select 0) && (_predictResult select 1) < 20) then {
-        _cur = _cur * 0.5;  // Only slow for close predicted collisions
-    };
+    // Progressive braking - smooth slowdown based on distance
+    if (_m < 12) then {_cur = _cur * 0.75};   // Start slowing at 12m
+    if (_m < 7) then {_cur = _cur * 0.50};    // Moderate brake at 7m
+    if (_m < 4) then {_cur = _cur * 0.25};    // Hard brake at 4m
 
     _cur
 };
@@ -875,21 +839,29 @@ EAD_fnc_emergencyBrake = {
 EAD_fnc_pathBias = {
     params ["_s","_dir","_veh"];
 
+    // Simple: find clearest path in forward cone
     private _cand = [
-        ["F0",0,_s get "F0"],["FL1",8,_s get "FL1"],["FR1",-8,_s get "FR1"],
-        ["FL2",16,_s get "FL2"],["FR2",-16,_s get "FR2"],
-        ["FL3",25,_s get "FL3"],["FR3",-25,_s get "FR3"]
+        ["F0", 0, _s get "F0"],       // Straight ahead (prefer)
+        ["FL1", -8, _s get "FL1"],    // Slight left
+        ["FR1", 8, _s get "FR1"],     // Slight right
+        ["FL2", -16, _s get "FL2"],   // Quarter left
+        ["FR2", 16, _s get "FR2"],    // Quarter right
+        ["L", -30, _s get "L"],       // Turn left
+        ["R", 30, _s get "R"]         // Turn right
     ];
 
-    {if ((_x#0) == "F0") then {_x set [2, (_x#2)*1.2]}} forEach _cand;
+    // Prefer going straight - boost center ray
+    {if ((_x#0) == "F0") then {_x set [2, (_x#2) * 1.3]}} forEach _cand;
+
+    // Pick clearest direction
     _cand sort false;
     private _best = _cand#0;
     private _ang = _best#1;
     private _dist = _best#2;
 
+    // Apex cutting on curves
     private _curveType = [_s] call EAD_fnc_detectCurveType;
     private _apexAngle = [_veh, _s, _curveType] call EAD_fnc_calculateApex;
-
     if (_apexAngle != 0) then {
         _ang = _ang + _apexAngle;
         _veh setVariable ["EAD_onApex", true];
@@ -897,6 +869,7 @@ EAD_fnc_pathBias = {
         _veh setVariable ["EAD_onApex", false];
     };
 
+    // Urgency: closer obstacles = sharper steering
     private _urg = 1 - (_dist / (EAD_CFG get "DIST_MAIN"));
     _urg = _urg max 0;
 
@@ -1076,44 +1049,28 @@ EAD_fnc_vectorDrive = {
         };
     };
 
-    // ✅ USE NEW RAY LABELS - More precise side detection with L2/R2
-    private _center = ((_s get "L") - (_s get "R")) * 0.004;
-    _center = _center + (((_s get "L2") - (_s get "R2")) * 0.002);
-    _center = _center + (((_s get "CL") - (_s get "CR")) * 0.0015);
+    // Simple steering: use side rays to stay centered, path to find clear direction
+    private _center = ((_s get "L") - (_s get "R")) * 0.004;           // Turn toward clear side
+    _center = _center + (((_s get "CL") - (_s get "CR")) * 0.002);    // Corner awareness
 
     private _path = [_s,_dir,_veh] call EAD_fnc_pathBias;
     private _drift = [_veh] call EAD_fnc_driftBias;
 
-    // ✅ IMPROVED: Use all near-side rays for better awareness
+    // Side obstacle avoidance
     private _near = 0;
-    if ((_s get "NL") < 8) then {_near = _near + 0.03};
-    if ((_s get "NR") < 8) then {_near = _near - 0.03};
-    if ((_s get "NL2") < 8) then {_near = _near + 0.02};
-    if ((_s get "NR2") < 8) then {_near = _near - 0.02};
+    if ((_s get "NL") < 8) then {_near = _near + 0.03};  // Something close on left, steer right
+    if ((_s get "NR") < 8) then {_near = _near - 0.03};  // Something close on right, steer left
 
-    // ✅ IMPROVED: Enhanced steering for tight turns using comprehensive ray data
-    // Detect tight turn situation (large difference between L/R rays)
+    // Steering intensity based on turn sharpness
     private _turnSharpness = abs((_s get "L") - (_s get "R"));
-    private _steeringMultiplier = 55;
-
-    // Increase steering angle for very tight turns (90-degree corners)
-    if (_turnSharpness > 60) then {
-        _steeringMultiplier = 75;  // More aggressive steering for 90-degree turns
-    } else {
-        if (_turnSharpness > 40) then {
-            _steeringMultiplier = 65;  // Moderate increase for sharp turns
-        };
+    private _steeringMultiplier = if (_turnSharpness > 50) then {70} else {
+        if (_turnSharpness > 30) then {60} else {50}
     };
 
-    // 🆕 v9.6: Combine all steering inputs including waypoint
-    // Waypoint has high weight (0.4) when set, obstacle avoidance overrides if needed
+    // Combine all inputs: obstacles + waypoint + drift correction
     private _waypointWeight = if (_hasWaypoint) then {0.4} else {0};
-    private _obstacleWeight = 1.0 - (_waypointWeight * 0.5);  // Reduce obstacle weight slightly when following waypoint
-
-    private _baseBias = (_center + (_path * 0.018) + _drift + _near) * _obstacleWeight;
-    private _waypointBiasScaled = _wpBias * _waypointWeight;
-
-    private _bias = (_baseBias + _waypointBiasScaled) max -0.35 min 0.35;  // Increased range for sharper turns
+    private _baseBias = _center + (_path * 0.02) + _drift + _near;
+    private _bias = (_baseBias + (_wpBias * _waypointWeight)) max -0.4 min 0.4;
     private _newDir = _dir + (_bias * _steeringMultiplier);
 
     // ✅ FIX: Removed invalid setVehicleTurnSpeed command (doesn't exist in Arma 3)
@@ -1338,21 +1295,13 @@ EAD_fnc_registerDriver = {
 };
 
 diag_log "======================================================";
-diag_log "[EAD 9.8 APEX EDITION] INITIALIZED";
-diag_log "[EAD 9.8] 🔥 CRITICAL FIX: Raycast system now actually works!";
-diag_log "[EAD 9.8] 🆕 AI FULL SPEED MODE - 100% vehicle top speed!";
-diag_log "[EAD 9.7] 🆕 AGGRESSIVE BRIDGE MODE - 8s no-brake + velocity forcing!";
-diag_log "[EAD 9.7] 🆕 ROADKILL MODE - Speed boost when targeting EAST AI on roads!";
-diag_log "[EAD 9.7] 🆕 URBAN SPEED LIMITS - City 60/Town 80/Village 100 km/h";
-diag_log "[EAD 9.7] ✅ 41-ray comprehensive coverage";
-diag_log "[EAD 9.7] ✅ 4-height forward raycasting";
-diag_log "[EAD 9.7] ✅ Waypoint following";
-diag_log "[EAD 9.7] ✅ Apex curve cutting + racing line";
-diag_log "[EAD 9.7] ✅ Predictive collision detection";
-diag_log "[EAD 9.7] ✅ Combat evasive serpentine maneuvers";
-diag_log "[EAD 9.7] ✅ Enhanced stuck recovery (3 methods)";
-diag_log "[EAD 9.7] ✅ RECRUIT_AI EXCLUSIVE - No A3XAI interference";
-diag_log "[EAD 9.7] ✅ Performance monitoring integration enabled";
+diag_log "[EAD 9.9 APEX EDITION] INITIALIZED - OPTIMIZED";
+diag_log "[EAD 9.9] 🔥 CRITICAL FIX: Raycast system actually works now!";
+diag_log "[EAD 9.9] 🔥 OPTIMIZED: 15 smart rays vs 164 wasteful ones";
+diag_log "[EAD 9.9] 🔥 OPTIMIZED: Height-adaptive raycasting";
+diag_log "[EAD 9.9] ✅ Forward + steering + side awareness";
+diag_log "[EAD 9.9] ✅ Waypoint following + apex racing";
+diag_log "[EAD 9.9] ✅ Performance monitoring enabled";
 diag_log "======================================================";
 
 /* =====================================================================================

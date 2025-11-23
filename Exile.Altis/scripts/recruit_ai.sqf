@@ -1455,6 +1455,8 @@ fn_spawnAI = {
 
     // 🔥 v7.32: SUPER HUMAN - Fast movement, no fear, stealthy
     _unit setAnimSpeedCoef 1.5;  // Increased from 1.4 to 1.5 (50% faster)
+    _unit enableFatigue false;   // 🔥 v7.37: Disable fatigue - AI never gets tired
+    _unit forceSpeed -1;         // 🔥 v7.37: Force max speed (no artificial limits)
     _unit allowFleeing 0;
     _unit setUnitTrait ["camouflageCoef", 0.3];  // Reduced from 0.5 (harder to spot)
     _unit setUnitTrait ["audibleCoef", 0.3];     // Reduced from 0.5 (quieter)

@@ -61,6 +61,24 @@ diag_log "[AI RECRUIT] 🔥 AI TARGET EAST (A3XAI) + WEST (Zombies) AS ENEMIES!"
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
+// PERFORMANCE MONITORING INTEGRATION
+// ============================================
+[] spawn {
+    sleep 2; // Wait for server initialization
+    if (isNil "PERFMON_Stats") then {
+        private _perfMonPath = "scripts\fn_performanceMonitor.sqf";
+        if (fileExists _perfMonPath) then {
+            call compile preprocessFileLineNumbers _perfMonPath;
+            diag_log "[AI RECRUIT] Performance monitor loaded successfully";
+        } else {
+            diag_log "[AI RECRUIT] WARNING: Performance monitor not found at scripts\fn_performanceMonitor.sqf";
+        };
+    } else {
+        diag_log "[AI RECRUIT] Performance monitor already initialized";
+    };
+};
+
+// ============================================
 // VCOMAI COMPATIBILITY CHECK
 // ============================================
 
@@ -1399,6 +1417,11 @@ fn_spawnAI = {
     diag_log format ["[AI RECRUIT] Spawned %1 for %2 - %3 AI total",
         typeOf _unit, name _player, count _globalList];
 
+    // Track AI spawn in performance monitor
+    if (!isNil "PERFMON_fnc_recordAISpawn") then {
+        [] call PERFMON_fnc_recordAISpawn;
+    };
+
     // Blacklist from A3XAI
     if (!isNil "A3XAI_NOAI") then {
         A3XAI_NOAI pushBackUnique _unit;
@@ -1561,6 +1584,11 @@ fn_spawnAI = {
 
             diag_log format ["[AI RECRUIT] AI killed: %1 (owner: %2) - %3 AI remaining",
                 typeOf _unit, name _owner, count _globalList];
+
+            // Track AI kill in performance monitor
+            if (!isNil "PERFMON_fnc_recordAIKill") then {
+                [] call PERFMON_fnc_recordAIKill;
+            };
 
             [_owner, _ownerUID] spawn {
                 params ["_owner", "_ownerUID"];

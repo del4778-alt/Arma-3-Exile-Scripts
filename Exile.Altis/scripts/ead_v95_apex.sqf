@@ -1279,6 +1279,11 @@ EAD_fnc_registerDriver = {
     if (isNil "_c") then {_c = 0};
     EAD_VehicleTypes set [_role, _c + 1];
 
+    // Track driving session in performance monitor
+    if (!isNil "PERFMON_fnc_recordDrivingSession") then {
+        [] call PERFMON_fnc_recordDrivingSession;
+    };
+
     [_unit,_veh] spawn EAD_fnc_runDriver;
 };
 
@@ -1352,6 +1357,7 @@ diag_log "[EAD 9.7] ✅ Predictive collision detection";
 diag_log "[EAD 9.7] ✅ Combat evasive serpentine maneuvers";
 diag_log "[EAD 9.7] ✅ Enhanced stuck recovery (3 methods)";
 diag_log "[EAD 9.7] ✅ RECRUIT_AI EXCLUSIVE - No A3XAI interference";
+diag_log "[EAD 9.7] ✅ Performance monitoring integration enabled";
 diag_log "======================================================";
 
 /* =====================================================================================

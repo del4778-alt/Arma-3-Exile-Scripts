@@ -149,7 +149,28 @@ class CfgA3XAI {
     // SPAWN COOLDOWN SETTINGS
     // ================================================================
 
-    A3XAI_spawnCooldownTime = 300;              // Location cooldown time (seconds)
+    A3XAI_spawnCooldownTime = 900;              // Location cooldown time (seconds) - 15 minutes
+
+    // ================================================================
+    // TOWN SPAWN LIMITS (v3.13)
+    // Controls how many AI groups can spawn in each town
+    // ================================================================
+
+    A3XAI_maxGroupsPerTown = 2;                 // Max infantry groups per town (2 groups = 8 AI max)
+    A3XAI_maxAIPerGroup = 4;                    // Max AI per infantry group
+    A3XAI_townRespawnCooldown = 900;            // Per-town respawn cooldown (seconds) - 15 minutes
+
+    // ================================================================
+    // TOWN TRIGGER SYSTEM (v3.14)
+    // AI only spawns when players enter town areas
+    // Based on original A3XAI balance by TheGrayJacket/ispan55
+    // ================================================================
+
+    A3XAI_townTriggerEnabled = 1;               // Enable trigger-based spawning (1=yes, 0=no/random)
+    A3XAI_townTriggerRadius = 350;              // Spawn AI when player within this radius of town center
+    A3XAI_townDespawnRadius = 600;              // Despawn AI when all players beyond this radius
+    A3XAI_townDespawnDelay = 120;               // Delay before despawning (seconds) - 2 minutes (original A3XAI)
+    A3XAI_townSpawnChance = 60;                 // Chance (%) to spawn when entering town (not guaranteed)
 
     // ================================================================
     // AI DIFFICULTY SETTINGS

@@ -87,6 +87,58 @@ switch (_triggerType) do {
         };
     };
 
+    // v3.16: Added "clear" trigger type for cache and invasion missions
+    case "clear": {
+        // All AI must be eliminated to complete (same as kill_all)
+        private _groups = _missionData getOrDefault ["aiGroups", []];
+        private _allDead = true;
+
+        {
+            if (count units _x > 0) then {
+                _allDead = false;
+            };
+        } forEach _groups;
+
+        if (_allDead) then {
+            _complete = true;
+            [3, format ["Mission '%1' complete: Area cleared of hostiles", _missionData get "name"]] call A3XAI_fnc_log;
+        };
+    };
+
+    // v3.16: Added "roaming" trigger type for DyCE convoys and highway patrols
+    case "roaming": {
+        // Roaming missions complete when all AI eliminated OR after max duration
+        private _groups = _missionData getOrDefault ["aiGroups", []];
+        private _vehicles = _missionData getOrDefault ["vehicles", []];
+        private _spawnTime = _missionData getOrDefault ["spawnTime", time];
+        private _maxDuration = _missionData getOrDefault ["maxDuration", 3600]; // Default 1 hour
+
+        // Check if all AI dead
+        private _allDead = true;
+        {
+            if (count units _x > 0) then {
+                _allDead = false;
+            };
+        } forEach _groups;
+
+        // Check if all vehicles destroyed
+        private _allVehiclesDestroyed = true;
+        {
+            if (!isNull _x && {alive _x}) then {
+                _allVehiclesDestroyed = false;
+            };
+        } forEach _vehicles;
+
+        // Check timeout
+        private _timedOut = (time - _spawnTime) >= _maxDuration;
+
+        if (_allDead || _timedOut) then {
+            _complete = true;
+            private _reason = if (_allDead) then {"all hostiles eliminated"} else {"patrol expired"};
+            [3, format ["Mission '%1' complete: %2", _missionData get "name", _reason]] call A3XAI_fnc_log;
+        };
+    };
+
     default {
         [2, format ["Unknown mission trigger type: %1", _triggerType]] call A3XAI_fnc_log;
     };

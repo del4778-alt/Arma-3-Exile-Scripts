@@ -317,7 +317,7 @@ DEFENDER_fnc_setSkills = {
 
     if (PATROL_VCOMAI_Active) then {
         _u setBehaviour "AWARE";
-        _u setCombatMode "YELLOW";
+        _u setCombatMode "RED";    // 🔥 v8.3: Changed from YELLOW - attack EAST enemies
         _u allowFleeing 0;
         _u setUnitPos "AUTO";
 
@@ -341,7 +341,7 @@ DEFENDER_fnc_setSkills = {
         if (DEFENDER_ENHANCED_MOVEMENT) then {_u setAnimSpeedCoef 1.4};
 
         _u setBehaviour "AWARE";
-        _u setCombatMode "YELLOW";
+        _u setCombatMode "RED";    // 🔥 v8.3: Changed from YELLOW - attack EAST enemies
         _u allowFleeing 0;
         _u disableAI "SUPPRESSION";
         _u setUnitPos "AUTO";
@@ -507,8 +507,8 @@ DEFENDER_fnc_spawnZones = {
                 _grp setFormation "WEDGE";
                 _grp setSpeedMode "LIMITED";
                 _grp enableAttack true;
-                _grp setCombatMode "YELLOW";
-                _grp setBehaviour "SAFE";
+                _grp setCombatMode "RED";     // 🔥 v8.3: Changed from YELLOW to RED - seek and destroy EAST enemies
+                _grp setBehaviour "AWARE";   // 🔥 v8.3: Changed from SAFE to AWARE - always combat-ready
 
                 if (PATROL_VCOMAI_Active) then {
                     if (!isNil "VCM_SERVERAI" && {!isNil {VCM_SERVERAI}}) then {
@@ -527,8 +527,8 @@ DEFENDER_fnc_spawnZones = {
                         private _wp = _grp addWaypoint [getPosATL (_buildings select _i), 0];
                         _wp setWaypointType "MOVE";
                         _wp setWaypointSpeed "LIMITED";
-                        _wp setWaypointBehaviour "SAFE";
-                        _wp setWaypointCombatMode "YELLOW";
+                        _wp setWaypointBehaviour "AWARE";   // 🔥 v8.3: Changed from SAFE - combat-ready
+                        _wp setWaypointCombatMode "RED";    // 🔥 v8.3: Changed from YELLOW - attack EAST
                         _wp setWaypointCompletionRadius 25;
                         _wp setWaypointTimeout WP_TIMEOUT;
                     };
@@ -540,8 +540,8 @@ DEFENDER_fnc_spawnZones = {
                         private _wp = _grp addWaypoint [[_pos, _wpDist, _i * 45] call BIS_fnc_relPos, 0];
                         _wp setWaypointType "MOVE";
                         _wp setWaypointSpeed "LIMITED";
-                        _wp setWaypointBehaviour "SAFE";
-                        _wp setWaypointCombatMode "YELLOW";
+                        _wp setWaypointBehaviour "AWARE";   // 🔥 v8.3: Changed from SAFE - combat-ready
+                        _wp setWaypointCombatMode "RED";    // 🔥 v8.3: Changed from YELLOW - attack EAST
                         _wp setWaypointCompletionRadius 30;
                         _wp setWaypointTimeout [15, 30, 45];
                     };

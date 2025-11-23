@@ -338,20 +338,44 @@ RECRUIT_fnc_FSM_AnalyzeThreat = {
     // 🔥 v7.35: EXTENDED RANGE - Scan for enemies at 800m
     private _maxDist = 800;
 
+    // 🔥 v7.37: DEBUG - Log unit's own side for verification
+    private _unitSide = side _unit;
+    private _unitGroupSide = side group _unit;
+
     // Primary threat detection: EAST (A3XAI) + WEST (Zombies) as enemies
+    // v7.37: Also check for units with A3XAI_unit variable (in case side returns wrong value)
     private _threats = _unit nearEntities [["CAManBase"], _maxDist] select {
-        alive _x && {
+        alive _x && {!isPlayer _x} && {
             private _enemySide = side _x;
+            private _enemyGroupSide = side group _x;
+            private _isA3XAI = _x getVariable ["A3XAI_unit", false];
+            private _isDyCE = _x getVariable ["DyCE_unit", false];
+            private _isRecruit = _x getVariable ["ExileRecruited", false];
+
+            // Skip other recruit AI
+            if (_isRecruit) exitWith {false};
+
+            // 🔥 v7.37: Force-target A3XAI/DyCE units regardless of reported side
+            if (_isA3XAI || _isDyCE) exitWith {true};
+
             // Explicitly target EAST (A3XAI) and WEST (Zombies)
             (_enemySide == EAST) ||
+            (_enemyGroupSide == EAST) ||
             (_enemySide == WEST) ||
-            (_enemySide != side _unit && _enemySide != RESISTANCE && _unit knowsAbout _x > 0.05)
+            (_enemyGroupSide == WEST) ||
+            (_enemySide != _unitSide && _enemySide != RESISTANCE && _unit knowsAbout _x > 0.05)
         }
     };
 
     // 🔥 v7.35: Force detection of ALL EAST + WEST units within 200m regardless of knowledge
+    // v7.37: Also detect units with A3XAI_unit/DyCE_unit variables
     private _nearbyEnemies = _unit nearEntities [["CAManBase"], 200] select {
-        alive _x && (side _x == EAST || side _x == WEST)
+        alive _x && {!isPlayer _x} && {
+            private _isA3XAI = _x getVariable ["A3XAI_unit", false];
+            private _isDyCE = _x getVariable ["DyCE_unit", false];
+            private _isRecruit = _x getVariable ["ExileRecruited", false];
+            !_isRecruit && (_isA3XAI || _isDyCE || side _x == EAST || side group _x == EAST || side _x == WEST)
+        }
     };
 
     // Merge enemies and force reveal
@@ -462,21 +486,51 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _playerGroup setFormation "LINE";  // Spread out in combat
             _unit setUnitPos "AUTO";
 
-            // 🔥 v7.34: Force engagement on detected threats (not just assignedTarget)
+            // 🔥 v7.37: AGGRESSIVE ENGAGEMENT - Force attack on A3XAI/DyCE units
             private _closestThreat = _threatInfo select 1;
             if (!isNull _closestThreat && alive _closestThreat) then {
-                // Reveal enemy to AI at max knowledge
+                // Reveal enemy to ALL AI in group at max knowledge
                 _unit reveal [_closestThreat, 4.0];
-                // Force target and fire
+
+                // 🔥 v7.37: Force entire group to engage this target
+                _playerGroup reveal [_closestThreat, 4.0];
+
+                // Force target and fire using multiple methods
                 _unit doTarget _closestThreat;
                 _unit doFire _closestThreat;
                 _unit doWatch _closestThreat;
+
+                // 🔥 v7.37: Use commandTarget for group-level engagement
+                (group _unit) commandTarget _closestThreat;
+
+                // 🔥 v7.37: Ensure AI is actually aiming and can shoot
+                _unit lookAt _closestThreat;
+
+                // 🔥 v7.37: Check if AI has weapon and force weapon fire
+                private _weapon = currentWeapon _unit;
+                if (_weapon != "") then {
+                    private _muzzle = currentMuzzle _unit;
+                    private _ammo = _unit ammo _weapon;
+                    if (_ammo > 0) then {
+                        // Force fire at target
+                        _unit forceWeaponFire [_weapon, _muzzle];
+                    };
+                };
+
+                // 🔥 v7.37: Debug log for targeting issues
+                private _threatSide = side _closestThreat;
+                private _threatGroupSide = side group _closestThreat;
+                private _isA3XAI = _closestThreat getVariable ["A3XAI_unit", false];
+                diag_log format ["[AI RECRUIT COMBAT] %1 engaging %2 | Side: %3 | GroupSide: %4 | A3XAI: %5 | Dist: %6m",
+                    name _unit, typeOf _closestThreat, _threatSide, _threatGroupSide, _isA3XAI,
+                    round (_unit distance _closestThreat)];
             } else {
                 // Fallback to engine-assigned target
                 private _target = assignedTarget _unit;
                 if (!isNull _target) then {
                     _unit doWatch _target;
                     _unit doTarget _target;
+                    _unit doFire _target;
                 };
             };
         };

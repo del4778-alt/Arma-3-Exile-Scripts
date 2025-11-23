@@ -320,72 +320,66 @@ EAD_fnc_shouldUseReducedRays = {
     (_minDist > _nearDist)
 };
 
-// ✅ 4-height batch raycast with obstacle type detection (enhanced from v10.2)
+// ✅ 4-height batch raycast with obstacle type detection (FIXED v9.8)
+// BUG FIX: lineIntersectsSurfaces doesn't accept batch arrays - must call individually
 EAD_fnc_rayBatchAdvanced = {
     params ["_veh", "_rayDefs"];
 
     private _vehPos = getPosASL _veh;
     private _dir = getDir _veh;
-    private _batch = [];
+    private _distances = [];
     private _obstacleInfo = [];
+    private _heights = [0.15, 0.6, 1.2, 1.8]; // Ground, Low, Mid, Eye
 
     {
         _x params ["_angleOffset", "_dist"];
         private _ang = _dir + _angleOffset;
         private _vec = [sin _ang, cos _ang, 0];
-        private _heights = [0.15, 0.6, 1.2, 1.8]; // Ground, Low, Mid, Eye
 
-        {
-            private _startHeight = _vehPos vectorAdd [0, 0, _x];
-            private _endHeight = _startHeight vectorAdd (_vec vectorMultiply _dist);
-            _batch pushBack [_startHeight, _endHeight, _veh, objNull, true, 1, "GEOM", "NONE"];
-        } forEach _heights;
-    } forEach _rayDefs;
-
-    private _results = lineIntersectsSurfaces [_batch];
-    private _distances = [];
-    private _idx = 0;
-
-    {
-        _x params ["_angleOffset", "_dist"];
         private _minDist = _dist;
         private _obstacleType = "NONE";
         private _obstacleObject = objNull;
 
-        for "_h" from 0 to 3 do {
-            private _result = _results select (_idx + _h);
+        // Cast ray at each height level
+        {
+            private _heightOffset = _x;
+            private _startPos = _vehPos vectorAdd [0, 0, _heightOffset];
+            private _endPos = _startPos vectorAdd (_vec vectorMultiply _dist);
 
-            // ✅ FIX: Check if result has enough elements (needs at least 3 for select 2)
-            if (count _result > 2) then {
-                private _heightOffset = [0.15, 0.6, 1.2, 1.8] select _h;
-                private _startPos = _vehPos vectorAdd [0, 0, _heightOffset];
-                private _hitDist = _startPos vectorDistance (_result#0#0);
+            // ✅ FIXED: Call lineIntersectsSurfaces correctly for each ray
+            private _hits = lineIntersectsSurfaces [_startPos, _endPos, _veh, objNull, true, 1, "GEOM", "NONE"];
+
+            if (count _hits > 0) then {
+                private _hit = _hits select 0;
+                private _hitPos = _hit select 0;
+                private _hitDist = _startPos vectorDistance _hitPos;
 
                 if (_hitDist < _minDist) then {
                     _minDist = _hitDist;
-                    private _hitObj = _result select 2;
 
-                    // 🆕 Detect obstacle type (from v10.2)
-                    if (!isNull _hitObj && _obstacleType == "NONE") then {
-                        if (_hitObj isKindOf "Man") then {
-                            _obstacleType = "INFANTRY";
-                            _obstacleObject = _hitObj;
-                        } else {
-                            if (_hitObj isKindOf "Car" || _hitObj isKindOf "Tank") then {
-                                _obstacleType = "VEHICLE";
+                    // Detect obstacle type
+                    if (count _hit > 2) then {
+                        private _hitObj = _hit select 2;
+                        if (!isNull _hitObj && _obstacleType == "NONE") then {
+                            if (_hitObj isKindOf "Man") then {
+                                _obstacleType = "INFANTRY";
                                 _obstacleObject = _hitObj;
                             } else {
-                                _obstacleType = "STATIC";
+                                if (_hitObj isKindOf "Car" || _hitObj isKindOf "Tank") then {
+                                    _obstacleType = "VEHICLE";
+                                    _obstacleObject = _hitObj;
+                                } else {
+                                    _obstacleType = "STATIC";
+                                };
                             };
                         };
                     };
                 };
             };
-        };
+        } forEach _heights;
 
         _distances pushBack _minDist;
         _obstacleInfo pushBack [_obstacleType, _obstacleObject];
-        _idx = _idx + 4;
     } forEach _rayDefs;
 
     [_distances, _obstacleInfo]
@@ -1344,8 +1338,9 @@ EAD_fnc_registerDriver = {
 };
 
 diag_log "======================================================";
-diag_log "[EAD 9.7 APEX EDITION] INITIALIZED";
-diag_log "[EAD 9.7] 🆕 AI FULL SPEED MODE - 100% vehicle top speed!";
+diag_log "[EAD 9.8 APEX EDITION] INITIALIZED";
+diag_log "[EAD 9.8] 🔥 CRITICAL FIX: Raycast system now actually works!";
+diag_log "[EAD 9.8] 🆕 AI FULL SPEED MODE - 100% vehicle top speed!";
 diag_log "[EAD 9.7] 🆕 AGGRESSIVE BRIDGE MODE - 8s no-brake + velocity forcing!";
 diag_log "[EAD 9.7] 🆕 ROADKILL MODE - Speed boost when targeting EAST AI on roads!";
 diag_log "[EAD 9.7] 🆕 URBAN SPEED LIMITS - City 60/Town 80/Village 100 km/h";

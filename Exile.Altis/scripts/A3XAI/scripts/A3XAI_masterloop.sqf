@@ -606,11 +606,16 @@ while {A3XAI_enabled} do {
     // ============================================
 
     // INITIAL MISSION SPAWN: Spawn all 3 missions at startup
+    // ✅ v3.15: Increased delay between spawns to prevent EAST group limit race condition
     if (!_missionsInitialized) then {
         [3, "=== INITIAL MISSION SPAWN ==="] call A3XAI_fnc_log;
         [3, format ["Spawning %1 missions after %1s startup delay", _maxConcurrentMissions, _startupDelay]] call A3XAI_fnc_log;
 
         for "_m" from 1 to _maxConcurrentMissions do {
+            // ✅ v3.15: Set spawn lock to prevent other spawns during mission creation
+            A3XAI_spawnInProgress = true;
+            A3XAI_spawnLockTime = time;
+
             private _missionType = [] call A3XAI_fnc_selectMission;
             private _difficulty = selectRandom ["medium", "hard", "extreme"];
 
@@ -629,13 +634,17 @@ while {A3XAI_enabled} do {
             // Spawn mission
             private _result = [A3XAI_fnc_spawnMission, [_missionType, _missionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
 
+            // ✅ v3.15: Clear spawn lock after mission creation
+            A3XAI_spawnInProgress = false;
+
             if (!isNil "_result" && {count _result > 0}) then {
                 [3, format ["[%1/%2] Spawned %3 mission (%4)", _m, _maxConcurrentMissions, _missionType, _difficulty]] call A3XAI_fnc_log;
             } else {
                 [2, format ["[%1/%2] Failed to spawn %3 mission", _m, _maxConcurrentMissions, _missionType]] call A3XAI_fnc_log;
             };
 
-            sleep 2;  // Small delay between spawns
+            // ✅ v3.15: Increased from 2s to 5s to allow group creation to settle
+            sleep 5;
         };
 
         _missionsInitialized = true;
@@ -740,6 +749,7 @@ while {A3XAI_enabled} do {
     };
 
     // SCHEDULED MISSION CHECK: Replace completed missions
+    // ✅ v3.15: Uses spawn lock to prevent race conditions
     if ((time - _lastMissionCheck) >= _missionCheckInterval) then {
         private _activeMissions = count A3XAI_activeMissions;
         private _missionsNeeded = _maxConcurrentMissions - _activeMissions;
@@ -748,6 +758,10 @@ while {A3XAI_enabled} do {
             [3, format ["Mission check: %1 active, spawning %2 replacement(s)", _activeMissions, _missionsNeeded]] call A3XAI_fnc_log;
 
             for "_m" from 1 to _missionsNeeded do {
+                // ✅ v3.15: Set spawn lock to prevent other spawns during mission creation
+                A3XAI_spawnInProgress = true;
+                A3XAI_spawnLockTime = time;
+
                 private _missionType = [] call A3XAI_fnc_selectMission;
                 private _difficulty = selectRandom ["medium", "hard", "extreme"];
 
@@ -765,7 +779,11 @@ while {A3XAI_enabled} do {
                     };
                 };
 
-                sleep 1;
+                // ✅ v3.15: Clear spawn lock after mission creation
+                A3XAI_spawnInProgress = false;
+
+                // ✅ v3.15: Increased from 1s to 5s to allow group creation to settle
+                sleep 5;
             };
         } else {
             [4, format ["Mission check: All %1 missions active, no replacements needed", _activeMissions]] call A3XAI_fnc_log;

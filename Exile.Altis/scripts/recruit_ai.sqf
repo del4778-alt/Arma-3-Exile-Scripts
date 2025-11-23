@@ -1,6 +1,12 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.35 - EAST + WEST ENEMY TARGETING
+    ELITE AI RECRUIT SYSTEM v7.36 - CONTINUOUS COMBAT ENGAGEMENT FIX
     🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, responds to commands
+
+    CHANGES IN v7.36:
+    - 🔥 CRITICAL FIX: AI now continuously fires at enemies during combat!
+    - ✅ FIXED: doFire was only called during state TRANSITION, not while in combat
+    - ✅ FIXED: FSM now executes combat actions EVERY loop (1 second) instead of once
+    - 🎯 Result: Recruited AI will actually shoot at A3XAI instead of watching them
 
     CHANGES IN v7.35:
     - 🆕 WEST TARGETING: Recruited AI now also target WEST (Zombies) as enemies
@@ -56,8 +62,8 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.35 (EAST + WEST Enemy Targeting)...";
-diag_log "[AI RECRUIT] 🔥 AI TARGET EAST (A3XAI) + WEST (Zombies) AS ENEMIES!";
+diag_log "[AI RECRUIT] Starting v7.36 (Continuous Combat Engagement Fix)...";
+diag_log "[AI RECRUIT] 🔥 FIX: doFire now called EVERY combat loop, not just on state change!";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -1189,9 +1195,11 @@ RECRUIT_fnc_FSM_BrainLoop = {
                         _unit setVariable ["FSM_LastTransition", time, false];
 
                         _currentState = _nextState;
-
-                        [_unit, _currentState, _player, _playerGroup, _threatInfo] call RECRUIT_fnc_FSM_ExecuteState;
                     };
+
+                    // 🔥 v7.36 FIX: ALWAYS execute state actions, not just on transitions!
+                    // This ensures doFire is called EVERY loop iteration during combat
+                    [_unit, _currentState, _player, _playerGroup, _threatInfo] call RECRUIT_fnc_FSM_ExecuteState;
                 };
 
                 // 🆕 v7.33: SMART FOLLOW ENFORCEMENT - Respect player commands!
@@ -2216,14 +2224,18 @@ addMissionEventHandler ["PlayerConnected", {
 // STARTUP LOG
 // ====================================================================================
 diag_log "========================================";
-diag_log "[AI RECRUIT] Elite AI Recruit System v7.35 - EAST + WEST ENEMY TARGETING";
+diag_log "[AI RECRUIT] Elite AI Recruit System v7.36 - CONTINUOUS COMBAT FIX";
+diag_log "";
+diag_log "  🔥 v7.36 CRITICAL FIX:";
+diag_log "    - doFire now called EVERY combat loop (1 second), not just on state change!";
+diag_log "    - AI will actually SHOOT enemies instead of just watching them";
+diag_log "    - FSM_ExecuteState runs continuously, not just during transitions";
 diag_log "";
 diag_log "  🆕 v7.35 EAST + WEST TARGETING:";
 diag_log "    - EAST (A3XAI + DyCE) = Enemy AI";
 diag_log "    - WEST (Ravage Zombies) = Zombies";
 diag_log "    - RESISTANCE (Players + Recruits + Patrols) = Friendly";
 diag_log "    - Force reveal enemies within 200m (instant knowledge)";
-diag_log "    - Combat state uses doFire for forced engagement";
 diag_log "";
 diag_log "  🆕 v7.33 COMMAND FIXES:";
 diag_log "    - AI RESPOND TO COMMANDS IMMEDIATELY (no more double commands!)";

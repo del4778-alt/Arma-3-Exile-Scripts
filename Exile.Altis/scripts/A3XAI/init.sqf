@@ -83,8 +83,10 @@ if (isNil "A3XAI_debugMode") then {A3XAI_debugMode = (A3XAI_logLevel > 2)};  // 
 if (isNil "A3XAI_gridSize") then {A3XAI_gridSize = 1000};
 if (isNil "A3XAI_spawnDistanceMin") then {A3XAI_spawnDistanceMin = 500};
 if (isNil "A3XAI_spawnDistanceMax") then {A3XAI_spawnDistanceMax = 2000};
-if (isNil "A3XAI_maxAIGlobal") then {A3XAI_maxAIGlobal = 50};       // Base max AI (was 150)
-if (isNil "A3XAI_maxAIPerPlayer") then {A3XAI_maxAIPerPlayer = 20}; // Additional AI per player
+// ✅ v3.12: Balanced for 10 players max (~14 AI/player = 140 total)
+// WARNING: Arma 3 has 144 GROUP limit per side! Use shared groups in missions.
+if (isNil "A3XAI_maxAIGlobal") then {A3XAI_maxAIGlobal = 20};       // Base max AI (minimum for solo play)
+if (isNil "A3XAI_maxAIPerPlayer") then {A3XAI_maxAIPerPlayer = 12}; // Additional AI per player (10 players = 140 AI)
 if (isNil "A3XAI_minServerFPS") then {A3XAI_minServerFPS = 20};
 
 // Spatial grid for O(1) spawn lookups

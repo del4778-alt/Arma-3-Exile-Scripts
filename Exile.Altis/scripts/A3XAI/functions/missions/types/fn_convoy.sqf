@@ -95,6 +95,23 @@ for "_i" from 0 to (_vehicleCount - 1) do {
 
     // Create crew
     private _group = createGroup [EAST, true];
+
+    // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+    if (isNull _group) then {
+        [1, format ["Convoy vehicle %1 SKIPPED: createGroup returned null - EAST group limit reached", _i]] call A3XAI_fnc_log;
+        deleteVehicle _vehicle;
+        continue;
+    };
+
+    private _groupSide = side _group;
+    if (_groupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _group;
+        deleteVehicle _vehicle;
+        [1, format ["Convoy vehicle %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _i, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+        continue;
+    };
+
     private _crewCount = switch (true) do {
         case (_vehicleClass isKindOf "Car"): {3}; // Driver + gunner + passenger
         case (_vehicleClass isKindOf "APC"): {4}; // + commander
@@ -126,12 +143,15 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     [_group, "convoy"] call A3XAI_fnc_setGroupBehavior;
 
     // Add waypoints for convoy route
+    // ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "LIMITED";
+        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
         _wp setWaypointFormation "COLUMN";
         _wp setWaypointCombatMode "YELLOW";
+        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle waypoints

@@ -231,6 +231,23 @@ for "_i" from 0 to (_vehicleCount - 1) do {
 
     // Create crew (2-3 per vehicle)
     private _group = createGroup [EAST, true];
+
+    // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+    if (isNull _group) then {
+        [1, format ["Highway patrol vehicle %1 SKIPPED: createGroup returned null - EAST group limit reached", _v]] call A3XAI_fnc_log;
+        deleteVehicle _vehicle;
+        continue;
+    };
+
+    private _groupSide = side _group;
+    if (_groupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _group;
+        deleteVehicle _vehicle;
+        [1, format ["Highway patrol vehicle %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _v, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+        continue;
+    };
+
     private _crewCount = 2 + floor(random 2);  // 2-3 crew
 
     for "_j" from 0 to (_crewCount - 1) do {
@@ -260,12 +277,15 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _group setFormation "COLUMN";
 
     // Add patrol waypoints
+    // ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "NORMAL";  // Faster than convoy
+        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
         _wp setWaypointFormation "COLUMN";
         _wp setWaypointCombatMode "YELLOW";
+        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle waypoints (continuous patrol)

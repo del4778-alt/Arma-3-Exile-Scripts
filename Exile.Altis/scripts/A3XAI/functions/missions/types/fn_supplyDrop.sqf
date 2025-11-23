@@ -57,6 +57,23 @@ _heli flyInHeight 200;
 
 // Create pilot group
 private _pilotGroup = createGroup [EAST, true];
+
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _pilotGroup) exitWith {
+    [1, format ["SupplyDrop '%1' FAILED: createGroup (pilot) returned null - EAST group limit reached", _missionName]] call A3XAI_fnc_log;
+    deleteVehicle _heli;
+    createHashMap
+};
+
+private _pilotGroupSide = side _pilotGroup;
+if (_pilotGroupSide != EAST) exitWith {
+    private _eastGroups = {side _x == EAST} count allGroups;
+    deleteGroup _pilotGroup;
+    deleteVehicle _heli;
+    [1, format ["SupplyDrop '%1' FAILED: Pilot group created as %2 instead of EAST (EAST groups: %3/144)", _missionName, _pilotGroupSide, _eastGroups]] call A3XAI_fnc_log;
+    createHashMap
+};
+
 private _pilot = _pilotGroup createUnit ["O_helipilot_F", _heliSpawn, [], 0, "NONE"];
 _pilot moveInDriver _heli;
 [_pilot, _difficulty] call A3XAI_fnc_setAISkill;
@@ -83,6 +100,20 @@ private _paradropCount = switch (_difficulty) do {
 
 // Create paratrooper group
 private _paraGroup = createGroup [EAST, true];
+
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _paraGroup) exitWith {
+    [1, format ["SupplyDrop '%1' FAILED: createGroup (para) returned null - EAST group limit reached", _missionName]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+private _paraGroupSide = side _paraGroup;
+if (_paraGroupSide != EAST) exitWith {
+    private _eastGroups = {side _x == EAST} count allGroups;
+    deleteGroup _paraGroup;
+    [1, format ["SupplyDrop '%1' FAILED: Para group created as %2 instead of EAST (EAST groups: %3/144)", _missionName, _paraGroupSide, _eastGroups]] call A3XAI_fnc_log;
+    createHashMap
+};
 
 // Spawn paratroopers
 private _paratroopers = [];

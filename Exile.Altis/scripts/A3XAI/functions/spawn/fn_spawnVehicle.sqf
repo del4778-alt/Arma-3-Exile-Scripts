@@ -74,11 +74,17 @@ private _armedTurrets = _turretInfo select {_x select 1};  // Filter for armed t
 // Create crew
 private _group = createGroup [EAST, true];
 
-// ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
-if (!isNull _group && {side _group != EAST}) exitWith {
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    deleteVehicle _vehicle;
+    [1, format ["Cannot spawn vehicle: createGroup returned null - EAST group limit reached"]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+if (side _group != EAST) exitWith {
     deleteGroup _group;
     deleteVehicle _vehicle;
-    [1, format ["Cannot spawn vehicle: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    [1, format ["Cannot spawn vehicle: Group created as %1 instead of EAST (EAST groups: %2/144)", side _group, {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
     createHashMap
 };
 
@@ -177,12 +183,15 @@ if (count _townNames >= 2) then {
 };
 
 // Add waypoints
+// ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius across all paths
 if (count _waypoints > 1) then {
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "LIMITED";
+        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
         _wp setWaypointFormation "COLUMN";
+        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle back to first waypoint
@@ -199,6 +208,8 @@ if (count _waypoints > 1) then {
             private _wp = _group addWaypoint [_x, 0];
             _wp setWaypointType "MOVE";
             _wp setWaypointSpeed "LIMITED";
+            _wp setWaypointBehaviour "SAFE";
+            _wp setWaypointCompletionRadius 15;
         } forEach _generatedWaypoints;
 
         private _wp = _group addWaypoint [_generatedWaypoints select 0, 0];
@@ -210,6 +221,8 @@ if (count _waypoints > 1) then {
             private _wp = _group addWaypoint [_wpPos, 0];
             _wp setWaypointType "MOVE";
             _wp setWaypointSpeed "LIMITED";
+            _wp setWaypointBehaviour "SAFE";
+            _wp setWaypointCompletionRadius 15;
         };
 
         private _wp = _group addWaypoint [_roadPos, 0];

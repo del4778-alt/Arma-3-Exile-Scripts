@@ -70,6 +70,21 @@ private _squadSize = switch (_difficulty) do {
 
 // Create hunter group
 private _group = createGroup [EAST, true];
+
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    [1, format ["Hunter FAILED: createGroup returned null - EAST group limit reached"]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+private _groupSide = side _group;
+if (_groupSide != EAST) exitWith {
+    private _eastGroups = {side _x == EAST} count allGroups;
+    deleteGroup _group;
+    [1, format ["Hunter FAILED: Group created as %1 instead of EAST (EAST groups: %2/144)", _groupSide, _eastGroups]] call A3XAI_fnc_log;
+    createHashMap
+};
+
 _group setVariable ["A3XAI_isHunter", true];
 _group setVariable ["A3XAI_hunterTarget", _targetPlayer];
 

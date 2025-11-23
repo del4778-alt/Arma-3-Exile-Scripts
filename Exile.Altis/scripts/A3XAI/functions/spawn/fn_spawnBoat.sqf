@@ -47,11 +47,17 @@ _boat lock 2;
 // Create crew
 private _group = createGroup [EAST, true];
 
-// ✅ FIX: Check if group was created with wrong side (happens when EAST side group limit reached)
-if (!isNull _group && {side _group != EAST}) exitWith {
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    deleteVehicle _boat;
+    [1, format ["Cannot spawn boat: createGroup returned null - EAST group limit reached"]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+if (side _group != EAST) exitWith {
     deleteGroup _group;
     deleteVehicle _boat;
-    [1, format ["Cannot spawn boat: EAST side group limit reached (144 max). Current groups: %1", {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    [1, format ["Cannot spawn boat: Group created as %1 instead of EAST (EAST groups: %2/144)", side _group, {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
     createHashMap
 };
 

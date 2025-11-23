@@ -44,6 +44,21 @@ _heli flyInHeight (100 + random 50);
 
 // Create crew
 private _group = createGroup [EAST, true];
+
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    deleteVehicle _heli;
+    [1, format ["Cannot spawn heli: createGroup returned null - EAST group limit reached"]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+if (side _group != EAST) exitWith {
+    deleteGroup _group;
+    deleteVehicle _heli;
+    [1, format ["Cannot spawn heli: Group created as %1 instead of EAST (EAST groups: %2/144)", side _group, {side _x == EAST} count allGroups]] call A3XAI_fnc_log;
+    createHashMap
+};
+
 private _crewCount = 3; // Pilot + copilot + gunner
 
 for "_i" from 0 to (_crewCount - 1) do {

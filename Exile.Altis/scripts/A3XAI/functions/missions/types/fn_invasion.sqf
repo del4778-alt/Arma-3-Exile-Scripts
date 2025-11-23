@@ -84,6 +84,21 @@ _buildings = _buildings select {
 // Spawn patrol groups on streets
 for "_g" from 0 to (_groupCount - 1) do {
     private _group = createGroup [EAST, true];
+
+    // ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+    if (isNull _group) then {
+        [1, format ["Invasion group %1 SKIPPED: createGroup returned null - EAST group limit reached", _g]] call A3XAI_fnc_log;
+        continue;
+    };
+
+    private _groupSide = side _group;
+    if (_groupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _group;
+        [1, format ["Invasion group %1 SKIPPED: Group created as %2 instead of EAST (EAST groups: %3/144)", _g, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+        continue;
+    };
+
     private _groupSize = 3 + floor(random 3);  // 3-5 AI per group
 
     // Random position in town
@@ -125,54 +140,72 @@ for "_g" from 0 to (_groupCount - 1) do {
     _allGroups pushBack _group;
 };
 
-// Spawn building defenders
+// ✅ v3.12: Spawn building defenders in SHARED GROUP (saves ~10-15 groups!)
+// Previously created 1 group per defender, now all defenders share 1 group
 private _defenderCount = floor(_scaledCount * 0.3);  // 30% are building defenders
 private _usedBuildings = [];
 
-for "_d" from 0 to (_defenderCount - 1) do {
-    if (count _buildings == 0) exitWith {};
+// Create single shared defender group
+private _defenderGroup = createGroup [EAST, true];
 
-    // Find unused building
-    private _building = objNull;
-    {
-        if !(_x in _usedBuildings) exitWith {
-            _building = _x;
-            _usedBuildings pushBack _x;
+if (isNull _defenderGroup) then {
+    [1, "Invasion defenders SKIPPED: createGroup returned null - EAST group limit reached"] call A3XAI_fnc_log;
+} else {
+    private _defGroupSide = side _defenderGroup;
+    if (_defGroupSide != EAST) then {
+        private _eastGroups = {side _x == EAST} count allGroups;
+        deleteGroup _defenderGroup;
+        [1, format ["Invasion defenders SKIPPED: Group created as %1 instead of EAST (EAST groups: %2/144)", _defGroupSide, _eastGroups]] call A3XAI_fnc_log;
+    } else {
+        // Spawn all defenders into the shared group
+        for "_d" from 0 to (_defenderCount - 1) do {
+            if (count _buildings == 0) exitWith {};
+
+            // Find unused building
+            private _building = objNull;
+            {
+                if !(_x in _usedBuildings) exitWith {
+                    _building = _x;
+                    _usedBuildings pushBack _x;
+                };
+            } forEach _buildings;
+
+            if (isNull _building) then {continue};
+
+            private _positions = _building buildingPos -1;
+            if (count _positions == 0) then {continue};
+
+            private _defPos = selectRandom _positions;
+
+            private _unit = _defenderGroup createUnit ["O_Soldier_F", _defPos, [], 0, "NONE"];
+
+            // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+            _unit allowDamage false;
+
+            _unit setPos _defPos;
+            _unit setUnitPos "MIDDLE";  // Crouched/kneeling
+            _unit disableAI "PATH";  // Stay in building position
+
+            [_unit, _difficulty] call A3XAI_fnc_initAI;
+            [_unit, _difficulty] call A3XAI_fnc_setAISkill;
+            [_unit, _difficulty] call A3XAI_fnc_equipAI;
+            [_unit] call A3XAI_fnc_addAIEventHandlers;
         };
-    } forEach _buildings;
 
-    if (isNull _building) exitWith {};
-
-    private _positions = _building buildingPos -1;
-    if (count _positions == 0) then {continue};
-
-    private _defPos = selectRandom _positions;
-
-    // Create defender group (single unit)
-    private _group = createGroup [EAST, true];
-    private _unit = _group createUnit ["O_Soldier_F", _defPos, [], 0, "NONE"];
-
-    // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
-    _unit allowDamage false;
-
-    _unit setPos _defPos;
-    _unit setUnitPos "MIDDLE";  // Crouched/kneeling
-
-    [_unit, _difficulty] call A3XAI_fnc_initAI;
-    [_unit, _difficulty] call A3XAI_fnc_setAISkill;
-    [_unit, _difficulty] call A3XAI_fnc_equipAI;
-    [_unit] call A3XAI_fnc_addAIEventHandlers;
-
-    // Defend position
-    [_group, "defend"] call A3XAI_fnc_setGroupBehavior;
-
-    private _wp = _group addWaypoint [_defPos, 0];
-    _wp setWaypointType "GUARD";
-
-    _allGroups pushBack _group;
+        // Set shared group behavior
+        if (count units _defenderGroup > 0) then {
+            [_defenderGroup, "defend"] call A3XAI_fnc_setGroupBehavior;
+            _defenderGroup setCombatMode "RED";
+            _allGroups pushBack _defenderGroup;
+            [4, format ["Invasion: %1 building defenders in 1 shared group", count units _defenderGroup]] call A3XAI_fnc_log;
+        } else {
+            deleteGroup _defenderGroup;
+        };
+    };
 };
 
-// Spawn snipers on tall buildings (hard/extreme only)
+// ✅ v3.12: Spawn snipers in SHARED GROUP (saves 2-4 groups!)
+// Snipers on tall buildings (hard/extreme only)
 if (_difficulty in ["hard", "extreme"]) then {
     private _sniperCount = switch (_difficulty) do {
         case "hard": {2};
@@ -188,37 +221,58 @@ if (_difficulty in ["hard", "extreme"]) then {
         (_topPos select 2) > 5  // At least 5m high
     };
 
-    for "_s" from 0 to ((_sniperCount - 1) min (count _tallBuildings - 1)) do {
-        private _building = _tallBuildings select _s;
-        private _positions = _building buildingPos -1;
-        private _topPos = _positions select (count _positions - 1);  // Highest position
+    // Create single shared sniper group
+    private _sniperGroup = createGroup [EAST, true];
 
-        private _group = createGroup [EAST, true];
-        private _sniper = _group createUnit ["O_sniper_F", _topPos, [], 0, "NONE"];
+    if (isNull _sniperGroup) then {
+        [1, "Invasion snipers SKIPPED: createGroup returned null - EAST group limit reached"] call A3XAI_fnc_log;
+    } else {
+        private _sniperGroupSide = side _sniperGroup;
+        if (_sniperGroupSide != EAST) then {
+            private _eastGroups = {side _x == EAST} count allGroups;
+            deleteGroup _sniperGroup;
+            [1, format ["Invasion snipers SKIPPED: Group created as %1 instead of EAST (EAST groups: %2/144)", _sniperGroupSide, _eastGroups]] call A3XAI_fnc_log;
+        } else {
+            // Spawn all snipers into the shared group
+            for "_s" from 0 to ((_sniperCount - 1) min (count _tallBuildings - 1)) do {
+                private _building = _tallBuildings select _s;
+                private _positions = _building buildingPos -1;
+                private _topPos = _positions select (count _positions - 1);  // Highest position
 
-        _sniper setPos _topPos;
-        _sniper setUnitPos "DOWN";  // Prone
+                private _sniper = _sniperGroup createUnit ["O_sniper_F", _topPos, [], 0, "NONE"];
 
-        [_sniper, _difficulty] call A3XAI_fnc_initAI;
-        [_sniper, _difficulty] call A3XAI_fnc_setAISkill;
+                // ✅ v3.7: CRITICAL - Spawn protection IMMEDIATELY after creation
+                _sniper allowDamage false;
 
-        // Give sniper rifle
-        removeAllWeapons _sniper;
-        _sniper addWeapon "srifle_GM6_F";
-        _sniper addMagazine "5Rnd_127x108_Mag";
-        _sniper addMagazine "5Rnd_127x108_Mag";
-        _sniper addMagazine "5Rnd_127x108_Mag";
+                _sniper setPos _topPos;
+                _sniper setUnitPos "DOWN";  // Prone
+                _sniper disableAI "PATH";   // Stay on rooftop position
 
-        [_sniper] call A3XAI_fnc_addAIEventHandlers;
+                [_sniper, _difficulty] call A3XAI_fnc_initAI;
+                [_sniper, _difficulty] call A3XAI_fnc_setAISkill;
 
-        [_group, "defend"] call A3XAI_fnc_setGroupBehavior;
+                // Give sniper rifle
+                removeAllWeapons _sniper;
+                _sniper addWeapon "srifle_GM6_F";
+                _sniper addMagazine "5Rnd_127x108_Mag";
+                _sniper addMagazine "5Rnd_127x108_Mag";
+                _sniper addMagazine "5Rnd_127x108_Mag";
 
-        private _wp = _group addWaypoint [_topPos, 0];
-        _wp setWaypointType "GUARD";
+                [_sniper] call A3XAI_fnc_addAIEventHandlers;
 
-        _allGroups pushBack _group;
+                [4, format ["Invasion: Sniper spawned at height %1m", _topPos select 2]] call A3XAI_fnc_log;
+            };
 
-        [3, format ["Invasion: Sniper spawned at height %1m", _topPos select 2]] call A3XAI_fnc_log;
+            // Set shared group behavior
+            if (count units _sniperGroup > 0) then {
+                [_sniperGroup, "defend"] call A3XAI_fnc_setGroupBehavior;
+                _sniperGroup setCombatMode "RED";
+                _allGroups pushBack _sniperGroup;
+                [4, format ["Invasion: %1 snipers in 1 shared group", count units _sniperGroup]] call A3XAI_fnc_log;
+            } else {
+                deleteGroup _sniperGroup;
+            };
+        };
     };
 };
 

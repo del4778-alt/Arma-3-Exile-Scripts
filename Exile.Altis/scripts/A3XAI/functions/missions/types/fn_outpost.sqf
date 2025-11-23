@@ -118,6 +118,20 @@ private _defenderCount = switch (_difficulty) do {
 // Spawn initial defenders
 private _group = createGroup [EAST, true];
 
+// ✅ v3.12: CRITICAL - Verify group was created as EAST (Arma 3 has 144 group limit per side)
+if (isNull _group) exitWith {
+    [1, format ["Outpost '%1' FAILED: createGroup returned null - EAST group limit reached", _missionName]] call A3XAI_fnc_log;
+    createHashMap
+};
+
+private _groupSide = side _group;
+if (_groupSide != EAST) exitWith {
+    private _eastGroups = {side _x == EAST} count allGroups;
+    deleteGroup _group;
+    [1, format ["Outpost '%1' FAILED: Group created as %2 instead of EAST (EAST groups: %3/144)", _missionName, _groupSide, _eastGroups]] call A3XAI_fnc_log;
+    createHashMap
+};
+
 // Define spawn positions (for initial + reinforcements)
 private _spawnLocations = [];
 for "_i" from 0 to 7 do {

@@ -46,6 +46,7 @@ if (isClass (missionConfigFile >> "CfgA3XAI")) then {
     if (isNumber (_cfg >> "A3XAI_townTriggerRadius")) then {A3XAI_townTriggerRadius = getNumber (_cfg >> "A3XAI_townTriggerRadius")};
     if (isNumber (_cfg >> "A3XAI_townDespawnRadius")) then {A3XAI_townDespawnRadius = getNumber (_cfg >> "A3XAI_townDespawnRadius")};
     if (isNumber (_cfg >> "A3XAI_townDespawnDelay")) then {A3XAI_townDespawnDelay = getNumber (_cfg >> "A3XAI_townDespawnDelay")};
+    if (isNumber (_cfg >> "A3XAI_townSpawnChance")) then {A3XAI_townSpawnChance = getNumber (_cfg >> "A3XAI_townSpawnChance")};
     if (isNumber (_cfg >> "A3XAI_lootDespawnTime")) then {A3XAI_lootDespawnTime = getNumber (_cfg >> "A3XAI_lootDespawnTime")};
     if (isNumber (_cfg >> "A3XAI_enableMissionMarkers")) then {A3XAI_enableMissionMarkers = getNumber (_cfg >> "A3XAI_enableMissionMarkers") > 0};
     if (isNumber (_cfg >> "A3XAI_enableMissionNotifications")) then {A3XAI_enableMissionNotifications = getNumber (_cfg >> "A3XAI_enableMissionNotifications") > 0};
@@ -161,10 +162,12 @@ if (isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown = 2};      // M
 if (isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup = 4};            // 4 AI per group (8 max per town)
 if (isNil "A3XAI_townRespawnCooldown") then {A3XAI_townRespawnCooldown = 900}; // 15 min cooldown per town
 // v3.14: Town trigger system (spawn only when players enter)
+// Based on original A3XAI balance by TheGrayJacket/ispan55
 if (isNil "A3XAI_townTriggerEnabled") then {A3XAI_townTriggerEnabled = true};  // Enable by default
-if (isNil "A3XAI_townTriggerRadius") then {A3XAI_townTriggerRadius = 400};     // 400m trigger radius
-if (isNil "A3XAI_townDespawnRadius") then {A3XAI_townDespawnRadius = 800};     // 800m despawn radius
-if (isNil "A3XAI_townDespawnDelay") then {A3XAI_townDespawnDelay = 300};       // 5 min despawn delay
+if (isNil "A3XAI_townTriggerRadius") then {A3XAI_townTriggerRadius = 350};     // 350m trigger radius
+if (isNil "A3XAI_townDespawnRadius") then {A3XAI_townDespawnRadius = 600};     // 600m despawn radius
+if (isNil "A3XAI_townDespawnDelay") then {A3XAI_townDespawnDelay = 120};       // 2 min despawn delay (original A3XAI)
+if (isNil "A3XAI_townSpawnChance") then {A3XAI_townSpawnChance = 60};          // 60% spawn chance (not guaranteed)
 if (isNil "A3XAI_showHunterMarkers") then {A3XAI_showHunterMarkers = false};
 if (isNil "A3XAI_hunterTargetClosest") then {A3XAI_hunterTargetClosest = true};
 if (isNil "A3XAI_hostagesJoinRescuer") then {A3XAI_hostagesJoinRescuer = false};

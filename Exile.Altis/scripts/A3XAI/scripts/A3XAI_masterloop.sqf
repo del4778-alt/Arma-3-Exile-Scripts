@@ -187,17 +187,18 @@ private _fnc_despawnTown = {
 };
 
 private _triggerEnabled = if (!isNil "A3XAI_townTriggerEnabled") then {A3XAI_townTriggerEnabled} else {true};
-private _triggerRadius = if (!isNil "A3XAI_townTriggerRadius") then {A3XAI_townTriggerRadius} else {400};
-private _despawnRadius = if (!isNil "A3XAI_townDespawnRadius") then {A3XAI_townDespawnRadius} else {800};
-private _despawnDelay = if (!isNil "A3XAI_townDespawnDelay") then {A3XAI_townDespawnDelay} else {300};
+private _triggerRadius = if (!isNil "A3XAI_townTriggerRadius") then {A3XAI_townTriggerRadius} else {350};
+private _despawnRadius = if (!isNil "A3XAI_townDespawnRadius") then {A3XAI_townDespawnRadius} else {600};
+private _despawnDelay = if (!isNil "A3XAI_townDespawnDelay") then {A3XAI_townDespawnDelay} else {120};
+private _spawnChance = if (!isNil "A3XAI_townSpawnChance") then {A3XAI_townSpawnChance} else {60};
 
 [3, format ["Town spawn limits: Max %1 groups per town, %2s cooldown",
     (if (!isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown} else {2}),
     (if (!isNil "A3XAI_townRespawnCooldown") then {A3XAI_townRespawnCooldown} else {900})]] call A3XAI_fnc_log;
 
 if (_triggerEnabled) then {
-    [3, format ["Town trigger system ENABLED: %1m spawn radius, %2m despawn radius, %3s delay",
-        _triggerRadius, _despawnRadius, _despawnDelay]] call A3XAI_fnc_log;
+    [3, format ["Town trigger system ENABLED: %1m spawn, %2m despawn, %3s delay, %4%5 chance",
+        _triggerRadius, _despawnRadius, _despawnDelay, _spawnChance, "%"]] call A3XAI_fnc_log;
 } else {
     [3, "Town trigger system DISABLED - using random spawning"] call A3XAI_fnc_log;
 };
@@ -358,31 +359,36 @@ while {A3XAI_enabled} do {
             private _playersInDespawn = [_townPos, _despawnRadius] call _fnc_playersNearPos;
 
             if (_playersInTrigger) then {
-                // Player in town - spawn AI if allowed
+                // Player in town - spawn AI if allowed (with chance roll)
                 A3XAI_townDespawnTimers deleteAt _townName;  // Cancel any despawn timer
 
                 if (_spawnAttempts < _maxSpawnsThisCycle) then {
                     if ([_townName] call _fnc_canSpawnInTown) then {
-                        // Find spawn position within town area (50-150m from center)
-                        private _distance = 50 + random 100;
-                        private _dir = random 360;
-                        private _spawnPos = _townPos getPos [_distance, _dir];
+                        // Roll spawn chance (original A3XAI style - not guaranteed)
+                        if ((random 100) < _spawnChance) then {
+                            // Find spawn position within town area (50-150m from center)
+                            private _distance = 50 + random 100;
+                            private _dir = random 360;
+                            private _spawnPos = _townPos getPos [_distance, _dir];
 
-                        if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
-                            private _difficulty = selectRandom ["easy", "medium", "hard"];
-                            private _groupSize = if (!isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup} else {4};
-                            private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, _groupSize, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
+                            if ([_spawnPos, "land"] call A3XAI_fnc_isValidSpawnPos) then {
+                                private _difficulty = selectRandom ["easy", "medium", "hard"];
+                                private _groupSize = if (!isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup} else {4};
+                                private _result = [A3XAI_fnc_spawnInfantry, [_spawnPos, _groupSize, _difficulty], "spawnInfantry"] call A3XAI_fnc_safeCall;
 
-                            if (!isNil "_result") then {
-                                _spawnAttempts = _spawnAttempts + 1;
+                                if (!isNil "_result") then {
+                                    _spawnAttempts = _spawnAttempts + 1;
 
-                                private _group = _result getOrDefault ["group", grpNull];
-                                if (!isNull _group) then {
-                                    [_townName, _group] call _fnc_registerTownSpawn;
+                                    private _group = _result getOrDefault ["group", grpNull];
+                                    if (!isNull _group) then {
+                                        [_townName, _group] call _fnc_registerTownSpawn;
+                                    };
+
+                                    [3, format ["[TownTrigger] Player entered %1 - spawned infantry (%2)", _townName, _difficulty]] call A3XAI_fnc_log;
                                 };
-
-                                [3, format ["[TownTrigger] Player entered %1 - spawned infantry (%2)", _townName, _difficulty]] call A3XAI_fnc_log;
                             };
+                        } else {
+                            [4, format ["[TownTrigger] Player in %1 - spawn roll failed (%2%3 chance)", _townName, _spawnChance, "%"]] call A3XAI_fnc_log;
                         };
                     };
                 };

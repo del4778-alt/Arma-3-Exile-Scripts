@@ -163,12 +163,14 @@ class CfgA3XAI {
     // ================================================================
     // TOWN TRIGGER SYSTEM (v3.14)
     // AI only spawns when players enter town areas
+    // Based on original A3XAI balance by TheGrayJacket/ispan55
     // ================================================================
 
     A3XAI_townTriggerEnabled = 1;               // Enable trigger-based spawning (1=yes, 0=no/random)
-    A3XAI_townTriggerRadius = 400;              // Spawn AI when player within this radius of town center
-    A3XAI_townDespawnRadius = 800;              // Despawn AI when all players beyond this radius
-    A3XAI_townDespawnDelay = 300;               // Delay before despawning (seconds) - 5 minutes
+    A3XAI_townTriggerRadius = 350;              // Spawn AI when player within this radius of town center
+    A3XAI_townDespawnRadius = 600;              // Despawn AI when all players beyond this radius
+    A3XAI_townDespawnDelay = 120;               // Delay before despawning (seconds) - 2 minutes (original A3XAI)
+    A3XAI_townSpawnChance = 60;                 // Chance (%) to spawn when entering town (not guaranteed)
 
     // ================================================================
     // AI DIFFICULTY SETTINGS

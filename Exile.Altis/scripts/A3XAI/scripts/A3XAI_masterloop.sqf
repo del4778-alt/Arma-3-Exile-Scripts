@@ -392,7 +392,8 @@ while {A3XAI_enabled} do {
                         };
                     };
                 };
-            } else if (_hasAI) then {
+            } else {
+                if (_hasAI) then {
                 // No players in trigger zone but town has AI - check despawn
                 if (!_playersInDespawn) then {
                     // Players left despawn zone - start/check timer
@@ -415,6 +416,7 @@ while {A3XAI_enabled} do {
                         A3XAI_townDespawnTimers deleteAt _townName;
                         [4, format ["[TownTrigger] Player returned near %1 - despawn cancelled", _townName]] call A3XAI_fnc_log;
                     };
+                };
                 };
             };
         } forEach _townNames;

@@ -11,7 +11,8 @@
         ARRAY - Array of waypoint positions, or empty array if failed
 */
 
-params ["_startPos", ["_routeLength", 1500], ["_maxWaypoints", 10]];
+// ✅ v3.12b: Increased default waypoints and reduced spacing for better road following
+params ["_startPos", ["_routeLength", 1500], ["_maxWaypoints", 15]];
 
 private _waypoints = [];
 
@@ -27,7 +28,7 @@ private _currentPos = position _currentRoad;
 _waypoints pushBack _currentPos;
 
 private _visited = [_currentRoad];
-private _minSpacing = 100; // Minimum distance between waypoints
+private _minSpacing = 50; // Reduced from 100m - tighter waypoints = less offroad shortcuts
 
 // Generate waypoints by following road network
 for "_i" from 1 to (_maxWaypoints - 1) do {

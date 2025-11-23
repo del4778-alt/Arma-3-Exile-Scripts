@@ -355,12 +355,14 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _waypoints pushBack _endWaypoint;
 
     // Create waypoints
+    // ✅ v3.12b: Fixed driving behavior - reduced completion radius to prevent offroad shortcuts
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "LIMITED";
+        _wp setWaypointBehaviour "SAFE";  // SAFE = careful driving, stays on roads
         _wp setWaypointFormation "COLUMN";
-        _wp setWaypointCompletionRadius 50;
+        _wp setWaypointCompletionRadius 15;  // Was 50m! Caused massive corner-cutting
     } forEach _waypoints;
 
     // Cycle back to start

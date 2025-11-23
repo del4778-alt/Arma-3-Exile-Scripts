@@ -277,12 +277,15 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     _group setFormation "COLUMN";
 
     // Add patrol waypoints
+    // ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "NORMAL";  // Faster than convoy
+        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
         _wp setWaypointFormation "COLUMN";
         _wp setWaypointCombatMode "YELLOW";
+        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle waypoints (continuous patrol)

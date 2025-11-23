@@ -183,12 +183,15 @@ if (count _townNames >= 2) then {
 };
 
 // Add waypoints
+// ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius across all paths
 if (count _waypoints > 1) then {
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
         _wp setWaypointSpeed "LIMITED";
+        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
         _wp setWaypointFormation "COLUMN";
+        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle back to first waypoint
@@ -205,6 +208,8 @@ if (count _waypoints > 1) then {
             private _wp = _group addWaypoint [_x, 0];
             _wp setWaypointType "MOVE";
             _wp setWaypointSpeed "LIMITED";
+            _wp setWaypointBehaviour "SAFE";
+            _wp setWaypointCompletionRadius 15;
         } forEach _generatedWaypoints;
 
         private _wp = _group addWaypoint [_generatedWaypoints select 0, 0];
@@ -216,6 +221,8 @@ if (count _waypoints > 1) then {
             private _wp = _group addWaypoint [_wpPos, 0];
             _wp setWaypointType "MOVE";
             _wp setWaypointSpeed "LIMITED";
+            _wp setWaypointBehaviour "SAFE";
+            _wp setWaypointCompletionRadius 15;
         };
 
         private _wp = _group addWaypoint [_roadPos, 0];

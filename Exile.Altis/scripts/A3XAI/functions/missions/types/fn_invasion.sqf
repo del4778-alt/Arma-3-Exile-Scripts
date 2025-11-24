@@ -59,18 +59,19 @@ private _missionData = createHashMapFromArray [
 private _missionObjects = [];
 private _allGroups = [];
 
-// Calculate AI count based on difficulty and town size
+// ✅ v3.20: REDUCED AI - Max 5 AI per mission regardless of difficulty
+// Fewer but tougher AI to prevent 144 group limit issues
 private _baseCount = switch (_difficulty) do {
-    case "easy": {8};
-    case "medium": {14};
-    case "hard": {22};
-    case "extreme": {30};
-    default {10};
+    case "easy": {3};
+    case "medium": {4};
+    case "hard": {5};
+    case "extreme": {5};
+    default {4};
 };
 
-// Scale with town size
-private _scaledCount = _baseCount + floor(_townRadius / 50);
-private _groupCount = ceil(_scaledCount / 4);  // 4 AI per group average
+// ✅ v3.20: No scaling - fixed count to keep AI low
+private _scaledCount = _baseCount;
+private _groupCount = 1;  // Single group only
 
 [3, format ["Invasion: Spawning %1 AI in %2 groups", _scaledCount, _groupCount]] call A3XAI_fnc_log;
 
@@ -99,7 +100,7 @@ for "_g" from 0 to (_groupCount - 1) do {
         continue;
     };
 
-    private _groupSize = 3 + floor(random 3);  // 3-5 AI per group
+    private _groupSize = _scaledCount min 5;  // ✅ v3.20: Use scaled count, max 5
 
     // Random position in town
     private _spawnPos = _townPos getPos [random _townRadius, random 360];
@@ -140,9 +141,9 @@ for "_g" from 0 to (_groupCount - 1) do {
     _allGroups pushBack _group;
 };
 
-// ✅ v3.12: Spawn building defenders in SHARED GROUP (saves ~10-15 groups!)
-// Previously created 1 group per defender, now all defenders share 1 group
-private _defenderCount = floor(_scaledCount * 0.3);  // 30% are building defenders
+// ✅ v3.20: DISABLED defenders - all AI in patrol group (max 5 total)
+// v3.12: Spawn building defenders in SHARED GROUP (saves ~10-15 groups!)
+private _defenderCount = 0;  // ✅ v3.20: Disabled - keep AI count at 5 max
 private _usedBuildings = [];
 
 // Create single shared defender group
@@ -204,14 +205,10 @@ if (isNull _defenderGroup) then {
     };
 };
 
-// ✅ v3.12: Spawn snipers in SHARED GROUP (saves 2-4 groups!)
-// Snipers on tall buildings (hard/extreme only)
-if (_difficulty in ["hard", "extreme"]) then {
-    private _sniperCount = switch (_difficulty) do {
-        case "hard": {2};
-        case "extreme": {4};
-        default {0};
-    };
+// ✅ v3.20: DISABLED snipers - all AI in patrol group (max 5 total)
+// v3.12: Spawn snipers in SHARED GROUP (saves 2-4 groups!)
+if (false) then {  // ✅ v3.20: Disabled to keep AI at 5 max
+    private _sniperCount = 0;
 
     // Find tallest buildings
     private _tallBuildings = _buildings select {

@@ -161,8 +161,35 @@ _unit addEventHandler ["Killed", {
 }];
 
 // ✅ v3.9: HandleDamage - Log all damage sources to diagnose quick deaths
+// ✅ v3.19: FRIENDLY FIRE PROTECTION - A3XAI units don't damage other A3XAI units
 _unit addEventHandler ["HandleDamage", {
     params ["_unit", "_selection", "_damage", "_source", "_projectile", "_hitIndex", "_instigator", "_hitPoint"];
+
+    // ✅ v3.19: FRIENDLY FIRE CHECK - Block damage from other A3XAI/DyCE units
+    // This prevents issues when groups accidentally spawn on wrong side due to 144 group limit
+    private _sourceIsA3XAI = false;
+    if (!isNull _source) then {
+        _sourceIsA3XAI = (_source getVariable ["A3XAI_unit", false]) ||
+                         (_source getVariable ["DyCE_unit", false]) ||
+                         (_source getVariable ["A3XAI_spawned", false]);
+    };
+    if (!isNull _instigator && !_sourceIsA3XAI) then {
+        _sourceIsA3XAI = (_instigator getVariable ["A3XAI_unit", false]) ||
+                         (_instigator getVariable ["DyCE_unit", false]) ||
+                         (_instigator getVariable ["A3XAI_spawned", false]);
+    };
+
+    // If source is also A3XAI - block the damage (friendly fire)
+    if (_sourceIsA3XAI) exitWith {
+        // Log friendly fire attempts (only first 30 seconds for debugging)
+        private _spawnTime = _unit getVariable ["A3XAI_spawnTime", 0];
+        private _aliveTime = time - _spawnTime;
+        if (_aliveTime < 30 && _damage > 0.1) then {
+            private _srcType = if (!isNull _instigator) then {typeOf _instigator} else {typeOf _source};
+            diag_log format ["[A3XAI:FF] BLOCKED friendly fire! Source: %1 -> Target at %2", _srcType, getPosATL _unit];
+        };
+        0  // Return 0 damage - block friendly fire completely
+    };
 
     // Only log significant damage (> 0.1)
     if (_damage > 0.1) then {

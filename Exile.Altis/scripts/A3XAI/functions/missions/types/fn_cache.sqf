@@ -62,13 +62,13 @@ private _camoPos = _cachePos getPos [8, random 360];
 private _camo = "CamoNet_OPFOR_big_F" createVehicle _camoPos;
 _missionObjects pushBack _camo;
 
-// Determine guard count based on difficulty
+// ✅ v3.20: REDUCED AI - Max 5 per mission
 private _guardCount = switch (_difficulty) do {
-    case "easy": {5};
-    case "medium": {8};
-    case "hard": {12};
-    case "extreme": {16};
-    default {5};
+    case "easy": {3};
+    case "medium": {4};
+    case "hard": {5};
+    case "extreme": {5};
+    default {4};
 };
 
 // Spawn guards

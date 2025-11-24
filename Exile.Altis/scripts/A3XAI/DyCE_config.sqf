@@ -46,8 +46,8 @@ DyCE_Config = createHashMapFromArray [
     // AI CONFIGURATION
     // ========================================
     ["aiSide", EAST],                   // All DyCE AI are EAST (enemies)
-    ["aiSkillMin", 0.5],                // Minimum AI skill
-    ["aiSkillMax", 0.9],                // Maximum AI skill
+    ["aiSkillMin", 0.7],                // ✅ v3.20: Increased from 0.5 (fewer but tougher AI)
+    ["aiSkillMax", 0.95],               // ✅ v3.20: Increased from 0.9
     ["aiHuntRadius", 200],              // AI engagement/hunt radius
     ["itemsPerAI", [3, 6]],             // Random loot items per AI
 
@@ -89,8 +89,8 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["speedLimit", 200],  // v3.18: Increased from 60 for high-speed pursuit
         ["spawnAltitude", 0],
         ["alertMessage", "Enemy patrol detected in the area!"],
-        ["vehicleCount", [2, 3]],       // 2-3 vehicles
-        ["crewPerVehicle", [2, 3]],     // 2-3 crew
+        ["vehicleCount", [1, 2]],       // ✅ v3.20: Reduced to 1-2 vehicles (was 2-3)
+        ["crewPerVehicle", [2, 2]],     // ✅ v3.20: Fixed at 2 crew (max 4 AI total)
         ["vehicles", [
             "Exile_Car_Offroad_Armed_Guerilla01",
             "Exile_Car_Offroad_Armed_Guerilla02",
@@ -122,8 +122,8 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["speedLimit", 150],  // v3.18: Increased from 50 for faster transport
         ["spawnAltitude", 0],
         ["alertMessage", "Police convoy spotted - heavy resistance expected!"],
-        ["vehicleCount", [3, 4]],       // 3-4 vehicles
-        ["crewPerVehicle", [3, 4]],     // 3-4 crew (more troops)
+        ["vehicleCount", [1, 2]],       // ✅ v3.20: Reduced to 1-2 vehicles (was 3-4)
+        ["crewPerVehicle", [2, 3]],     // ✅ v3.20: Reduced to 2-3 crew (max 5 AI total)
         ["vehicles", [
             "Exile_Car_Offroad_Armed_Guerilla01",
             "Exile_Car_Offroad_Armed_Guerilla02",
@@ -154,8 +154,8 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["speedLimit", 250],  // v3.18: Increased from 80 for high-speed highway pursuit
         ["spawnAltitude", 0],
         ["alertMessage", ""],           // No alert - surprise encounter
-        ["vehicleCount", [1, 2]],
-        ["crewPerVehicle", [2, 3]],
+        ["vehicleCount", [1, 1]],       // ✅ v3.20: Single vehicle only
+        ["crewPerVehicle", [2, 3]],     // ✅ v3.20: 2-3 crew (max 3 AI)
         ["vehicles", [
             "ivory_charger_marked",
             "ivory_taurus_marked",
@@ -185,8 +185,8 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["speedLimit", 120],  // v3.18: Increased from 40 for faster supply runs
         ["spawnAltitude", 0],
         ["alertMessage", "Police supply convoy detected!"],
-        ["vehicleCount", [2, 2]],       // 2 vehicles (escort + truck)
-        ["crewPerVehicle", [2, 2]],
+        ["vehicleCount", [1, 2]],       // ✅ v3.20: Reduced to 1-2 vehicles
+        ["crewPerVehicle", [2, 2]],     // ✅ v3.20: Fixed 2 crew (max 4 AI)
         ["vehicles", [
             "Exile_Car_Van_Box_Guerilla01",
             "Exile_Car_Offroad_Armed_Guerilla02"

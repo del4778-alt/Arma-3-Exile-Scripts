@@ -18,90 +18,91 @@ if (isNull _unit || !alive _unit) exitWith {false};
 
 // Define DMS-style skill arrays per difficulty
 // Format: [aimingAccuracy, aimingShake, aimingSpeed, endurance, spotDistance, spotTime, courage, reloadSpeed, commanding, general]
+// ✅ v3.20: INCREASED SKILLS - Fewer AI but tougher to compensate
 if (isNil "A3XAI_skillArrays") then {
     A3XAI_skillArrays = createHashMapFromArray [
-        // Static guards - lower skills, defensive
+        // Static guards - medium skills now
         ["static", [
-            ["aimingAccuracy", 0.20],
-            ["aimingShake", 0.70],
-            ["aimingSpeed", 0.30],
-            ["endurance", 0.50],
-            ["spotDistance", 0.40],
-            ["spotTime", 0.60],
-            ["courage", 0.60],
-            ["reloadSpeed", 0.50],
-            ["commanding", 0.40],
-            ["general", 0.40]
-        ]],
-
-        // Easy - casual players, forgiving AI
-        ["easy", [
-            ["aimingAccuracy", 0.15],
-            ["aimingShake", 0.80],
-            ["aimingSpeed", 0.25],
-            ["endurance", 0.40],
-            ["spotDistance", 0.35],
-            ["spotTime", 0.70],
-            ["courage", 0.50],
-            ["reloadSpeed", 0.45],
-            ["commanding", 0.35],
-            ["general", 0.35]
-        ]],
-
-        // Medium - balanced difficulty
-        ["medium", [
             ["aimingAccuracy", 0.40],
-            ["aimingShake", 0.55],
+            ["aimingShake", 0.50],
             ["aimingSpeed", 0.50],
             ["endurance", 0.60],
             ["spotDistance", 0.55],
-            ["spotTime", 0.50],
+            ["spotTime", 0.45],
             ["courage", 0.70],
             ["reloadSpeed", 0.60],
-            ["commanding", 0.55],
-            ["general", 0.55]
+            ["commanding", 0.50],
+            ["general", 0.50]
         ]],
 
-        // Hard - challenging but fair
-        ["hard", [
-            ["aimingAccuracy", 0.60],
+        // Easy - still challenging with fewer AI
+        ["easy", [
+            ["aimingAccuracy", 0.35],
+            ["aimingShake", 0.55],
+            ["aimingSpeed", 0.45],
+            ["endurance", 0.55],
+            ["spotDistance", 0.50],
+            ["spotTime", 0.50],
+            ["courage", 0.65],
+            ["reloadSpeed", 0.55],
+            ["commanding", 0.45],
+            ["general", 0.45]
+        ]],
+
+        // Medium - competent fighters
+        ["medium", [
+            ["aimingAccuracy", 0.55],
             ["aimingShake", 0.40],
-            ["aimingSpeed", 0.70],
-            ["endurance", 0.75],
-            ["spotDistance", 0.70],
-            ["spotTime", 0.35],
+            ["aimingSpeed", 0.65],
+            ["endurance", 0.70],
+            ["spotDistance", 0.65],
+            ["spotTime", 0.40],
             ["courage", 0.80],
-            ["reloadSpeed", 0.75],
-            ["commanding", 0.70],
-            ["general", 0.70]
+            ["reloadSpeed", 0.70],
+            ["commanding", 0.65],
+            ["general", 0.65]
         ]],
 
-        // Extreme/Hardcore - high difficulty
+        // Hard - dangerous opponents
+        ["hard", [
+            ["aimingAccuracy", 0.75],
+            ["aimingShake", 0.30],
+            ["aimingSpeed", 0.80],
+            ["endurance", 0.85],
+            ["spotDistance", 0.80],
+            ["spotTime", 0.25],
+            ["courage", 0.90],
+            ["reloadSpeed", 0.85],
+            ["commanding", 0.80],
+            ["general", 0.80]
+        ]],
+
+        // Extreme/Hardcore - elite soldiers
         ["extreme", [
-            ["aimingAccuracy", 0.85],
-            ["aimingShake", 0.20],
-            ["aimingSpeed", 0.90],
-            ["endurance", 0.90],
-            ["spotDistance", 0.85],
-            ["spotTime", 0.20],
-            ["courage", 0.95],
-            ["reloadSpeed", 0.90],
-            ["commanding", 0.85],
-            ["general", 0.85]
-        ]],
-
-        // Hardcore alias for extreme
-        ["hardcore", [
-            ["aimingAccuracy", 0.95],
-            ["aimingShake", 0.10],
+            ["aimingAccuracy", 0.90],
+            ["aimingShake", 0.15],
             ["aimingSpeed", 0.95],
             ["endurance", 0.95],
             ["spotDistance", 0.90],
             ["spotTime", 0.15],
-            ["courage", 1.00],
+            ["courage", 0.98],
             ["reloadSpeed", 0.95],
             ["commanding", 0.90],
             ["general", 0.90]
+        ]],
+
+        // Hardcore alias for extreme
+        ["hardcore", [
+            ["aimingAccuracy", 0.98],
+            ["aimingShake", 0.08],
+            ["aimingSpeed", 0.98],
+            ["endurance", 0.98],
+            ["spotDistance", 0.95],
+            ["spotTime", 0.10],
+            ["courage", 1.00],
+            ["reloadSpeed", 0.98],
+            ["commanding", 0.95],
+            ["general", 0.95]
         ]]
     ];
 };

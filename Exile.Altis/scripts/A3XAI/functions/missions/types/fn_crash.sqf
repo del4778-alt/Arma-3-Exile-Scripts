@@ -66,12 +66,12 @@ _fire setParticleParams [
 _fire setParticleRandom [2, [0.5, 0.5, 0.3], [0.2, 0.2, 0.2], 0.3, 0.3, [0, 0, 0, 0], 0, 0];
 _fire setDropInterval 0.03;
 
-// Determine defender count based on difficulty
+// ✅ v3.20: REDUCED AI - Max 5 per mission
 private _defenderCount = switch (_difficulty) do {
-    case "easy": {4};
-    case "medium": {6};
-    case "hard": {8};
-    case "extreme": {10};
+    case "easy": {3};
+    case "medium": {4};
+    case "hard": {5};
+    case "extreme": {5};
     default {4};
 };
 

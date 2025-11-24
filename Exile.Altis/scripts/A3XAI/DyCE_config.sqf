@@ -86,7 +86,7 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["name", "Armed Patrol"],
         ["markerColor", "ColorRed"],
         ["markerType", "mil_warning"],
-        ["speedLimit", 60],
+        ["speedLimit", 200],  // v3.18: Increased from 60 for high-speed pursuit
         ["spawnAltitude", 0],
         ["alertMessage", "Enemy patrol detected in the area!"],
         ["vehicleCount", [2, 3]],       // 2-3 vehicles
@@ -119,7 +119,7 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["name", "Police Convoy"],
         ["markerColor", "ColorBlack"],
         ["markerType", "mil_destroy"],
-        ["speedLimit", 50],
+        ["speedLimit", 150],  // v3.18: Increased from 50 for faster transport
         ["spawnAltitude", 0],
         ["alertMessage", "Police convoy spotted - heavy resistance expected!"],
         ["vehicleCount", [3, 4]],       // 3-4 vehicles
@@ -151,7 +151,7 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["name", "Highway Patrol"],
         ["markerColor", "ColorOrange"],
         ["markerType", "mil_triangle"],
-        ["speedLimit", 80],
+        ["speedLimit", 250],  // v3.18: Increased from 80 for high-speed highway pursuit
         ["spawnAltitude", 0],
         ["alertMessage", ""],           // No alert - surprise encounter
         ["vehicleCount", [1, 2]],
@@ -182,7 +182,7 @@ DyCE_ConvoyTypes = createHashMapFromArray [
         ["name", "Police Supply Truck"],
         ["markerColor", "ColorYellow"],
         ["markerType", "mil_box"],
-        ["speedLimit", 40],
+        ["speedLimit", 120],  // v3.18: Increased from 40 for faster supply runs
         ["spawnAltitude", 0],
         ["alertMessage", "Police supply convoy detected!"],
         ["vehicleCount", [2, 2]],       // 2 vehicles (escort + truck)

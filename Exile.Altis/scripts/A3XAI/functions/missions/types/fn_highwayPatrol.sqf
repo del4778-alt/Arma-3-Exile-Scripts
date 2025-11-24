@@ -270,22 +270,23 @@ for "_i" from 0 to (_vehicleCount - 1) do {
         };
     };
 
-    // Set group behavior for patrol (more aggressive than convoy)
-    _group setBehaviour "AWARE";
-    _group setCombatMode "YELLOW";
-    _group setSpeedMode "NORMAL";
+    // Set group behavior for patrol - HIGH-SPEED pursuit mode
+    // v3.18: Changed to CARELESS/FULL for maximum pursuit speed (was AWARE/YELLOW/NORMAL)
+    _group setBehaviour "CARELESS";   // No speed limit from behavior
+    _group setCombatMode "RED";       // v3.18: Changed from YELLOW - engage at will
+    _group setSpeedMode "FULL";       // Maximum speed
     _group setFormation "COLUMN";
 
     // Add patrol waypoints
-    // ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius
+    // ✅ v3.18: HIGH-SPEED highway patrol - FULL speed + CARELESS (was NORMAL/SAFE)
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
-        _wp setWaypointSpeed "NORMAL";  // Faster than convoy
-        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
+        _wp setWaypointSpeed "FULL";          // v3.18: Changed from NORMAL for max speed
+        _wp setWaypointBehaviour "CARELESS";  // v3.18: Changed from SAFE - no speed cap
         _wp setWaypointFormation "COLUMN";
-        _wp setWaypointCombatMode "YELLOW";
-        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
+        _wp setWaypointCombatMode "RED";      // v3.18: Changed from YELLOW
+        _wp setWaypointCompletionRadius 15;   // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle waypoints (continuous patrol)

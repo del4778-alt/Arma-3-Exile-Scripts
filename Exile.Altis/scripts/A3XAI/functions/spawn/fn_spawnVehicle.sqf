@@ -138,11 +138,12 @@ for "_i" from 0 to (_crewCount - 1) do {
 // Store crew on vehicle
 _vehicle setVariable ["A3XAI_crew", _crewUnits, true];
 
-// Set group behavior - aggressive police
-_group setBehaviour "AWARE";
-_group setCombatMode "RED";  // Engage at will
+// Set group behavior - aggressive police with high-speed pursuit
+// v3.18: Changed to CARELESS/FULL for maximum vehicle speed (was AWARE/NORMAL)
+_group setBehaviour "CARELESS";  // No speed limit from behavior
+_group setCombatMode "RED";      // Engage at will
 _group setFormation "COLUMN";
-_group setSpeedMode "NORMAL";
+_group setSpeedMode "FULL";      // Maximum speed
 
 // Enable all AI behaviors
 {
@@ -183,22 +184,22 @@ if (count _townNames >= 2) then {
 };
 
 // Add waypoints
-// ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius across all paths
+// ✅ v3.18: HIGH-SPEED driving - CARELESS behavior + FULL speed (was LIMITED/SAFE)
 if (count _waypoints > 1) then {
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
-        _wp setWaypointSpeed "LIMITED";
-        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
+        _wp setWaypointSpeed "FULL";          // v3.18: Changed from LIMITED for max speed
+        _wp setWaypointBehaviour "CARELESS";  // v3.18: Changed from SAFE - no speed cap
         _wp setWaypointFormation "COLUMN";
-        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
+        _wp setWaypointCompletionRadius 15;   // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle back to first waypoint
     private _wp = _group addWaypoint [_waypoints select 0, 0];
     _wp setWaypointType "CYCLE";
 
-    [4, format ["Vehicle patrol route: %1 towns", count _waypoints]] call A3XAI_fnc_log;
+    [4, format ["Vehicle patrol route: %1 towns (HIGH-SPEED)", count _waypoints]] call A3XAI_fnc_log;
 } else {
     // Fallback: use generated route
     private _generatedWaypoints = [_roadPos, 1500, 10] call A3XAI_fnc_generateRoute;
@@ -207,8 +208,8 @@ if (count _waypoints > 1) then {
         {
             private _wp = _group addWaypoint [_x, 0];
             _wp setWaypointType "MOVE";
-            _wp setWaypointSpeed "LIMITED";
-            _wp setWaypointBehaviour "SAFE";
+            _wp setWaypointSpeed "FULL";          // v3.18: Changed from LIMITED
+            _wp setWaypointBehaviour "CARELESS";  // v3.18: Changed from SAFE
             _wp setWaypointCompletionRadius 15;
         } forEach _generatedWaypoints;
 
@@ -220,8 +221,8 @@ if (count _waypoints > 1) then {
             private _wpPos = _roadPos getPos [500, 90 * _i];
             private _wp = _group addWaypoint [_wpPos, 0];
             _wp setWaypointType "MOVE";
-            _wp setWaypointSpeed "LIMITED";
-            _wp setWaypointBehaviour "SAFE";
+            _wp setWaypointSpeed "FULL";          // v3.18: Changed from LIMITED
+            _wp setWaypointBehaviour "CARELESS";  // v3.18: Changed from SAFE
             _wp setWaypointCompletionRadius 15;
         };
 

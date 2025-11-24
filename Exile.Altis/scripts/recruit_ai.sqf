@@ -501,7 +501,8 @@ RECRUIT_fnc_FSM_ExecuteState = {
                 _unit doWatch _closestThreat;
 
                 // 🔥 v7.37: Use commandTarget for group-level engagement
-                (group _unit) commandTarget _closestThreat;
+                // commandTarget expects Array of units, not Group type
+                (units group _unit) commandTarget _closestThreat;
 
                 // 🔥 v7.37: Ensure AI is actually aiming and can shoot
                 _unit lookAt _closestThreat;

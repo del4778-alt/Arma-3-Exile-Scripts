@@ -21,28 +21,28 @@ switch (_mode) do {
         _group setBehaviour "AWARE";      // Alert, looking for threats (was SAFE)
         _group setCombatMode "RED";       // Engage at will (was YELLOW)
         _group setFormation "STAG COLUMN";
-        _group setSpeedMode "LIMITED";
+        _group setSpeedMode "FULL";       // v3.18: Changed from LIMITED for high-speed patrol
     };
 
     case "defend": {
         _group setBehaviour "COMBAT";
         _group setCombatMode "RED";       // Engage at will
         _group setFormation "LINE";
-        _group setSpeedMode "LIMITED";
+        _group setSpeedMode "FULL";       // v3.18: Changed from LIMITED for rapid response
     };
 
     case "vehicle": {
-        _group setBehaviour "AWARE";      // Alert (was SAFE)
+        _group setBehaviour "CARELESS";   // v3.18: Changed from AWARE - no speed limit behavior
         _group setCombatMode "RED";       // Engage at will (was YELLOW)
         _group setFormation "COLUMN";
-        _group setSpeedMode "LIMITED";
+        _group setSpeedMode "FULL";       // v3.18: Changed from LIMITED for max vehicle speed
     };
 
     case "air": {
         _group setBehaviour "COMBAT";
         _group setCombatMode "RED";       // Engage at will
         _group setFormation "VEE";
-        _group setSpeedMode "NORMAL";
+        _group setSpeedMode "FULL";       // v3.18: Changed from NORMAL for max air speed
     };
 
     case "hunter": {
@@ -59,10 +59,10 @@ switch (_mode) do {
     };
 
     case "convoy": {
-        _group setBehaviour "AWARE";      // Alert (was SAFE)
+        _group setBehaviour "CARELESS";   // v3.18: Changed from AWARE - no speed limit behavior
         _group setCombatMode "RED";       // Engage at will (was YELLOW)
         _group setFormation "COLUMN";
-        _group setSpeedMode "LIMITED";
+        _group setSpeedMode "FULL";       // v3.18: Changed from LIMITED for high-speed convoy
     };
 
     default {

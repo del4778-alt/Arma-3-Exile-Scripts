@@ -108,4 +108,36 @@ _unit setUnitPos "AUTO";
 // Zombies are WEST, mission AI are EAST - they will fight each other
 (group _unit) setCombatMode "RED";
 
+// ✅ v3.23: PREVENT FRIENDLY FIRE TARGETING
+// Make this A3XAI unit NOT target other A3XAI/DyCE units
+// This runs periodically to clear friendly targets
+[_unit] spawn {
+    params ["_unit"];
+    sleep 3;  // Wait for other AI to spawn
+
+    while {!isNull _unit && alive _unit} do {
+        // Find nearby A3XAI/DyCE units and make this unit forget them
+        private _nearbyFriendlies = _unit nearEntities [["CAManBase"], 300] select {
+            alive _x &&
+            _x != _unit &&
+            ((_x getVariable ["A3XAI_unit", false]) ||
+             (_x getVariable ["DyCE_unit", false]) ||
+             (_x getVariable ["A3XAI_spawned", false]))
+        };
+
+        // Clear targets and reduce knowledge of friendly AI
+        {
+            _unit forgetTarget _x;
+            _unit reveal [_x, 0];  // Set knowledge to 0 (unknown)
+
+            // Also make target forget this unit
+            _x forgetTarget _unit;
+            _x reveal [_unit, 0];
+        } forEach _nearbyFriendlies;
+
+        // Check every 10 seconds
+        sleep 10;
+    };
+};
+
 true

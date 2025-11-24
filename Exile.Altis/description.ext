@@ -1,0 +1,125 @@
+#define true 1
+#define false 0
+// Required for the XM8, do not remove!
+#include "RscDefines.hpp"
+
+///////////////////////////////////////////////////////////////////////////////
+// Server Settings - Modify at will
+///////////////////////////////////////////////////////////////////////////////
+author = "Exile Mod Team";
+onLoadName = "Exile Mod";
+onLoadMission= "www.exilemod.com";
+loadScreen = "exile_assets\texture\mod\logo.paa";
+disableChannels[] = {0, 2};
+OnLoadIntro = "";
+OnLoadIntroTime = false;
+OnLoadMissionTime = false;
+unsafeCVL = 1;
+
+class Header
+{
+    gameType = Survive; // Do NOT change this
+    minPlayers = 1;
+    maxPlayers = 100;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// Exile Settings - Do not change these!
+///////////////////////////////////////////////////////////////////////////////
+forceRotorLibSimulation = 2;
+skipLobby = 1;
+joinUnassigned = 1;
+respawn = "BASE";
+respawnDelay = 120;
+respawnDialog = 0;
+respawnOnStart = 0;
+respawnButton = 1;
+respawnTemplates[] = {"Exile"};
+corpseManagerMode = 0;
+corpseLimit = 20;
+corpseRemovalMinTime = 1800;
+corpseRemovalMaxTime = 3600;
+wreckManagerMode = 0;
+wreckLimit = 2;
+wreckRemovalMinTime = 60;
+wreckRemovalMaxTime = 360;
+scriptedPlayer = 1;
+disabledAI = 1;
+enableItemsDropping = 0;
+briefing = 0;
+debriefing = 0;
+allowFunctionsLog = 1;
+enableDebugConsole = 0;
+allowFunctionsRecompile = 0;
+showSquadRadar = 0;
+showUAVFeed = 0;
+reviveDelay = 6;
+reviveForceRespawnDelay = 3;
+reviveBleedOutDelay = 120;
+
+showHUD[] =
+{
+    true,   // Scripted HUD (same as showHUD command)
+    true,   // Vehicle + soldier info
+    true,   // Vehicle radar
+    true,   // Vehicle compass
+    true,   // Tank direction indicator
+    true,  // Commanding menu
+    false,  // Group Bar
+    true,   // HUD Weapon Cursors
+    true   // Vehicle Panel (Required for GPS)
+};
+
+#include "config.cpp"
+#include "A3XAI_config.hpp"
+
+class CfgRemoteExec
+{
+    class Functions
+    {
+        mode = 1;
+        jip = 0;
+
+        class ExileServer_system_network_dispatchIncomingMessage
+        {
+            allowedTargets = 2;
+        };
+
+        // Add any other custom functions here...
+    };
+
+    class Commands
+    {
+        mode = 1;  // Whitelist mode (only listed commands allowed)
+        jip = 0;
+
+        // ======================================
+        // CORE SCRIPTING COMMANDS
+        // ======================================
+        class call { allowedTargets = 0; };
+        class spawn { allowedTargets = 0; };
+
+        // ======================================
+        // MISSION SYSTEM COMMANDS (Required for Dynamic Missions)
+        // ======================================
+        // Used by fn_dynamicMissions.sqf for mission announcements and markers
+        class systemChat { allowedTargets = 0; };
+        class hint { allowedTargets = 0; };           // ✅ Added for DyCE/recruit notifications
+        class createMarker { allowedTargets = 0; };
+        class deleteMarker { allowedTargets = 0; };
+        class setMarkerPos { allowedTargets = 0; };
+        class setMarkerText { allowedTargets = 0; };
+        class setMarkerColor { allowedTargets = 0; };
+        class setMarkerType { allowedTargets = 0; };
+        class setMarkerShape { allowedTargets = 0; };
+        class setMarkerAlpha { allowedTargets = 0; };
+        class setMarkerSize { allowedTargets = 0; };  // ✅ Added for area markers
+        class setMarkerBrush { allowedTargets = 0; }; // ✅ Added for area markers
+
+        // ======================================
+        // RAVAGE MOD SUPPORT
+        // ======================================
+        class setIdentity { allowedTargets = 0; };
+        class say3D { allowedTargets = 0; };
+    };
+};

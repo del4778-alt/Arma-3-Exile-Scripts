@@ -1,0 +1,107 @@
+/*
+    A3XAI Elite - Performance Monitor
+    Tracks server performance and AI statistics
+*/
+
+if (!isServer) exitWith {};
+
+private _monitorInterval = 300; // Report every 5 minutes
+private _fpsHistory = [];
+private _maxHistory = 10;
+
+[3, "Performance monitor started"] call A3XAI_fnc_log;
+
+// ✅ v3.8: Spawn separate unfreeze loop (runs more frequently)
+[] spawn {
+    while {A3XAI_enabled} do {
+        sleep 30;  // Check every 30 seconds
+
+        // Find and unfreeze stuck A3XAI units
+        private _unfrozen = 0;
+        {
+            if (alive _x && !isPlayer _x) then {
+                private _isA3XAI = _x getVariable ["A3XAI_unit", false];
+                private _isDyCE = _x getVariable ["DyCE_unit", false];
+
+                if (_isA3XAI || _isDyCE) then {
+                    // Re-enable all AI systems (in case they got disabled)
+                    _x enableAI "ALL";
+                    _x enableAI "MOVE";
+                    _x enableAI "PATH";
+                    _x enableAI "ANIM";
+                    _x enableAI "FSM";
+                    _x enableAI "TARGET";
+                    _x enableAI "AUTOTARGET";
+                    _x enableAI "AUTOCOMBAT";
+                    _x setUnitPos "AUTO";
+                    _unfrozen = _unfrozen + 1;
+                };
+            };
+        } forEach allUnits;
+
+        if (_unfrozen > 0 && A3XAI_debugLevel >= 4) then {
+            [4, format ["[UNFREEZE] Re-enabled AI for %1 units", _unfrozen]] call A3XAI_fnc_log;
+        };
+    };
+};
+
+while {A3XAI_enabled} do {
+    sleep _monitorInterval;
+
+    // Collect statistics
+    private _fps = diag_fps;
+    private _players = count allPlayers;
+    // Count AI with A3XAI_unit variable OR units in EAST groups (more reliable than side check)
+    private _activeAI = count (allUnits select {
+        alive _x && {
+            (_x getVariable ["A3XAI_unit", false]) ||
+            (_x getVariable ["A3XAI_spawned", false]) ||
+            (side group _x == EAST && !isPlayer _x)
+        }
+    });
+    private _activeGroups = count A3XAI_activeGroups;
+    private _activeVehicles = count A3XAI_activeVehicles;
+    private _activeSpawns = 0;
+    {
+        _activeSpawns = _activeSpawns + count _y;
+    } forEach A3XAI_spawnGrid;
+    private _activeMissions = count A3XAI_activeMissions;
+
+    // Track FPS history
+    _fpsHistory pushBack _fps;
+    if (count _fpsHistory > _maxHistory) then {
+        _fpsHistory deleteAt 0;
+    };
+
+    private _avgFPS = 0;
+    {
+        _avgFPS = _avgFPS + _x;
+    } forEach _fpsHistory;
+    _avgFPS = _avgFPS / (count _fpsHistory);
+
+    // Calculate uptime
+    private _uptime = (time - (A3XAI_stats get "startTime")) / 3600; // hours
+
+    // Log report
+    [3, "========== A3XAI PERFORMANCE REPORT =========="] call A3XAI_fnc_log;
+    [3, format ["Server FPS: %1 (avg: %2)", _fps toFixed 1, _avgFPS toFixed 1]] call A3XAI_fnc_log;
+    [3, format ["Players: %1 | AI Units: %2/%3", _players, _activeAI, A3XAI_maxAIGlobal]] call A3XAI_fnc_log;
+    [3, format ["Groups: %1 | Vehicles: %2 | Spawns: %3", _activeGroups, _activeVehicles, _activeSpawns]] call A3XAI_fnc_log;
+    [3, format ["Active Missions: %1", _activeMissions]] call A3XAI_fnc_log;
+    [3, format ["Total Kills: %1 | Missions Complete: %2", A3XAI_stats get "totalKills", A3XAI_stats get "missionsCompleted"]] call A3XAI_fnc_log;
+    [3, format ["Uptime: %1 hours", _uptime toFixed 2]] call A3XAI_fnc_log;
+    [3, "============================================"] call A3XAI_fnc_log;
+
+    // FPS warning
+    if (_fps < A3XAI_minServerFPS) then {
+        [1, format ["WARNING: Server FPS below threshold (%1 < %2)", _fps toFixed 1, A3XAI_minServerFPS]] call A3XAI_fnc_log;
+        [1, "Consider reducing spawn rates or AI limits"] call A3XAI_fnc_log;
+    };
+
+    // AI limit warning
+    if (_activeAI >= (A3XAI_maxAIGlobal * 0.9)) then {
+        [2, format ["WARNING: Approaching AI limit (%1/%2)", _activeAI, A3XAI_maxAIGlobal]] call A3XAI_fnc_log;
+    };
+};
+
+[2, "Performance monitor stopped"] call A3XAI_fnc_log;

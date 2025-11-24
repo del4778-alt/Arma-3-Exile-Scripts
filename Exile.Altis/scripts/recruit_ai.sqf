@@ -1,6 +1,12 @@
 /*
-    ELITE AI RECRUIT SYSTEM v7.36 - CONTINUOUS COMBAT ENGAGEMENT FIX
+    ELITE AI RECRUIT SYSTEM v7.38 - ENHANCED COMBAT ENGAGEMENT
     🔥 SUPER-AGGRESSIVE AI - Laser-accurate, instant reaction, responds to commands
+
+    CHANGES IN v7.38:
+    - 🔥 FORCE GROUP COMBAT MODE: Override player settings every combat loop
+    - 🔥 RE-ENABLE AI FEATURES: Ensure TARGET/AUTOTARGET/AUTOCOMBAT not disabled
+    - 🔥 ENHANCED DEBUG: Log unit side and enemy status for targeting issues
+    - ✅ FIXED: Group combat mode could be overridden by player settings
 
     CHANGES IN v7.36:
     - 🔥 CRITICAL FIX: AI now continuously fires at enemies during combat!
@@ -62,8 +68,8 @@
 if (!isServer) exitWith {};
 
 diag_log "[AI RECRUIT] ========================================";
-diag_log "[AI RECRUIT] Starting v7.36 (Continuous Combat Engagement Fix)...";
-diag_log "[AI RECRUIT] 🔥 FIX: doFire now called EVERY combat loop, not just on state change!";
+diag_log "[AI RECRUIT] Starting v7.38 (Enhanced Combat Engagement)...";
+diag_log "[AI RECRUIT] 🔥 FIX: Force group combat mode every loop + re-enable AI features";
 diag_log "[AI RECRUIT] ========================================";
 
 // ============================================
@@ -486,14 +492,34 @@ RECRUIT_fnc_FSM_ExecuteState = {
             _playerGroup setFormation "LINE";  // Spread out in combat
             _unit setUnitPos "AUTO";
 
+            // 🔥 v7.38: FORCE GROUP COMBAT MODE - Override any player settings
+            _playerGroup setCombatMode "RED";
+            _playerGroup setBehaviour "COMBAT";
+            _playerGroup enableAttack true;
+
+            // 🔥 v7.38: ENABLE AI COMBAT FEATURES - Ensure not disabled
+            _unit enableAI "TARGET";
+            _unit enableAI "AUTOTARGET";
+            _unit enableAI "AUTOCOMBAT";
+
             // 🔥 v7.37: AGGRESSIVE ENGAGEMENT - Force attack on A3XAI/DyCE units
             private _closestThreat = _threatInfo select 1;
             if (!isNull _closestThreat && alive _closestThreat) then {
+                // 🔥 v7.38: Check if this is actually an enemy (side check)
+                private _threatSide = side _closestThreat;
+                private _threatGroupSide = side group _closestThreat;
+                private _unitSide = side _unit;
+                private _isEnemy = _unitSide getFriend _threatGroupSide < 0.6;
+
                 // Reveal enemy to ALL AI in group at max knowledge
                 _unit reveal [_closestThreat, 4.0];
 
                 // 🔥 v7.37: Force entire group to engage this target
                 _playerGroup reveal [_closestThreat, 4.0];
+
+                // 🔥 v7.38: Add target as known enemy
+                _unit addRating -2000;  // Temporarily lower rating so AI sees threat as enemy
+                _unit addRating 2000;   // Restore rating
 
                 // Force target and fire using multiple methods
                 _unit doTarget _closestThreat;
@@ -518,12 +544,10 @@ RECRUIT_fnc_FSM_ExecuteState = {
                     };
                 };
 
-                // 🔥 v7.37: Debug log for targeting issues
-                private _threatSide = side _closestThreat;
-                private _threatGroupSide = side group _closestThreat;
+                // 🔥 v7.38: Enhanced debug log for targeting issues
                 private _isA3XAI = _closestThreat getVariable ["A3XAI_unit", false];
-                diag_log format ["[AI RECRUIT COMBAT] %1 engaging %2 | Side: %3 | GroupSide: %4 | A3XAI: %5 | Dist: %6m",
-                    name _unit, typeOf _closestThreat, _threatSide, _threatGroupSide, _isA3XAI,
+                diag_log format ["[AI RECRUIT COMBAT] %1 (%2) engaging %3 | ThreatSide: %4/%5 | IsEnemy: %6 | A3XAI: %7 | Dist: %8m",
+                    name _unit, _unitSide, typeOf _closestThreat, _threatSide, _threatGroupSide, _isEnemy, _isA3XAI,
                     round (_unit distance _closestThreat)];
             } else {
                 // Fallback to engine-assigned target
@@ -1552,6 +1576,14 @@ fn_spawnAI = {
     _playerGroup setBehaviour "AWARE";     // Changed from COMBAT to AWARE (more responsive)
     _playerGroup enableAttack true;
     _playerGroup setFormation "WEDGE";     // Changed from COLUMN to WEDGE (tight formation)
+
+    // 🔥 v7.38: EXPLICIT FACTION ENFORCEMENT
+    // Ensure recruit AI are hostile to A3XAI (EAST) and Zombies (WEST)
+    // This runs once at spawn to guarantee correct faction relationships
+    RESISTANCE setFriend [EAST, 0];   // Recruits hostile to A3XAI
+    RESISTANCE setFriend [WEST, 0];   // Recruits hostile to Zombies
+    EAST setFriend [RESISTANCE, 0];   // A3XAI hostile to recruits
+    WEST setFriend [RESISTANCE, 0];   // Zombies hostile to recruits
 
     // VCOMAI Integration
     if (RECRUIT_VCOMAI_Active) then {

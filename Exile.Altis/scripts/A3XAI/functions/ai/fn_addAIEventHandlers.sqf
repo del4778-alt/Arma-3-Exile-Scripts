@@ -90,10 +90,9 @@ _unit addEventHandler ["Killed", {
         private _currentRespect = _killer getVariable ["ExileScore", 0];
         _killer setVariable ["ExileScore", _currentRespect + _respect];
 
-        // Send notification
-        if (!isNil "ExileClient_system_network_send") then {
-            [_killer, "showFragRequest", [[format ["+%1 Respect", _respect]], 3]] call ExileClient_system_network_send;
-        };
+        // Send notification to player
+        private _fragMsg = parseText format ["<t size='1.1' color='#00FF00'>+%1 Respect</t>", _respect];
+        [_fragMsg] remoteExec ["hint", _killer];
 
         // Kill streak tracking
         if (!isNil "A3XAI_killStreaks") then {
@@ -107,9 +106,9 @@ _unit addEventHandler ["Killed", {
                 private _bonus = _streak * 10;
                 _killer setVariable ["ExileScore", (_killer getVariable ["ExileScore", 0]) + _bonus];
 
-                if (!isNil "ExileClient_system_network_send") then {
-                    [_killer, "toastRequest", ["Success", format ["%1 Kill Streak! +%2 Respect Bonus", _streak, _bonus]]] call ExileClient_system_network_send;
-                };
+                // Send kill streak notification to the player
+                private _streakMsg = format ["<t size='1.2' color='#00FF00'>%1 Kill Streak!</t><br/><t color='#FFD700'>+%2 Respect Bonus</t>", _streak, _bonus];
+                [parseText _streakMsg, [0, 0, 0.3, 0.2], nil, 3] remoteExec ["BIS_fnc_textTiles", _killer];
             };
         };
 

@@ -225,11 +225,15 @@ WEST setFriend [CIVILIAN, 0];       // Zombies hostile to civilians
 RESISTANCE setFriend [EAST, 0];     // Players hostile to A3XAI
 RESISTANCE setFriend [WEST, 0];     // Players hostile to Zombies
 
-// Other factions
-INDEPENDENT setFriend [EAST, 0];
-CIVILIAN setFriend [EAST, 0];
+// INDEPENDENT (alternate player/recruit side) hostile to enemies
+INDEPENDENT setFriend [EAST, 0];    // Independent hostile to A3XAI
+INDEPENDENT setFriend [WEST, 0];    // Independent hostile to Zombies
 
-diag_log "[A3XAI] Faction relations: EAST (A3XAI) + WEST (Zombies) hostile to RESISTANCE (Players)";
+// CIVILIAN hostile to enemies
+CIVILIAN setFriend [EAST, 0];       // Civilian hostile to A3XAI
+CIVILIAN setFriend [WEST, 0];       // Civilian hostile to Zombies
+
+diag_log "[A3XAI] Faction relations: EAST (A3XAI) + WEST (Zombies) hostile to RESISTANCE/INDEPENDENT/CIVILIAN";
 
 // ============================================
 // DETECT DEPENDENCIES

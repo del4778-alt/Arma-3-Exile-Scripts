@@ -65,7 +65,7 @@ private _CFG = [
     ["zombieKillRewardRespect", 250],
 
     // --- DEBUG MODE
-    ["debugMode", true]  // ✅ ENABLE DEBUG LOGGING
+    ["debugMode", false]  // Errors only - debug logging disabled
 ];
 
 // Convert to GLOBAL functions with namespace prefix

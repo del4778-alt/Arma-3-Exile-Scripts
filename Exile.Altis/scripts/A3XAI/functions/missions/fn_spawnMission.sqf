@@ -137,10 +137,11 @@ if (A3XAI_enableMissionNotifications) then {
         };
     };
 
-    // Broadcast to all players (Exile toast style)
+    // Broadcast to all players
     if (_notifyMsg != "") then {
-        // Method 1: Exile toast notification
-        ["toastRequest", ["InfoTitleAndText", ["A3XAI MISSION", _notifyMsg]]] remoteExec ["ExileClient_system_network_send", -2];
+        // Method 1: Hint notification with formatted text
+        private _hintMsg = parseText format ["<t size='1.2' color='#FF8C00'>A3XAI MISSION</t><br/><t color='#FFFFFF'>%1</t>", _notifyMsg];
+        [_hintMsg] remoteExec ["hint", -2];
 
         // Method 2: System chat fallback
         _notifyMsg remoteExec ["systemChat", -2];

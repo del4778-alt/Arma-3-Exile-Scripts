@@ -180,7 +180,8 @@ for "_i" from 0 to (_hostageCount - 1) do {
                     default {500};
                 };
 
-                [_caller, "showFragRequest", [[format ["+%1 Respect for rescuing hostage", _reward]], 5]] call ExileClient_system_network_send;
+                // Show reward notification to rescuer (runs client-side)
+                hint parseText format ["<t size='1.1' color='#00FF00'>+%1 Respect</t><br/><t color='#FFFFFF'>for rescuing hostage</t>", _reward];
                 private _respect = _caller getVariable ["ExileScore", 0];
                 _caller setVariable ["ExileScore", _respect + _reward];
             };

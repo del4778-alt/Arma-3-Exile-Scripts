@@ -145,10 +145,11 @@ if (count _crew > 0 && !isNull _oldGroup) then {
             };
         } forEach _crew;
 
-        // Set new group behavior
-        _newGroup setBehaviour "AWARE";
+        // Set new group behavior - HIGH-SPEED recovery
+        // v3.18: Changed to CARELESS/FULL for fast recovery (was AWARE/NORMAL)
+        _newGroup setBehaviour "CARELESS";   // No speed limit from behavior
         _newGroup setCombatMode "RED";
-        _newGroup setSpeedMode "NORMAL";
+        _newGroup setSpeedMode "FULL";       // Maximum speed
 
         // Clear old waypoints
         while {count waypoints _newGroup > 0} do {
@@ -158,14 +159,14 @@ if (count _crew > 0 && !isNull _oldGroup) then {
         // Create waypoint back to spawn area
         private _wp = _newGroup addWaypoint [_spawnPos, 50];
         _wp setWaypointType "MOVE";
-        _wp setWaypointBehaviour "AWARE";
+        _wp setWaypointBehaviour "CARELESS";  // v3.18: Changed from AWARE
         _wp setWaypointCombatMode "RED";
-        _wp setWaypointSpeed "NORMAL";
+        _wp setWaypointSpeed "FULL";          // v3.18: Changed from NORMAL
 
         // Add patrol waypoint
         private _wp2 = _newGroup addWaypoint [_spawnPos, 200];
         _wp2 setWaypointType "SAD";
-        _wp2 setWaypointBehaviour "AWARE";
+        _wp2 setWaypointBehaviour "CARELESS"; // v3.18: Changed from AWARE
 
         // Cycle waypoint
         private _wp3 = _newGroup addWaypoint [_spawnPos, 0];

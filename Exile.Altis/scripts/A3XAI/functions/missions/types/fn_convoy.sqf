@@ -143,15 +143,15 @@ for "_i" from 0 to (_vehicleCount - 1) do {
     [_group, "convoy"] call A3XAI_fnc_setGroupBehavior;
 
     // Add waypoints for convoy route
-    // ✅ v3.12b: Fixed driving - SAFE behavior + tight completion radius
+    // ✅ v3.18: HIGH-SPEED convoy - FULL speed + CARELESS (was LIMITED/SAFE)
     {
         private _wp = _group addWaypoint [_x, 0];
         _wp setWaypointType "MOVE";
-        _wp setWaypointSpeed "LIMITED";
-        _wp setWaypointBehaviour "SAFE";  // Careful driving, stays on roads
+        _wp setWaypointSpeed "FULL";          // v3.18: Changed from LIMITED for max speed
+        _wp setWaypointBehaviour "CARELESS";  // v3.18: Changed from SAFE - no speed cap
         _wp setWaypointFormation "COLUMN";
-        _wp setWaypointCombatMode "YELLOW";
-        _wp setWaypointCompletionRadius 15;  // Prevents offroad shortcuts
+        _wp setWaypointCombatMode "RED";      // v3.18: Changed from YELLOW - engage at will
+        _wp setWaypointCompletionRadius 15;   // Prevents offroad shortcuts
     } forEach _waypoints;
 
     // Cycle waypoints

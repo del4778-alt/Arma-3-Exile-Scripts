@@ -104,8 +104,8 @@ class CfgA3XAI {
     // ================================================================
 
     A3XAI_enabled = 1;                          // Enable/disable entire system (1=on, 0=off)
-    A3XAI_debugLevel = 4;                       // Debug level: 0=off, 1=error, 2=warn, 3=info, 4=debug
-    A3XAI_logLevel = 4;                         // Log level (same as debug)
+    A3XAI_debugLevel = 1;                       // Debug level: 0=off, 1=error, 2=warn, 3=info, 4=debug
+    A3XAI_logLevel = 1;                         // Log level (same as debug)
 
     // ================================================================
     // PERFORMANCE SETTINGS

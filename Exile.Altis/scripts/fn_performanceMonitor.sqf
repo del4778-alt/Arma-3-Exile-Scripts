@@ -31,7 +31,7 @@ PERFMON_CFG = createHashMapFromArray [
     ["AI_COUNT_WARNING", 50],           // Warn if total AI exceeds this
     ["MEMORY_WARNING_MB", 2048],        // Warn if estimated memory exceeds this
     ["FPS_HISTORY_SIZE", 30],           // Keep 30 FPS samples
-    ["DEBUG_LEVEL", 2],                 // 0=off, 1=errors, 2=warnings, 3=info, 4=verbose
+    ["DEBUG_LEVEL", 1],                 // 0=off, 1=errors, 2=warnings, 3=info, 4=verbose
     ["LOG_TO_RPT", true],               // Log to server RPT file
     ["TRACK_FUNCTION_TIMES", true]      // Track function execution times
 ];

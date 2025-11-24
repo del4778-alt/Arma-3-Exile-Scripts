@@ -106,13 +106,13 @@ for "_i" from 0 to (_staticCount - 1) do {
     _staticPositions pushBack _staticPos;
 };
 
-// Determine defender count
+// ✅ v3.20: REDUCED AI - Max 5 per mission
 private _defenderCount = switch (_difficulty) do {
-    case "easy": {8};
-    case "medium": {12};
-    case "hard": {16};
-    case "extreme": {20};
-    default {8};
+    case "easy": {3};
+    case "medium": {4};
+    case "hard": {5};
+    case "extreme": {5};
+    default {4};
 };
 
 // Spawn initial defenders

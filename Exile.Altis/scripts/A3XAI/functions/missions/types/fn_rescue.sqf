@@ -55,12 +55,12 @@ for "_i" from 0 to 3 do {
     _missionObjects pushBack _cover;
 };
 
-// Determine guard count
+// ✅ v3.20: REDUCED AI - Max 5 per mission
 private _guardCount = switch (_difficulty) do {
-    case "easy": {4};
-    case "medium": {6};
-    case "hard": {8};
-    case "extreme": {10};
+    case "easy": {3};
+    case "medium": {4};
+    case "hard": {5};
+    case "extreme": {5};
     default {4};
 };
 

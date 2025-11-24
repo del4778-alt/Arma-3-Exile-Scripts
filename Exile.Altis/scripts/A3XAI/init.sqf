@@ -93,10 +93,11 @@ if (isNil "A3XAI_debugMode") then {A3XAI_debugMode = (A3XAI_logLevel > 2)};  // 
 if (isNil "A3XAI_gridSize") then {A3XAI_gridSize = 1000};
 if (isNil "A3XAI_spawnDistanceMin") then {A3XAI_spawnDistanceMin = 500};
 if (isNil "A3XAI_spawnDistanceMax") then {A3XAI_spawnDistanceMax = 2000};
-// ✅ v3.12: Balanced for 10 players max (~14 AI/player = 140 total)
-// WARNING: Arma 3 has 144 GROUP limit per side! Use shared groups in missions.
-if (isNil "A3XAI_maxAIGlobal") then {A3XAI_maxAIGlobal = 20};       // Base max AI (minimum for solo play)
-if (isNil "A3XAI_maxAIPerPlayer") then {A3XAI_maxAIPerPlayer = 12}; // Additional AI per player (10 players = 140 AI)
+// ✅ v3.20: REDUCED AI - Max 50 AI total to prevent 144 group limit issues
+// With 5 AI per mission, you can have ~10 active missions safely
+// WARNING: Arma 3 has 144 GROUP limit per side! Keep total AI low.
+if (isNil "A3XAI_maxAIGlobal") then {A3XAI_maxAIGlobal = 30};       // Base max AI for solo play
+if (isNil "A3XAI_maxAIPerPlayer") then {A3XAI_maxAIPerPlayer = 5};  // Only +5 AI per additional player
 if (isNil "A3XAI_minServerFPS") then {A3XAI_minServerFPS = 20};
 
 // Spatial grid for O(1) spawn lookups
@@ -157,9 +158,9 @@ if (isNil "A3XAI_missionCleanupDelay") then {A3XAI_missionCleanupDelay = 300};
 
 // Spawn settings
 if (isNil "A3XAI_spawnCooldownTime") then {A3XAI_spawnCooldownTime = 900};  // v3.13: Increased to 15 minutes
-// v3.13: Town spawn limits
-if (isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown = 2};      // Max 2 groups per town
-if (isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup = 4};            // 4 AI per group (8 max per town)
+// ✅ v3.20: Reduced AI per group - max 5 total per mission/town
+if (isNil "A3XAI_maxGroupsPerTown") then {A3XAI_maxGroupsPerTown = 1};      // Max 1 group per town
+if (isNil "A3XAI_maxAIPerGroup") then {A3XAI_maxAIPerGroup = 3};            // 3 AI per group (max 5 per town)
 if (isNil "A3XAI_townRespawnCooldown") then {A3XAI_townRespawnCooldown = 900}; // 15 min cooldown per town
 // v3.14: Town trigger system (spawn only when players enter)
 // Based on original A3XAI balance by TheGrayJacket/ispan55

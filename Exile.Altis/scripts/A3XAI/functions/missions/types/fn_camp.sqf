@@ -80,13 +80,13 @@ for "_i" from 0 to 4 do {
 private _campfire = "Campfire_burning_F" createVehicle (_campPos getPos [5, 45]);
 _campObjects pushBack _campfire;
 
-// Determine defender count
+// ✅ v3.20: REDUCED AI - Max 5 per mission
 private _defenderCount = switch (_difficulty) do {
-    case "easy": {5};
-    case "medium": {7};
-    case "hard": {9};
-    case "extreme": {12};
-    default {5};
+    case "easy": {3};
+    case "medium": {4};
+    case "hard": {5};
+    case "extreme": {5};
+    default {4};
 };
 
 // Spawn defenders

@@ -1577,6 +1577,14 @@ fn_spawnAI = {
     _playerGroup enableAttack true;
     _playerGroup setFormation "WEDGE";     // Changed from COLUMN to WEDGE (tight formation)
 
+    // 🔥 v7.38: EXPLICIT FACTION ENFORCEMENT
+    // Ensure recruit AI are hostile to A3XAI (EAST) and Zombies (WEST)
+    // This runs once at spawn to guarantee correct faction relationships
+    RESISTANCE setFriend [EAST, 0];   // Recruits hostile to A3XAI
+    RESISTANCE setFriend [WEST, 0];   // Recruits hostile to Zombies
+    EAST setFriend [RESISTANCE, 0];   // A3XAI hostile to recruits
+    WEST setFriend [RESISTANCE, 0];   // Zombies hostile to recruits
+
     // VCOMAI Integration
     if (RECRUIT_VCOMAI_Active) then {
         if (!isNil "VCM_NOAI" && {!isNil {VCM_NOAI}}) then {

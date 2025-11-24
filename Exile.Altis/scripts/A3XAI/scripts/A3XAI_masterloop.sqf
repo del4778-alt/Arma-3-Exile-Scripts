@@ -2,6 +2,12 @@
     A3XAI Elite - Master Spawn Loop
     Main loop that handles AI spawning, cell management, and mission triggers
 
+    v3.17: Staggered Spawn System
+        - Spawns limited to: 2 missions, 2 convoys, 1 town invasion
+        - All spawns staggered with 60 second delay between each
+        - Invasion missions tracked separately with max 1 limit
+        - Reduced server load at startup by spreading spawns over time
+
     v3.14: Player Proximity Trigger System
         - AI only spawns when players enter town areas (400m default)
         - AI despawns when all players leave (800m + 5min delay)
@@ -55,7 +61,7 @@ waitUntil {!isNil "A3XAI_initialized" && {A3XAI_initialized}};
 // ============================================
 private _loopInterval = 30;              // Main loop runs every 30 seconds
 private _startupDelay = 60;              // 1 minute (60 seconds) startup delay (was 180)
-private _maxConcurrentMissions = 3;      // Max missions active at once
+private _maxConcurrentMissions = 2;      // Max missions active at once (v3.17: reduced from 3)
 private _missionCheckInterval = 900;     // Check/spawn missions every 15 minutes
 private _lastMissionCheck = 0;
 private _missionsInitialized = false;
@@ -80,7 +86,13 @@ private _dyceInterval = 180;             // Check DyCE spawn every 3 minutes (wa
 private _lastDyceCheck = 0;
 private _dyceInitialized = false;
 private _dyceConvoyTypes = ["armedConvoy", "troopConvoy", "supplyTruck"];
-private _maxDyceConvoys = 3;             // Max 3 convoys total on map
+private _maxDyceConvoys = 2;             // Max 2 convoys total on map (v3.17: reduced from 3)
+
+// ============================================
+// v3.17: STAGGERED SPAWN CONFIGURATION
+// ============================================
+private _staggerDelay = 60;              // 60 seconds between each spawn type
+private _maxInvasions = 1;               // Max 1 town invasion at a time
 
 [3, format ["Mission scheduler: %1s startup delay, max %2 missions, %3s check interval",
     _startupDelay, _maxConcurrentMissions, _missionCheckInterval]] call A3XAI_fnc_log;
@@ -602,88 +614,124 @@ while {A3XAI_enabled} do {
     };
 
     // ============================================
-    // MISSION SCHEDULER v3.1
+    // MISSION SCHEDULER v3.17 - STAGGERED SPAWNS
     // ============================================
 
-    // INITIAL MISSION SPAWN: Spawn all 3 missions at startup
-    // ✅ v3.15: Increased delay between spawns to prevent EAST group limit race condition
+    // v3.17: STAGGERED INITIAL SPAWN
+    // Spawns one at a time with 60 second delays between each:
+    // Mission 1 -> 60s -> Mission 2 -> 60s -> Convoy 1 -> 60s -> Convoy 2 -> 60s -> Invasion (if enabled)
     if (!_missionsInitialized) then {
-        [3, "=== INITIAL MISSION SPAWN ==="] call A3XAI_fnc_log;
-        [3, format ["Spawning %1 missions after %1s startup delay", _maxConcurrentMissions, _startupDelay]] call A3XAI_fnc_log;
+        [3, "=== STAGGERED INITIAL SPAWN (v3.17) ==="] call A3XAI_fnc_log;
+        [3, format ["Spawning max %1 missions, %2 convoys, %3 invasion with %4s delay between each",
+            _maxConcurrentMissions, _maxDyceConvoys, _maxInvasions, _staggerDelay]] call A3XAI_fnc_log;
 
+        private _spawnIndex = 0;
+        private _invasionsSpawned = 0;
+
+        // ============================================
+        // SPAWN MISSIONS (2 max, non-invasion types)
+        // ============================================
         for "_m" from 1 to _maxConcurrentMissions do {
-            // ✅ v3.15: Set spawn lock to prevent other spawns during mission creation
             A3XAI_spawnInProgress = true;
             A3XAI_spawnLockTime = time;
 
+            // Select non-invasion mission type for regular missions
             private _missionType = [] call A3XAI_fnc_selectMission;
+            // Re-roll if invasion selected (save invasions for dedicated slot)
+            if (_missionType == "invasion") then {
+                _missionType = selectRandom ["convoy", "crash", "camp", "hunter", "cache", "outpost", "supplyDrop"];
+            };
+
             private _difficulty = selectRandom ["medium", "hard", "extreme"];
 
-            // Find location spread around map center or random player
             private _basePos = if (count _players > 0) then {
                 position (selectRandom _players)
             } else {
                 [] call A3XAI_fnc_getMapCenter
             };
 
-            // Spread missions apart (different directions)
             private _distance = 1500 + random 1500;
             private _dir = (360 / _maxConcurrentMissions) * _m + random 30;
             private _missionPos = _basePos getPos [_distance, _dir];
 
-            // Spawn mission
             private _result = [A3XAI_fnc_spawnMission, [_missionType, _missionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
 
-            // ✅ v3.15: Clear spawn lock after mission creation
             A3XAI_spawnInProgress = false;
 
             if (!isNil "_result" && {count _result > 0}) then {
-                [3, format ["[%1/%2] Spawned %3 mission (%4)", _m, _maxConcurrentMissions, _missionType, _difficulty]] call A3XAI_fnc_log;
+                _spawnIndex = _spawnIndex + 1;
+                [3, format ["[STAGGER %1] Spawned %2 mission (%3)", _spawnIndex, _missionType, _difficulty]] call A3XAI_fnc_log;
             } else {
-                [2, format ["[%1/%2] Failed to spawn %3 mission", _m, _maxConcurrentMissions, _missionType]] call A3XAI_fnc_log;
+                [2, format ["[STAGGER] Failed to spawn %1 mission", _missionType]] call A3XAI_fnc_log;
             };
 
-            // ✅ v3.15: Increased from 2s to 5s to allow group creation to settle
-            sleep 5;
+            // v3.17: 60 second stagger delay between spawns
+            [3, format ["[STAGGER] Waiting %1 seconds before next spawn...", _staggerDelay]] call A3XAI_fnc_log;
+            sleep _staggerDelay;
+        };
+
+        // ============================================
+        // SPAWN CONVOYS (2 max)
+        // ============================================
+        if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
+            for "_c" from 1 to _maxDyceConvoys do {
+                private _convoyType = selectRandom _dyceConvoyTypes;
+                private _result = [A3XAI_fnc_DyCE_spawn, [_convoyType, []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
+
+                if (!isNil "_result" && {count _result > 0}) then {
+                    _spawnIndex = _spawnIndex + 1;
+                    [3, format ["[STAGGER %1] Spawned %2 convoy", _spawnIndex, _convoyType]] call A3XAI_fnc_log;
+                } else {
+                    [2, format ["[STAGGER] Failed to spawn %1 convoy", _convoyType]] call A3XAI_fnc_log;
+                };
+
+                // v3.17: 60 second stagger delay between spawns
+                [3, format ["[STAGGER] Waiting %1 seconds before next spawn...", _staggerDelay]] call A3XAI_fnc_log;
+                sleep _staggerDelay;
+            };
+            _lastDyceCheck = time;
+        };
+
+        // ============================================
+        // SPAWN TOWN INVASION (1 max)
+        // ============================================
+        if (_maxInvasions > 0) then {
+            A3XAI_spawnInProgress = true;
+            A3XAI_spawnLockTime = time;
+
+            private _difficulty = selectRandom ["medium", "hard", "extreme"];
+
+            private _basePos = if (count _players > 0) then {
+                position (selectRandom _players)
+            } else {
+                [] call A3XAI_fnc_getMapCenter
+            };
+
+            private _distance = 2000 + random 1500;
+            private _dir = random 360;
+            private _invasionPos = _basePos getPos [_distance, _dir];
+
+            private _result = [A3XAI_fnc_spawnMission, ["invasion", _invasionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
+
+            A3XAI_spawnInProgress = false;
+
+            if (!isNil "_result" && {count _result > 0}) then {
+                _spawnIndex = _spawnIndex + 1;
+                _invasionsSpawned = _invasionsSpawned + 1;
+                [3, format ["[STAGGER %1] Spawned town invasion (%2)", _spawnIndex, _difficulty]] call A3XAI_fnc_log;
+            } else {
+                [2, "[STAGGER] Failed to spawn town invasion"] call A3XAI_fnc_log;
+            };
         };
 
         _missionsInitialized = true;
         _lastMissionCheck = time;
-        [3, format ["=== INITIAL SPAWN COMPLETE: %1 missions active ===", count A3XAI_activeMissions]] call A3XAI_fnc_log;
-
-        // Spawn initial highway patrols
-        [3, "=== SPAWNING INITIAL HIGHWAY PATROLS ==="] call A3XAI_fnc_log;
-        private _initialPatrols = 2;  // Start with 2 highway patrols
-        for "_p" from 1 to _initialPatrols do {
-            private _difficulty = selectRandom ["easy", "medium"];
-            private _result = [A3XAI_fnc_highwayPatrol, [[], _difficulty], "highwayPatrol"] call A3XAI_fnc_safeCall;
-
-            if (!isNil "_result" && {count _result > 0}) then {
-                _highwayPatrolsSpawned = _highwayPatrolsSpawned + 1;
-                private _route = _result getOrDefault ["route", ["unknown", "unknown"]];
-                [3, format ["[%1/%2] Highway patrol: %3-%4 (%5)",
-                    _p, _initialPatrols, _route select 0, _route select 1, _difficulty]] call A3XAI_fnc_log;
-            };
-            sleep 2;
-        };
-        _lastHighwayPatrol = time;
-        [3, format ["=== HIGHWAY PATROLS ACTIVE: %1 ===", _highwayPatrolsSpawned]] call A3XAI_fnc_log;
-
-        // Spawn initial DyCE convoy (just 1 to start)
-        if (!isNil "DyCE_Initialized" && {DyCE_Initialized}) then {
-            [3, "=== SPAWNING INITIAL DyCE CONVOY ==="] call A3XAI_fnc_log;
-
-            // Spawn just 1 convoy at startup
-            private _result = [A3XAI_fnc_DyCE_spawn, ["armedConvoy", []], "DyCE_spawn"] call A3XAI_fnc_safeCall;
-            if (!isNil "_result" && {count _result > 0}) then {
-                [3, "[DyCE] Initial armedConvoy spawned"] call A3XAI_fnc_log;
-            };
-
-            _lastDyceCheck = time;
-            [3, format ["=== DyCE CONVOYS ACTIVE: 1/%1 ===", _maxDyceConvoys]] call A3XAI_fnc_log;
-        };
-
         _dyceInitialized = true;
+        _lastHighwayPatrol = time;
+
+        [3, format ["=== STAGGERED SPAWN COMPLETE: %1 missions, %2 convoys active ===",
+            count (A3XAI_activeMissions select {!(_x getOrDefault ["dyce", false])}),
+            count (A3XAI_activeMissions select {_x getOrDefault ["dyce", false]})]] call A3XAI_fnc_log;
     };
 
     // Spawn initial roaming infantry patrols in towns/villages (2 groups of 4)
@@ -749,23 +797,37 @@ while {A3XAI_enabled} do {
     };
 
     // SCHEDULED MISSION CHECK: Replace completed missions
-    // ✅ v3.15: Uses spawn lock to prevent race conditions
+    // v3.17: Respects invasion limit and uses staggered spawning
     if ((time - _lastMissionCheck) >= _missionCheckInterval) then {
-        private _activeMissions = count A3XAI_activeMissions;
-        private _missionsNeeded = _maxConcurrentMissions - _activeMissions;
+        // Count active missions (non-convoy, non-invasion)
+        private _activeMissions = A3XAI_activeMissions select {
+            !(_x getOrDefault ["dyce", false]) && (_x getOrDefault ["type", ""]) != "invasion"
+        };
+        // Count active invasions separately
+        private _activeInvasions = A3XAI_activeMissions select {
+            (_x getOrDefault ["type", ""]) == "invasion"
+        };
 
-        if (_missionsNeeded > 0) then {
-            [3, format ["Mission check: %1 active, spawning %2 replacement(s)", _activeMissions, _missionsNeeded]] call A3XAI_fnc_log;
+        private _missionsNeeded = _maxConcurrentMissions - (count _activeMissions);
+        private _invasionsNeeded = _maxInvasions - (count _activeInvasions);
 
-            for "_m" from 1 to _missionsNeeded do {
-                // ✅ v3.15: Set spawn lock to prevent other spawns during mission creation
+        [4, format ["Mission check: %1 missions, %2 invasions active", count _activeMissions, count _activeInvasions]] call A3XAI_fnc_log;
+
+        if (_missionsNeeded > 0 || _invasionsNeeded > 0) then {
+            [3, format ["Spawning replacements: %1 mission(s), %2 invasion(s)", _missionsNeeded max 0, _invasionsNeeded max 0]] call A3XAI_fnc_log;
+
+            // Replace regular missions first
+            for "_m" from 1 to (_missionsNeeded max 0) do {
                 A3XAI_spawnInProgress = true;
                 A3XAI_spawnLockTime = time;
 
+                // Select non-invasion mission type
                 private _missionType = [] call A3XAI_fnc_selectMission;
+                if (_missionType == "invasion") then {
+                    _missionType = selectRandom ["convoy", "crash", "camp", "hunter", "cache", "outpost", "supplyDrop"];
+                };
                 private _difficulty = selectRandom ["medium", "hard", "extreme"];
 
-                // Find suitable location away from players
                 private _player = selectRandom _players;
                 if (!isNull _player) then {
                     private _distance = 1500 + random 1500;
@@ -775,18 +837,40 @@ while {A3XAI_enabled} do {
                     private _result = [A3XAI_fnc_spawnMission, [_missionType, _missionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
 
                     if (!isNil "_result" && {count _result > 0}) then {
-                        [3, format ["Replacement mission: %1 (%2)", _missionType, _difficulty]] call A3XAI_fnc_log;
+                        [3, format ["[STAGGER] Replacement mission: %1 (%2)", _missionType, _difficulty]] call A3XAI_fnc_log;
                     };
                 };
 
-                // ✅ v3.15: Clear spawn lock after mission creation
                 A3XAI_spawnInProgress = false;
 
-                // ✅ v3.15: Increased from 1s to 5s to allow group creation to settle
-                sleep 5;
+                // v3.17: Staggered delay between spawns
+                sleep _staggerDelay;
+            };
+
+            // Replace invasion if needed
+            if (_invasionsNeeded > 0) then {
+                A3XAI_spawnInProgress = true;
+                A3XAI_spawnLockTime = time;
+
+                private _difficulty = selectRandom ["medium", "hard", "extreme"];
+
+                private _player = selectRandom _players;
+                if (!isNull _player) then {
+                    private _distance = 2000 + random 1500;
+                    private _dir = random 360;
+                    private _invasionPos = (position _player) getPos [_distance, _dir];
+
+                    private _result = [A3XAI_fnc_spawnMission, ["invasion", _invasionPos, _difficulty], "spawnMission"] call A3XAI_fnc_safeCall;
+
+                    if (!isNil "_result" && {count _result > 0}) then {
+                        [3, format ["[STAGGER] Replacement invasion: (%1)", _difficulty]] call A3XAI_fnc_log;
+                    };
+                };
+
+                A3XAI_spawnInProgress = false;
             };
         } else {
-            [4, format ["Mission check: All %1 missions active, no replacements needed", _activeMissions]] call A3XAI_fnc_log;
+            [4, format ["Mission check: All slots filled (%1 missions, %2 invasions)", count _activeMissions, count _activeInvasions]] call A3XAI_fnc_log;
         };
 
         _lastMissionCheck = time;

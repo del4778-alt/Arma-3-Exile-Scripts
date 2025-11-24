@@ -160,26 +160,45 @@ _unit addEventHandler ["Killed", {
     };
 }];
 
-// ✅ v3.9: HandleDamage - Log all damage sources to diagnose quick deaths
-// ✅ v3.19: FRIENDLY FIRE PROTECTION - A3XAI units don't damage other A3XAI units
+// ✅ v3.21: ROBUST FRIENDLY FIRE PROTECTION
+// Fixed: HandleDamage returning 0 wasn't preventing death in all cases
+// Now explicitly resets damage and uses current damage return pattern
 _unit addEventHandler ["HandleDamage", {
     params ["_unit", "_selection", "_damage", "_source", "_projectile", "_hitIndex", "_instigator", "_hitPoint"];
 
-    // ✅ v3.19: FRIENDLY FIRE CHECK - Block damage from other A3XAI/DyCE units
-    // This prevents issues when groups accidentally spawn on wrong side due to 144 group limit
+    // Get current damage for this hit point (we'll return this to block damage)
+    private _currentDamage = if (_selection == "") then {
+        damage _unit
+    } else {
+        _unit getHitPointDamage _hitPoint
+    };
+
+    // ✅ v3.21: FRIENDLY FIRE CHECK - Block damage from other A3XAI/DyCE units
+    // Check source unit
     private _sourceIsA3XAI = false;
     if (!isNull _source) then {
         _sourceIsA3XAI = (_source getVariable ["A3XAI_unit", false]) ||
                          (_source getVariable ["DyCE_unit", false]) ||
                          (_source getVariable ["A3XAI_spawned", false]);
     };
+    // Check instigator (actual shooter, important for vehicle/turret damage)
     if (!isNull _instigator && !_sourceIsA3XAI) then {
         _sourceIsA3XAI = (_instigator getVariable ["A3XAI_unit", false]) ||
                          (_instigator getVariable ["DyCE_unit", false]) ||
                          (_instigator getVariable ["A3XAI_spawned", false]);
     };
 
-    // If source is also A3XAI - block the damage (friendly fire)
+    // ✅ v3.21: Also check if source is same side as target (catches wrong-side spawns)
+    if (!_sourceIsA3XAI && !isNull _source) then {
+        private _sourceSide = side group _source;
+        private _targetSide = side group _unit;
+        // If both are EAST (normal A3XAI) or both have same group side, block FF
+        if (_sourceSide == _targetSide && _sourceSide != CIVILIAN) then {
+            _sourceIsA3XAI = true;
+        };
+    };
+
+    // If source is also A3XAI - BLOCK the damage completely
     if (_sourceIsA3XAI) exitWith {
         // Log friendly fire attempts (only first 30 seconds for debugging)
         private _spawnTime = _unit getVariable ["A3XAI_spawnTime", 0];
@@ -188,7 +207,16 @@ _unit addEventHandler ["HandleDamage", {
             private _srcType = if (!isNull _instigator) then {typeOf _instigator} else {typeOf _source};
             diag_log format ["[A3XAI:FF] BLOCKED friendly fire! Source: %1 -> Target at %2", _srcType, getPosATL _unit];
         };
-        0  // Return 0 damage - block friendly fire completely
+
+        // ✅ v3.21: CRITICAL FIX - Explicitly reset damage to prevent accumulation
+        // This is necessary because just returning 0 doesn't always prevent death
+        if (_selection == "") then {
+            _unit setDamage (damage _unit);  // Reset overall damage to current
+        };
+
+        // Return CURRENT damage (not 0) to prevent damage change
+        // In Arma 3, returning the current damage value = "no change"
+        _currentDamage
     };
 
     // Only log significant damage (> 0.1)
@@ -196,7 +224,7 @@ _unit addEventHandler ["HandleDamage", {
         private _spawnTime = _unit getVariable ["A3XAI_spawnTime", 0];
         private _aliveTime = time - _spawnTime;
         private _sourceType = if (isNull _source) then {"NULL/Environment"} else {typeOf _source};
-        private _sourceSide = if (isNull _source) then {"NONE"} else {str (side _source)};
+        private _sourceSide = if (isNull _source) then {"NONE"} else {str (side group _source)};
 
         // Log damage for early deaths (within first 30 seconds)
         if (_aliveTime < 30) then {
@@ -211,7 +239,7 @@ _unit addEventHandler ["HandleDamage", {
         };
     };
 
-    // Return original damage (don't modify)
+    // Return original damage (allow non-FF damage)
     _damage
 }];
 

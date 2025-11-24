@@ -44,6 +44,18 @@ _unit enableAI "FSM";           // Enable FSM behavior
 _unit enableAI "PATH";          // Enable pathfinding
 _unit enableAI "ANIM";          // Enable animations
 
+// ✅ v3.21: Prevent AI from targeting other A3XAI units
+// This is critical when groups spawn on wrong side due to 144 limit
+// Loop through all existing A3XAI units and make them friendly
+{
+    if (_x != _unit && {_x getVariable ["A3XAI_unit", false]}) then {
+        // Both units ignore each other - prevents targeting
+        _unit addRating 10000;  // Ensure high rating (friendly)
+        _x reveal [_unit, 0];   // Make unit unknown to existing AI
+        _unit reveal [_x, 0];   // Make existing AI unknown to this unit
+    };
+} forEach allUnits;
+
 // ✅ FIX: Add critical AI behavior settings (from DMS)
 _unit allowFleeing 0;  // Never flee
 _unit enableGunLights "forceOn";  // Gun lights for night combat

@@ -65,7 +65,7 @@ for "_i" from 0 to (_unitCount - 1) do {
     [_unit] call A3XAI_fnc_addAIEventHandlers;
 };
 
-// ✅ VERIFICATION: Check if units actually spawned in EAST group
+// ✅ v3.21: VERIFICATION AND MARKING - Always mark units, even if wrong side
 // NOTE: Use "side group _unit" not "side _unit" as unit config side can differ from group side
 private _units = units _group;
 if (count _units > 0) then {
@@ -74,15 +74,26 @@ if (count _units > 0) then {
     private _unitGroupSide = side group _firstUnit;     // Actual group side (what matters)
 
     if (_unitGroupSide != EAST) then {
-        [1, format ["WARNING: Units spawned as %1 instead of EAST! Group was %2", _unitGroupSide, _groupSide]] call A3XAI_fnc_log;
+        [1, format ["WARNING: Units spawned as %1 instead of EAST! Group was %2 - FF protection still applied", _unitGroupSide, _groupSide]] call A3XAI_fnc_log;
         [1, format ["Unit classname: %1, Group: %2", typeOf _firstUnit, _group]] call A3XAI_fnc_log;
-    } else {
-        // Unit is in correct EAST group - mark as A3XAI unit
-        {
-            _x setVariable ["A3XAI_unit", true, true];
-            _x setVariable ["A3XAI_spawned", true, true];
-        } forEach _units;
     };
+
+    // ✅ v3.21: ALWAYS mark units as A3XAI regardless of side
+    // This ensures FF protection works even when groups spawn on wrong side due to 144 limit
+    {
+        _x setVariable ["A3XAI_unit", true, true];
+        _x setVariable ["A3XAI_spawned", true, true];
+
+        // ✅ v3.21: Prevent AI from targeting other A3XAI units
+        // This stops AI shooting each other before HandleDamage can block it
+        _x addEventHandler ["FiredNear", {
+            params ["_unit", "_firer", "_distance", "_weapon", "_muzzle", "_mode", "_ammo", "_gunner"];
+            // If firer is also A3XAI, ignore them (don't react/shoot back)
+            if (!isNull _firer && {_firer getVariable ["A3XAI_unit", false]}) then {
+                _unit doWatch objNull;  // Stop watching friendly
+            };
+        }];
+    } forEach _units;
 };
 
 // Set group behavior

@@ -80,20 +80,11 @@ class CfgRemoteExec
         mode = 1;
         jip = 0;
 
-        // ======================================
-        // CORE FUNCTIONS (Required for scripts)
-        // ======================================
-        class call { allowedTargets = 3; jip = 0; };   // 3 = Both server and clients
-        class spawn { allowedTargets = 3; jip = 0; };  // 3 = Both server and clients
-
         class ExileServer_system_network_dispatchIncomingMessage
         {
             allowedTargets = 2;
         };
 
-        // Ravage Mod Support
-        class setIdentity { allowedTargets = 0; jip = 0; };
-        class say3d { allowedTargets = 0; jip = 0; };
         // Add any other custom functions here...
     };
 
@@ -101,6 +92,12 @@ class CfgRemoteExec
     {
         mode = 1;  // Whitelist mode (only listed commands allowed)
         jip = 0;
+
+        // ======================================
+        // CORE SCRIPTING COMMANDS
+        // ======================================
+        class call { allowedTargets = 0; };
+        class spawn { allowedTargets = 0; };
 
         // ======================================
         // MISSION SYSTEM COMMANDS (Required for Dynamic Missions)
